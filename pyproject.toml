@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rwif-builder"
+version = "0.1.0"
+description = "Build portable RWIF semantic-memory artifacts from local content"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "MoTechnicalities" }]
+dependencies = [
+  "numpy>=1.26",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+rwif = "rwif_builder.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

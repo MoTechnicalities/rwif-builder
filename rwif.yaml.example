@@ -1,0 +1,27 @@
+project: example-docs
+version: 0.1.0
+
+sources:
+  - path: ./docs
+    include:
+      - "**/*.md"
+      - "**/*.txt"
+
+chunking:
+  strategy: markdown_sections
+  max_tokens: 400
+  overlap_tokens: 40
+
+embedding:
+  provider: hashing
+  model: rwif-hash-v1
+  vector_length: 256
+
+top_k_waves: 96
+
+output:
+  path: ./dist/example-docs.rwif
+
+metadata:
+  domain: documentation
+  language: en

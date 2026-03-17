@@ -35,6 +35,7 @@ def inspect_artifact(path: str | Path) -> dict[str, Any]:
         "vector_length": manifest.get("vector_length"),
         "embedding": manifest.get("embedding", {}),
         "chunking": manifest.get("chunking", {}),
+        "manifest_sources": manifest.get("sources", []),
         "sample_titles": sample_titles,
         "sample_sources": sample_sources,
     }

@@ -34,9 +34,13 @@ Current implementation: summary metrics alias over the inspection surface.
 
 Compares two artifacts and reports source, metadata, and content deltas.
 
+Current implementation: compares manifest-level source additions, removals, changes, vector-length shifts, and pipeline-config changes.
+
 ### `rwif patch`
 
 Plans or executes an incremental rebuild based on changed inputs.
+
+Current implementation: detects source-level and pipeline-level changes against a base artifact manifest, then either copies the base artifact when nothing changed or performs a deterministic rebuild.
 
 ## Output Rules
 

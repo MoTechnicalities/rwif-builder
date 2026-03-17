@@ -38,6 +38,7 @@ Version `0.1.0` is aimed at these workflows:
 - validate store structure and metadata
 - inspect summary stats and record samples
 - compare two artifacts with a human-readable diff
+- rebuild deterministically from a base artifact with `patch`
 
 Deferred until later:
 
@@ -71,7 +72,7 @@ rwif diff
 rwif patch
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, and `stats` for Markdown and text corpora. `diff` and `patch` remain planned surfaces.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, and `patch` for Markdown and text corpora.
 
 ## Configuration
 
@@ -84,8 +85,6 @@ version: 0.1.0
 sources:
   - path: ./docs
     include: ["**/*.md", "**/*.txt"]
-  - path: ./data/faq.jsonl
-    type: jsonl
 
 chunking:
   strategy: markdown_sections
@@ -109,6 +108,8 @@ metadata:
 
 See [docs/MVP.md](docs/MVP.md) for the scope contract and [docs/RWIF_DEEP_DIVE.md](docs/RWIF_DEEP_DIVE.md) for the storage-model documentation.
 
+See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and transformer activation paths.
+
 ## On-Disk Contract
 
 The builder writes a real RWIF semantic-memory artifact, not a sidecar export format.
@@ -120,6 +121,26 @@ The builder writes a real RWIF semantic-memory artifact, not a sidecar export fo
 - builder manifest stored in `rwif_builder_manifest`
 
 That keeps artifacts compatible with the server while letting the builder own reproducibility and provenance metadata.
+
+## Transformer Path
+
+The default builder experience uses the deterministic hashing backend so anyone can build a valid RWIF artifact immediately.
+
+For public users who want a more faithful transformer activation path before DCT packing, install the optional dependencies:
+
+```bash
+pip install -e .[transformers]
+```
+
+Then switch the config to a transformer-backed model:
+
+```yaml
+embedding:
+  provider: transformers
+  model: sentence-transformers/all-MiniLM-L6-v2
+  pooling: mean
+  max_length: 256
+```
 
 ## Relationship To The Server Repo
 
@@ -134,3 +155,9 @@ That split keeps runtime concerns separate from authoring and keeps the storage 
 2. Add deterministic manifest generation and artifact diffs.
 3. Add incremental patch planning from source-hash changes.
 4. Expand format docs with concrete binary-layout and indexing notes.
+
+## Release Ops
+
+- [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
+- [TAG_PREPARATION.md](TAG_PREPARATION.md)
+- [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)

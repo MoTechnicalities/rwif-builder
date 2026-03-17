@@ -8,7 +8,9 @@ from typing import Any
 
 from . import __version__
 from .config.loader import load_config
+from .diffing import diff_artifacts
 from .inspect.summary import inspect_artifact
+from .patching import patch_artifact
 from .pipeline import build_artifact
 from .validator.structure import validate_artifact
 
@@ -109,27 +111,13 @@ def handle_stats(args: argparse.Namespace) -> int:
 
 
 def handle_diff(args: argparse.Namespace) -> int:
-    payload = {
-        "status": "scaffolded",
-        "command": "diff",
-        "left": args.left,
-        "right": args.right,
-        "note": "Artifact diffing is planned but not implemented yet.",
-    }
+    payload = diff_artifacts(args.left, args.right)
     return _print_payload(payload, args.json)
 
 
 def handle_patch(args: argparse.Namespace) -> int:
     config = load_config(Path(args.config))
-    output_path = args.output or config.output.path
-    payload = {
-        "status": "scaffolded",
-        "command": "patch",
-        "project": config.project,
-        "base": args.base,
-        "output": output_path,
-        "note": "Incremental rebuild planning is reserved for the next implementation pass.",
-    }
+    payload = patch_artifact(config, base=args.base, output_override=args.output)
     return _print_payload(payload, args.json)
 
 

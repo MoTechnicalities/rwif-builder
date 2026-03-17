@@ -1,0 +1,28 @@
+project: transformer-docs
+version: 0.1.0
+
+sources:
+  - path: ./docs
+    include:
+      - "**/*.md"
+      - "**/*.txt"
+
+chunking:
+  strategy: markdown_sections
+  max_tokens: 400
+  overlap_tokens: 40
+
+embedding:
+  provider: transformers
+  model: sentence-transformers/all-MiniLM-L6-v2
+  pooling: mean
+  max_length: 256
+
+top_k_waves: 96
+
+output:
+  path: ./dist/transformer-docs.rwif
+
+metadata:
+  domain: documentation
+  language: en

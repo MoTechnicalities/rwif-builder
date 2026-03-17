@@ -17,6 +17,12 @@ dependencies = [
 [project.scripts]
 rwif = "rwif_builder.cli:main"
 
+[project.optional-dependencies]
+transformers = [
+  "torch>=2.2",
+  "transformers>=4.39",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

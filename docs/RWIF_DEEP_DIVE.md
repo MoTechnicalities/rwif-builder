@@ -40,7 +40,7 @@ In code terms, the core representation is a list of frequency-amplitude pairs.
 If the dense activation is a vector $x \in \mathbb{R}^n$ and the background estimate is $b$, RWIF stores a sparse approximation of:
 
 $$
-c = \operatorname{DCT}(x - b)
+c = \mathrm{DCT}(x - b)
 $$
 
 Instead of keeping all $n$ coefficients, the builder keeps only the top $k$ coefficients by magnitude, where $k$ is typically much smaller than $n$.

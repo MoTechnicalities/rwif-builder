@@ -30,14 +30,13 @@ It is a build pipeline and inspection toolkit for RWIF artifacts.
 
 Version `0.1.0` is aimed at these workflows:
 
-- ingest local Markdown, text, and directory trees first
-- normalize records into one internal schema
-- chunk content deterministically
-- write a portable `.rwif` artifact
-- emit a reproducible build manifest
-- validate store structure and metadata
-- inspect summary stats and record samples
-- compare two artifacts with a human-readable diff
+---
+
+## Related Project
+
+For RWIF-backed semantic memory server and federated retrieval, see the companion repo:
+
+[Semantic Memory MCP Server](https://github.com/your-org/semantic-memory-mcp-server)
 - rebuild deterministically from a base artifact with `patch`
 
 Deferred until later:

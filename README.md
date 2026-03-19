@@ -2,7 +2,7 @@
 
 Build portable `.rwif` semantic-memory artifacts from local content.
 
-`rwif-builder` is the companion project to the semantic-memory MCP server. The server exposes RWIF-backed stores for retrieval and governed writes. This repo focuses on the authoring side: ingesting source material, normalizing it, chunking it deterministically, and packaging it into validated `.rwif` artifacts that are easy to inspect, diff, and ship.
+`rwif-builder` is the companion project to the semantic-memory MCP server. The server exposes RWIF-backed stores for retrieval and governed writes. RWIF stands for Resonant Wave Information Format. This repo focuses on the authoring side: ingesting source material, normalizing it, chunking it deterministically, and packaging it into validated `.rwif` artifacts that are easy to inspect, diff, and ship.
 
 ## Why This Repo Exists
 

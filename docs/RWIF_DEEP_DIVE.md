@@ -4,6 +4,8 @@
 
 This repository is the forge for Analog Wave Memory.
 
+RWIF stands for Resonant Wave Information Format.
+
 The server repository is the engine: it serves RWIF-backed memory over MCP and routes retrieval.
 This repository is where raw text is transformed into the compact artifact that engine actually runs on.
 

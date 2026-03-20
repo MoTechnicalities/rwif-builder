@@ -195,3 +195,11 @@ Normalization currently:
 - optionally rebuilds a strict artifact from that normalized spec
 - optionally writes a normalization report artifact containing source validation, preserved metadata, normalized-spec validation, normalized content counts, and rebuilt-artifact validation when an output artifact is requested
 - optionally writes an assumptions manifest artifact containing injected defaults, preserved library/state metadata fields, and source, normalized-spec, or rebuilt-artifact warnings in a smaller machine-readable document
+
+For migration work across a collection of files, the reference CLI also supports batching the same normalization flow:
+
+```bash
+rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --json
+```
+
+Batch normalization keeps the single-artifact normalization semantics, but writes outputs into predictable directories and returns an aggregated machine-readable summary that includes per-artifact payloads and collection-level counts.

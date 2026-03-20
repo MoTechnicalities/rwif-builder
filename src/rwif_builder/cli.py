@@ -7,6 +7,7 @@ from shutil import copyfile
 from typing import Any
 
 from .arwif.build import build_arwif_artifact
+from .arwif.batch import batch_normalize_arwif_artifacts
 from .arwif.diff import diff_arwif_artifacts
 from .arwif.export import export_arwif_artifact
 from .arwif.importing import import_arwif_artifact
@@ -107,6 +108,22 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
     arwif_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_normalize_parser.set_defaults(handler=handle_arwif_normalize)
+
+    arwif_batch_normalize_parser = subparsers.add_parser(
+        "arwif-batch-normalize",
+        help="Normalize multiple ARWIF artifacts into strict source specs and optional auxiliary outputs",
+    )
+    arwif_batch_normalize_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_normalize_parser.add_argument("--spec-dir", required=True, help="Destination directory for normalized specs")
+    arwif_batch_normalize_parser.add_argument("--output-dir", help="Optional destination directory for rebuilt strict .arwif artifacts")
+    arwif_batch_normalize_parser.add_argument("--report-dir", help="Optional destination directory for normalization reports")
+    arwif_batch_normalize_parser.add_argument(
+        "--assumptions-dir",
+        help="Optional destination directory for assumptions manifests",
+    )
+    arwif_batch_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
+    arwif_batch_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_normalize_parser.set_defaults(handler=handle_arwif_batch_normalize)
 
     arwif_inspect_parser = subparsers.add_parser("arwif-inspect", help="Inspect an ARWIF audio artifact")
     arwif_inspect_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -301,6 +318,19 @@ def handle_arwif_normalize(args: argparse.Namespace) -> int:
         )
     _print_payload(payload, args.json)
     return 0 if payload.get("output_is_valid", True) else 1
+
+
+def handle_arwif_batch_normalize(args: argparse.Namespace) -> int:
+    payload = batch_normalize_arwif_artifacts(
+        [Path(artifact) for artifact in args.artifacts],
+        Path(args.spec_dir),
+        output_dir=Path(args.output_dir) if args.output_dir else None,
+        report_dir=Path(args.report_dir) if args.report_dir else None,
+        assumptions_dir=Path(args.assumptions_dir) if args.assumptions_dir else None,
+        format=args.format,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
 
 
 def handle_arwif_inspect(args: argparse.Namespace) -> int:

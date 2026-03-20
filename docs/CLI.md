@@ -72,6 +72,12 @@ Normalizes a legacy or strict ARWIF artifact into a strict ARWIF `v0.1` source s
 
 Current implementation: loads the source artifact in legacy-compatible mode, injects strict defaults for missing playback metadata, preserves non-reserved metadata, writes a strict YAML or JSON spec, can rebuild a strict artifact from that normalized spec, can emit a separate normalization report in JSON or YAML based on the `--report` file suffix, and can emit a smaller assumptions manifest based on the `--assumptions` file suffix for automation that only needs normalization decisions and warnings.
 
+### `rwif arwif-batch-normalize`
+
+Normalizes multiple legacy or strict ARWIF artifacts into strict ARWIF `v0.1` source specs and optional auxiliary outputs.
+
+Current implementation: accepts one or more artifact paths, writes normalized specs into `--spec-dir`, can optionally rebuild strict artifacts into `--output-dir`, can emit JSON normalization reports into `--report-dir`, can emit JSON assumptions manifests into `--assumptions-dir`, and returns an aggregated result payload with per-artifact outcomes plus collection-level counts.
+
 ### `rwif arwif-inspect`
 
 Summarizes an ARWIF artifact in ARWIF-native terms.

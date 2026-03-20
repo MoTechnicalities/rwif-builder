@@ -35,6 +35,12 @@ The optional normalization report captures the legacy-validation result, injecte
 
 The optional assumptions manifest captures the narrower migration contract: which defaults were injected, which library and state metadata fields were preserved, and which warnings still surfaced from the source artifact, normalized spec, or rebuilt artifact.
 
+To run the same migration flow across multiple artifacts, use the batch command and collect outputs into directories:
+
+```bash
+rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --json
+```
+
 Import the exported spec again:
 
 ```bash

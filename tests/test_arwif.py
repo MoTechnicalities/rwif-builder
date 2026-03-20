@@ -503,6 +503,109 @@ states:
             validate_payload = self._run_json(repo_root, "arwif-validate", str(normalized_artifact_path), "--json")
             self.assertTrue(validate_payload["is_valid"], validate_payload)
 
+    def test_arwif_batch_normalize_legacy_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_artifact_path = tmp_dir / "alpha.arwif"
+            second_artifact_path = tmp_dir / "beta.arwif"
+            spec_dir = tmp_dir / "specs"
+            output_dir = tmp_dir / "artifacts"
+            report_dir = tmp_dir / "reports"
+            assumptions_dir = tmp_dir / "assumptions"
+
+            save_wave_library(
+                first_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=384,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.8), AtomicWaveUnit(392, 0.8)),
+                            label="alpha",
+                            metadata={"note": "first"},
+                        ),
+                    ),
+                    metadata={"title": "Alpha triad", "prototype_source": "batch-a"},
+                ),
+            )
+
+            save_wave_library(
+                second_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(440, 0.7), AtomicWaveUnit(550, 0.5)),
+                            label="beta",
+                            metadata={"note": "second"},
+                        ),
+                    ),
+                    metadata={"title": "Beta dyad", "prototype_source": "batch-b"},
+                ),
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-normalize",
+                str(first_artifact_path),
+                str(second_artifact_path),
+                "--spec-dir",
+                str(spec_dir),
+                "--output-dir",
+                str(output_dir),
+                "--report-dir",
+                str(report_dir),
+                "--assumptions-dir",
+                str(assumptions_dir),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["artifacts_processed"], 2)
+            self.assertEqual(batch_payload["normalized_count"], 2)
+            self.assertEqual(batch_payload["failed_count"], 0)
+            self.assertEqual(batch_payload["format"], "yaml")
+            self.assertEqual(batch_payload["spec_dir"], str(spec_dir))
+            self.assertEqual(batch_payload["output_dir"], str(output_dir))
+            self.assertEqual(batch_payload["report_dir"], str(report_dir))
+            self.assertEqual(batch_payload["assumptions_dir"], str(assumptions_dir))
+            self.assertGreater(batch_payload["total_assumption_count"], 0)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            expected_specs = {
+                spec_dir / "alpha.normalized.yaml",
+                spec_dir / "beta.normalized.yaml",
+            }
+            expected_outputs = {
+                output_dir / "alpha.normalized.arwif",
+                output_dir / "beta.normalized.arwif",
+            }
+            expected_reports = {
+                report_dir / "alpha.normalized.report.json",
+                report_dir / "beta.normalized.report.json",
+            }
+            expected_assumptions = {
+                assumptions_dir / "alpha.normalized.assumptions.json",
+                assumptions_dir / "beta.normalized.assumptions.json",
+            }
+
+            for path in expected_specs | expected_outputs | expected_reports | expected_assumptions:
+                self.assertTrue(path.exists(), path)
+
+            normalized_artifacts = {result["artifact"] for result in batch_payload["results"]}
+            self.assertEqual(
+                normalized_artifacts,
+                {str(first_artifact_path), str(second_artifact_path)},
+            )
+
+            for result in batch_payload["results"]:
+                self.assertTrue(result["normalized"], result)
+                self.assertTrue(result["legacy_mode"], result)
+                self.assertTrue(result["output_is_valid"], result)
+                self.assertEqual(result["report_format"], "json")
+                self.assertEqual(result["assumptions_format"], "json")
+                self.assertGreater(result["assumption_count"], 0)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

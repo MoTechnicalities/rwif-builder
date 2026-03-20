@@ -61,6 +61,12 @@ states:
             validate_payload = self._run_json(repo_root, "arwif-validate", str(artifact_path), "--json")
             self.assertTrue(validate_payload["is_valid"], validate_payload)
 
+            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+            self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+            self.assertEqual(inspect_payload["state_count"], 2)
+            self.assertEqual(inspect_payload["oscillator_count"], 3)
+            self.assertEqual(inspect_payload["states"][0]["label"], "intro")
+
             render_payload = self._run_json(repo_root, "arwif-render", str(artifact_path), str(wav_path), "--json")
             self.assertEqual(render_payload["segment_count"], 2)
             self.assertTrue(wav_path.exists())
@@ -105,6 +111,11 @@ states:
             validate_payload = self._run_json(repo_root, "arwif-validate", str(artifact_path), "--json")
             self.assertTrue(validate_payload["is_valid"], validate_payload)
 
+            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+            self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+            self.assertEqual(inspect_payload["state_labels"], ["CEG"])
+            self.assertEqual(inspect_payload["states"][0]["max_frequency_hz"], 392)
+
             render_payload = self._run_json(
                 repo_root,
                 "arwif-render",
@@ -144,9 +155,16 @@ states:
             strict_payload = self._run_json(repo_root, "arwif-validate", str(artifact_path), "--json", allow_failure=True)
             self.assertFalse(strict_payload["is_valid"])
 
+            strict_inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json", allow_failure=True)
+            self.assertFalse(strict_inspect_payload["is_valid"])
+
             legacy_payload = self._run_json(repo_root, "arwif-validate", str(artifact_path), "--legacy", "--json")
             self.assertTrue(legacy_payload["is_valid"], legacy_payload)
             self.assertGreater(len(legacy_payload["warnings"]), 0)
+
+            legacy_inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--legacy", "--json")
+            self.assertTrue(legacy_inspect_payload["is_valid"], legacy_inspect_payload)
+            self.assertTrue(legacy_inspect_payload["legacy_mode"])
 
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(

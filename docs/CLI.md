@@ -48,6 +48,12 @@ Builds an ARWIF artifact from a YAML or JSON oscillator spec.
 
 Current implementation: emits a strict ARWIF `v0.1` artifact, validates the generated file immediately, and returns state-count plus oscillator-count metadata.
 
+### `rwif arwif-inspect`
+
+Summarizes an ARWIF artifact in ARWIF-native terms.
+
+Current implementation: reports playback metadata, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, and sample oscillator entries.
+
 ### `rwif arwif-validate`
 
 Validates an ARWIF audio artifact profile layered on the RWIF container.

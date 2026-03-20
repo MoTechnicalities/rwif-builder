@@ -18,6 +18,12 @@ Build the strict example from source spec:
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 ```
 
+Inspect it semantically:
+
+```bash
+rwif arwif-inspect dist/CEG_v0_1.arwif --json
+```
+
 Then validate it:
 
 Strict validation of the v0.1 example:

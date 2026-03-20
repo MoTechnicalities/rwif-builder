@@ -59,6 +59,7 @@ Current implementation: accepts one or more strict ARWIF source specs, writes ar
 Compares multiple ARWIF artifact pairs.
 
 Current implementation: accepts explicit pairwise `--left` and `--right` artifact collections of equal length, reuses the same comparison path as `arwif-diff`, and returns an aggregated result payload with per-pair diffs plus collection-level counts for changed, unchanged, invalid, incompatible, and changed-state totals.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-render`
 

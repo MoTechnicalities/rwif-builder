@@ -45,7 +45,7 @@ rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_sp
 To diff multiple ARWIF baseline and candidate pairs in one pass:
 
 ```bash
-rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --json
+rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-diff-report.json --json
 ```
 
 To render multiple ARWIF artifacts into WAV outputs in one pass:

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from .build import build_arwif_artifact
 from .diff import diff_arwif_artifacts
@@ -226,6 +229,7 @@ def batch_diff_arwif_artifacts(
     right_artifacts: list[str | Path],
     *,
     allow_legacy: bool = False,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not left_artifacts or not right_artifacts:
         raise ValueError("at least one left and one right artifact must be provided")
@@ -278,7 +282,7 @@ def batch_diff_arwif_artifacts(
         total_changed_states += changed_states
         results.append(payload)
 
-    return {
+    payload = {
         "pairs_compared": len(results),
         "changed_pairs": changed_pairs,
         "unchanged_pairs": unchanged_pairs,
@@ -290,3 +294,29 @@ def batch_diff_arwif_artifacts(
         "total_changed_states": total_changed_states,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch diff output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def _resolve_auxiliary_format(output_path: Path, *, label: str) -> str:
+    suffix = output_path.suffix.lower()
+    if suffix == ".json":
+        return "json"
+    if suffix in {".yaml", ".yml"}:
+        return "yaml"
+    raise ValueError(f"could not infer {label} format from path; use a .json, .yaml, or .yml suffix")
+
+
+def _write_auxiliary_document(output_path: Path, document: dict[str, Any], report_format: str) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if report_format == "json":
+        output_path.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+        return
+    output_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")

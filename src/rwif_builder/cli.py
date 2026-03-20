@@ -166,6 +166,10 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Right-hand .arwif artifact paths matched pairwise with --left",
     )
+    arwif_batch_diff_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated diff report",
+    )
     arwif_batch_diff_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_batch_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_diff_parser.set_defaults(handler=handle_arwif_batch_diff)
@@ -405,6 +409,7 @@ def handle_arwif_batch_diff(args: argparse.Namespace) -> int:
         [Path(artifact) for artifact in args.left],
         [Path(artifact) for artifact in args.right],
         allow_legacy=args.legacy,
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

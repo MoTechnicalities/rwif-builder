@@ -789,6 +789,7 @@ states:
             right_alpha_path = tmp_dir / "right-alpha.arwif"
             left_beta_path = tmp_dir / "left-beta.arwif"
             right_beta_path = tmp_dir / "right-beta.arwif"
+            report_path = tmp_dir / "batch-diff-report.json"
 
             save_wave_library(
                 left_alpha_path,
@@ -893,6 +894,8 @@ states:
                 "--right",
                 str(right_alpha_path),
                 str(right_beta_path),
+                "--output",
+                str(report_path),
                 "--json",
             )
 
@@ -905,6 +908,9 @@ states:
             self.assertEqual(batch_payload["total_metadata_fields_changed"], 3)
             self.assertEqual(batch_payload["total_changed_states"], 1)
             self.assertEqual(len(batch_payload["results"]), 2)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "json")
+            self.assertTrue(report_path.exists())
 
             changed_result = next(result for result in batch_payload["results"] if result["pair_index"] == 0)
             unchanged_result = next(result for result in batch_payload["results"] if result["pair_index"] == 1)
@@ -917,6 +923,12 @@ states:
             self.assertFalse(unchanged_result["pair_changed"], unchanged_result)
             self.assertEqual(unchanged_result["change_summary"]["metadata_fields_changed"], 0)
             self.assertEqual(unchanged_result["change_summary"]["changed_states"], 0)
+
+            report_document = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report_document["pairs_compared"], batch_payload["pairs_compared"])
+            self.assertEqual(report_document["changed_pairs"], batch_payload["changed_pairs"])
+            self.assertEqual(report_document["unchanged_pairs"], batch_payload["unchanged_pairs"])
+            self.assertEqual(len(report_document["results"]), 2)
 
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(

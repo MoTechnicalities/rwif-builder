@@ -42,6 +42,18 @@ Plans or executes an incremental rebuild based on changed inputs.
 
 Current implementation: detects source-level and pipeline-level changes against a base artifact manifest, then either copies the base artifact when nothing changed or performs a deterministic rebuild.
 
+### `rwif arwif-validate`
+
+Validates an ARWIF audio artifact profile layered on the RWIF container.
+
+Current implementation: checks ARWIF metadata, oscillator-bank semantics, Nyquist bounds, and legacy prototype compatibility when `--legacy` is supplied.
+
+### `rwif arwif-render`
+
+Renders an ARWIF artifact to mono 16-bit PCM WAV.
+
+Current implementation: interprets each state as a sequential oscillator-bank segment, applies a simple attack/release envelope, and optionally normalizes the rendered waveform.
+
 ## Output Rules
 
 - human-readable by default

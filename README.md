@@ -70,9 +70,11 @@ rwif inspect
 rwif stats
 rwif diff
 rwif patch
+rwif arwif-validate
+rwif arwif-render
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, and `patch` for Markdown and text corpora.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-validate`, and `arwif-render`.
 
 ## Configuration
 
@@ -109,6 +111,8 @@ metadata:
 See [docs/MVP.md](docs/MVP.md) for the scope contract and [docs/RWIF_DEEP_DIVE.md](docs/RWIF_DEEP_DIVE.md) for the storage-model documentation.
 
 See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and transformer activation paths.
+
+See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile draft and [docs/ARWIF_CONTAINER_DECISION.md](docs/ARWIF_CONTAINER_DECISION.md) for the container-strategy analysis.
 
 ## On-Disk Contract
 

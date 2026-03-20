@@ -6,6 +6,8 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any
 
+from .arwif.render import render_arwif_to_wav
+from .arwif.validation import validate_arwif_artifact
 from . import __version__
 from .config.loader import load_config
 from .diffing import diff_artifacts
@@ -60,6 +62,22 @@ def build_parser() -> argparse.ArgumentParser:
     patch_parser.add_argument("--output", required=False, help="Override output artifact path")
     patch_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     patch_parser.set_defaults(handler=handle_patch)
+
+    arwif_validate_parser = subparsers.add_parser("arwif-validate", help="Validate an ARWIF audio artifact")
+    arwif_validate_parser.add_argument("artifact", help="Path to .arwif artifact")
+    arwif_validate_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_validate_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_validate_parser.set_defaults(handler=handle_arwif_validate)
+
+    arwif_render_parser = subparsers.add_parser("arwif-render", help="Render an ARWIF artifact to PCM WAV")
+    arwif_render_parser.add_argument("artifact", help="Path to .arwif artifact")
+    arwif_render_parser.add_argument("output", help="Destination .wav path")
+    arwif_render_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_render_parser.add_argument("--sample-rate", type=int, help="Override output sample rate")
+    arwif_render_parser.add_argument("--duration", type=float, help="Override default segment duration in seconds")
+    arwif_render_parser.add_argument("--no-normalize", action="store_true", help="Disable peak normalization")
+    arwif_render_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_render_parser.set_defaults(handler=handle_arwif_render)
 
     return parser
 
@@ -118,6 +136,24 @@ def handle_diff(args: argparse.Namespace) -> int:
 def handle_patch(args: argparse.Namespace) -> int:
     config = load_config(Path(args.config))
     payload = patch_artifact(config, base=args.base, output_override=args.output)
+    return _print_payload(payload, args.json)
+
+
+def handle_arwif_validate(args: argparse.Namespace) -> int:
+    report = validate_arwif_artifact(Path(args.artifact), allow_legacy=args.legacy)
+    _print_payload(report.to_payload(), args.json)
+    return 0 if report.is_valid else 1
+
+
+def handle_arwif_render(args: argparse.Namespace) -> int:
+    payload = render_arwif_to_wav(
+        Path(args.artifact),
+        Path(args.output),
+        allow_legacy=args.legacy,
+        sample_rate_override=args.sample_rate,
+        duration_override=args.duration,
+        normalize_override=False if args.no_normalize else None,
+    )
     return _print_payload(payload, args.json)
 
 

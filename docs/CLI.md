@@ -46,13 +46,19 @@ Current implementation: detects source-level and pipeline-level changes against 
 
 Builds an ARWIF artifact from a YAML or JSON oscillator spec.
 
-Current implementation: emits a strict ARWIF `v0.1` artifact, validates the generated file immediately, and returns state-count plus oscillator-count metadata.
+Current implementation: runs strict ARWIF source-spec validation first, emits a strict ARWIF `v0.1` artifact only when the spec is valid, validates the generated file immediately, and returns both spec-validation and artifact-validation metadata.
+
+### `rwif arwif-validate-spec`
+
+Validates an ARWIF YAML or JSON source spec before build or import.
+
+Current implementation: checks top-level metadata, state-level overrides, oscillator-bank entries, and Nyquist bounds, then returns field-level errors and warnings without writing an artifact.
 
 ### `rwif arwif-import`
 
 Imports an ARWIF YAML or JSON spec into an ARWIF artifact.
 
-Current implementation: wraps the strict ARWIF builder flow with an import-oriented command surface so exported specs can be round-tripped back into artifacts.
+Current implementation: wraps the strict ARWIF builder flow with an import-oriented command surface so exported specs can be round-tripped back into artifacts, reusing the same source-spec validation as `arwif-build`.
 
 ### `rwif arwif-export`
 

@@ -13,6 +13,7 @@ from .arwif.importing import import_arwif_artifact
 from .arwif.inspect import inspect_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
+from .arwif.validation import validate_arwif_spec
 from . import __version__
 from .config.loader import load_config
 from .diffing import diff_artifacts
@@ -74,6 +75,11 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_build_parser.set_defaults(handler=handle_arwif_build)
 
+    arwif_validate_spec_parser = subparsers.add_parser("arwif-validate-spec", help="Validate an ARWIF YAML or JSON source spec")
+    arwif_validate_spec_parser.add_argument("spec", help="Path to an ARWIF source spec")
+    arwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_validate_spec_parser.set_defaults(handler=handle_arwif_validate_spec)
+
     arwif_import_parser = subparsers.add_parser("arwif-import", help="Import an ARWIF YAML or JSON spec into an artifact")
     arwif_import_parser.add_argument("--spec", required=True, help="Path to an ARWIF import spec")
     arwif_import_parser.add_argument("--output", required=True, help="Destination .arwif path")
@@ -129,6 +135,20 @@ def _print_payload(payload: dict[str, Any], as_json: bool) -> int:
     return 0
 
 
+def _print_error_payload(payload: dict[str, Any], as_json: bool) -> int:
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        summary = payload.get("message") or "operation failed"
+        print(summary)
+        for key in ("errors", "warnings"):
+            values = payload.get(key)
+            if isinstance(values, list):
+                for value in values:
+                    print(f"{key[:-1]}: {value}")
+    return 1
+
+
 def handle_init(args: argparse.Namespace) -> int:
     template_name = args.template
     if template_name != "docs":
@@ -178,13 +198,50 @@ def handle_patch(args: argparse.Namespace) -> int:
 
 
 def handle_arwif_build(args: argparse.Namespace) -> int:
-    payload = build_arwif_artifact(Path(args.spec), Path(args.output))
+    try:
+        payload = build_arwif_artifact(Path(args.spec), Path(args.output))
+    except ValueError as exc:
+        spec_report = validate_arwif_spec(Path(args.spec))
+        return _print_error_payload(
+            {
+                "artifact": str(Path(args.output)),
+                "spec": str(Path(args.spec)),
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(spec_report.errors) or [str(exc)],
+                "warnings": list(spec_report.warnings),
+                "stats": dict(spec_report.stats),
+            },
+            args.json,
+        )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
 
 
+def handle_arwif_validate_spec(args: argparse.Namespace) -> int:
+    report = validate_arwif_spec(Path(args.spec))
+    _print_payload(report.to_payload(), args.json)
+    return 0 if report.is_valid else 1
+
+
 def handle_arwif_import(args: argparse.Namespace) -> int:
-    payload = import_arwif_artifact(Path(args.spec), Path(args.output))
+    try:
+        payload = import_arwif_artifact(Path(args.spec), Path(args.output))
+    except ValueError as exc:
+        spec_report = validate_arwif_spec(Path(args.spec))
+        return _print_error_payload(
+            {
+                "artifact": str(Path(args.output)),
+                "spec": str(Path(args.spec)),
+                "imported": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(spec_report.errors) or [str(exc)],
+                "warnings": list(spec_report.warnings),
+                "stats": dict(spec_report.stats),
+            },
+            args.json,
+        )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
 

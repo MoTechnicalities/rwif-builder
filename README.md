@@ -75,11 +75,12 @@ rwif arwif-diff
 rwif arwif-export
 rwif arwif-import
 rwif arwif-inspect
+rwif arwif-validate-spec
 rwif arwif-validate
 rwif arwif-render
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-validate`, and `arwif-render`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-validate-spec`, `arwif-validate`, and `arwif-render`.
 
 ## Configuration
 
@@ -122,6 +123,7 @@ See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile d
 An end-to-end ARWIF authoring path is now available:
 
 ```bash
+rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
 rwif arwif-import --spec dist/CEG_v0_1.export.yaml --output dist/CEG_v0_1.roundtrip.arwif --json
@@ -130,6 +132,8 @@ rwif arwif-diff dist/CEG_v0_1.arwif examples/arwif/CEG_v0_1.arwif --json
 rwif arwif-validate dist/CEG_v0_1.arwif --json
 rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 ```
+
+`rwif arwif-build` and `rwif arwif-import` now run the same strict source-spec validation used by `rwif arwif-validate-spec`, so malformed YAML or JSON specs fail with field-level diagnostics before any artifact is written.
 
 ## On-Disk Contract
 

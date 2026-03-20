@@ -146,8 +146,19 @@ Supported per-state fields:
 Reference command:
 
 ```bash
+rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 ```
+
+The reference tooling validates source specs before build and import. That validation checks:
+
+- required top-level fields and types
+- per-state override types
+- per-oscillator `hz` and `amplitude` values
+- Nyquist compliance against `sample_rate_hz`
+- reserved metadata keys that will be overridden by strict ARWIF library metadata
+
+Invalid specs should fail before any artifact is written.
 
 ## Export And Round Trip
 
@@ -155,6 +166,7 @@ Reference tooling also supports artifact-to-spec export and spec-to-artifact imp
 
 ```bash
 rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
+rwif arwif-validate-spec dist/CEG_v0_1.export.yaml --json
 rwif arwif-import --spec dist/CEG_v0_1.export.yaml --output dist/CEG_v0_1.roundtrip.arwif --json
 rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 ```

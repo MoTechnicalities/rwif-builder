@@ -4,8 +4,6 @@ import math
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from ..writer.rwif_writer import AtomicWaveUnit
 from ..writer.rwif_writer import WaveLibrary
 from ..writer.rwif_writer import WaveState
@@ -19,6 +17,7 @@ from .validation import DEFAULT_DURATION_SECONDS
 from .validation import DEFAULT_RELEASE_MS
 from .validation import DEFAULT_SAMPLE_RATE_HZ
 from .validation import validate_arwif_artifact
+from .validation import validate_arwif_spec
 
 _LIBRARY_OVERRIDE_KEYS = {
     "format",
@@ -69,14 +68,6 @@ def _optional_mapping(value: Any, context: str) -> dict[str, Any]:
     if value is None:
         return {}
     return _require_mapping(value, context)
-
-
-def _load_spec(spec_path: Path) -> dict[str, Any]:
-    with spec_path.open("r", encoding="utf-8") as handle:
-        document = yaml.safe_load(handle)
-    if document is None:
-        raise ValueError("ARWIF spec file is empty")
-    return _require_mapping(document, "ARWIF spec")
 
 
 def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
@@ -198,7 +189,11 @@ def _build_state(state_document: dict[str, Any], index: int) -> WaveState:
 def build_arwif_artifact(spec: str | Path, output: str | Path) -> dict[str, Any]:
     spec_path = Path(spec)
     output_path = Path(output)
-    document = _load_spec(spec_path)
+    spec_report = validate_arwif_spec(spec_path)
+    if not spec_report.is_valid or spec_report.normalized_document is None:
+        raise ValueError("; ".join(spec_report.errors) or "ARWIF spec validation failed")
+
+    document = spec_report.normalized_document
     states_document = _require_sequence(document.get("states"), "states")
     if not states_document:
         raise ValueError("states must contain at least one state")
@@ -214,6 +209,10 @@ def build_arwif_artifact(spec: str | Path, output: str | Path) -> dict[str, Any]
         "spec": str(spec_path),
         "state_count": len(states),
         "oscillator_count": oscillator_count,
+        "spec_is_valid": spec_report.is_valid,
+        "spec_validation_errors": list(spec_report.errors),
+        "spec_validation_warnings": list(spec_report.warnings),
+        "spec_validation_stats": dict(spec_report.stats),
         "is_valid": validation_report.is_valid,
         "validation_errors": list(validation_report.errors),
         "validation_warnings": list(validation_report.warnings),

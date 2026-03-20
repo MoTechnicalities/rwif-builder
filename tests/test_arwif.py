@@ -57,8 +57,14 @@ states:
             )
             self.assertTrue(artifact_path.exists())
             self.assertTrue(build_payload["is_valid"], build_payload)
+            self.assertTrue(build_payload["spec_is_valid"], build_payload)
             self.assertEqual(build_payload["state_count"], 2)
             self.assertEqual(build_payload["oscillator_count"], 3)
+
+            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(spec_path), "--json")
+            self.assertTrue(spec_payload["is_valid"], spec_payload)
+            self.assertEqual(spec_payload["stats"]["state_count"], 2)
+            self.assertEqual(spec_payload["stats"]["oscillator_count"], 3)
 
             validate_payload = self._run_json(repo_root, "arwif-validate", str(artifact_path), "--json")
             self.assertTrue(validate_payload["is_valid"], validate_payload)
@@ -118,13 +124,7 @@ states:
             self.assertEqual(inspect_payload["state_labels"], ["CEG"])
             self.assertEqual(inspect_payload["states"][0]["max_frequency_hz"], 392)
 
-            render_payload = self._run_json(
-                repo_root,
-                "arwif-render",
-                str(artifact_path),
-                str(wav_path),
-                "--json",
-            )
+            render_payload = self._run_json(repo_root, "arwif-render", str(artifact_path), str(wav_path), "--json")
             self.assertTrue(wav_path.exists())
             self.assertEqual(render_payload["sample_rate_hz"], 8000)
             self.assertEqual(render_payload["segment_count"], 1)
@@ -240,17 +240,60 @@ states:
             self.assertIn("sample_rate_hz", diff_payload["metadata_changes"])
             self.assertEqual(diff_payload["oscillator_count_delta"], 1)
 
-        def test_arwif_export_import_round_trip(self) -> None:
-                repo_root = Path(__file__).resolve().parents[1]
-                with tempfile.TemporaryDirectory() as tmp_dir_str:
-                        tmp_dir = Path(tmp_dir_str)
-                        source_spec_path = tmp_dir / "source.yaml"
-                        source_artifact_path = tmp_dir / "source.arwif"
-                        exported_spec_path = tmp_dir / "exported.yaml"
-                        imported_artifact_path = tmp_dir / "imported.arwif"
+    def test_arwif_validate_spec_reports_field_errors(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            spec_path = tmp_dir / "invalid.yaml"
+            artifact_path = tmp_dir / "invalid.arwif"
+            spec_path.write_text(
+                """
+title: 123
+sample_rate_hz: 0
+default_duration_seconds: -1
+normalize: maybe
+states:
+  - label: ok
+    oscillators:
+      - hz: 5000
+        amplitude: bad
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
 
-                        source_spec_path.write_text(
-                                """
+            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(spec_path), "--json", allow_failure=True)
+            self.assertFalse(spec_payload["is_valid"])
+            self.assertIn("title must be a string", spec_payload["errors"])
+            self.assertIn("sample_rate_hz must be a positive integer", spec_payload["errors"])
+            self.assertIn("default_duration_seconds must be a positive number", spec_payload["errors"])
+            self.assertIn("normalize must be a boolean", spec_payload["errors"])
+
+            build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(spec_path),
+                "--output",
+                str(artifact_path),
+                "--json",
+                allow_failure=True,
+            )
+            self.assertFalse(build_payload["is_valid"])
+            self.assertFalse(artifact_path.exists())
+            self.assertIn("title must be a string", build_payload["errors"])
+
+    def test_arwif_export_import_round_trip(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            source_spec_path = tmp_dir / "source.yaml"
+            source_artifact_path = tmp_dir / "source.arwif"
+            exported_spec_path = tmp_dir / "exported.yaml"
+            imported_artifact_path = tmp_dir / "imported.arwif"
+
+            source_spec_path.write_text(
+                """
 title: Round trip triad
 description: Export import round trip fixture.
 sample_rate_hz: 12000
@@ -259,79 +302,79 @@ default_attack_ms: 7.0
 default_release_ms: 9.0
 normalize: false
 metadata:
-    fixture: round-trip
+  fixture: round-trip
 states:
-    - label: alpha
-        duration_seconds: 0.5
-        gain: 0.8
-        metadata:
-            note: alpha-state
-        oscillators:
-            - hz: 261
-                amplitude: 0.8
-            - hz: 392
-                amplitude: 0.4
-    - label: beta
-        duration_seconds: 0.25
-        phase_radians: 0.5
-        oscillators:
-            - hz: 523
-                amplitude: 0.2
+  - label: alpha
+    duration_seconds: 0.5
+    gain: 0.8
+    metadata:
+      note: alpha-state
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 392
+        amplitude: 0.4
+  - label: beta
+    duration_seconds: 0.25
+    phase_radians: 0.5
+    oscillators:
+      - hz: 523
+        amplitude: 0.2
 """.strip()
-                                + "\n",
-                                encoding="utf-8",
-                        )
+                + "\n",
+                encoding="utf-8",
+            )
 
-                        build_payload = self._run_json(
-                                repo_root,
-                                "arwif-build",
-                                "--spec",
-                                str(source_spec_path),
-                                "--output",
-                                str(source_artifact_path),
-                                "--json",
-                        )
-                        self.assertTrue(build_payload["is_valid"], build_payload)
+            build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(source_spec_path),
+                "--output",
+                str(source_artifact_path),
+                "--json",
+            )
+            self.assertTrue(build_payload["is_valid"], build_payload)
 
-                        export_payload = self._run_json(
-                                repo_root,
-                                "arwif-export",
-                                str(source_artifact_path),
-                                str(exported_spec_path),
-                                "--json",
-                        )
-                        self.assertTrue(export_payload["is_valid"], export_payload)
-                        self.assertTrue(exported_spec_path.exists())
+            export_payload = self._run_json(
+                repo_root,
+                "arwif-export",
+                str(source_artifact_path),
+                str(exported_spec_path),
+                "--json",
+            )
+            self.assertTrue(export_payload["is_valid"], export_payload)
+            self.assertTrue(exported_spec_path.exists())
 
-                        exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
-                        self.assertEqual(exported_document["title"], "Round trip triad")
-                        self.assertEqual(exported_document["metadata"]["fixture"], "round-trip")
-                        self.assertEqual(exported_document["states"][0]["metadata"]["note"], "alpha-state")
-                        self.assertEqual(exported_document["states"][1]["oscillators"][0]["hz"], 523)
+            exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
+            self.assertEqual(exported_document["title"], "Round trip triad")
+            self.assertEqual(exported_document["metadata"]["fixture"], "round-trip")
+            self.assertEqual(exported_document["states"][0]["metadata"]["note"], "alpha-state")
+            self.assertEqual(exported_document["states"][1]["oscillators"][0]["hz"], 523)
 
-                        import_payload = self._run_json(
-                                repo_root,
-                                "arwif-import",
-                                "--spec",
-                                str(exported_spec_path),
-                                "--output",
-                                str(imported_artifact_path),
-                                "--json",
-                        )
-                        self.assertTrue(import_payload["is_valid"], import_payload)
-                        self.assertTrue(import_payload["imported"])
+            import_payload = self._run_json(
+                repo_root,
+                "arwif-import",
+                "--spec",
+                str(exported_spec_path),
+                "--output",
+                str(imported_artifact_path),
+                "--json",
+            )
+            self.assertTrue(import_payload["is_valid"], import_payload)
+            self.assertTrue(import_payload["imported"])
 
-                        diff_payload = self._run_json(
-                                repo_root,
-                                "arwif-diff",
-                                str(source_artifact_path),
-                                str(imported_artifact_path),
-                                "--json",
-                        )
-                        self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
-                        self.assertEqual(diff_payload["change_summary"]["added_states"], 0)
-                        self.assertEqual(diff_payload["change_summary"]["removed_states"], 0)
-                        self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
+            diff_payload = self._run_json(
+                repo_root,
+                "arwif-diff",
+                str(source_artifact_path),
+                str(imported_artifact_path),
+                "--json",
+            )
+            self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
+            self.assertEqual(diff_payload["change_summary"]["added_states"], 0)
+            self.assertEqual(diff_payload["change_summary"]["removed_states"], 0)
+            self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
 
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(

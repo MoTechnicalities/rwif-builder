@@ -781,6 +781,143 @@ states:
                 self.assertGreater(result["segment_count"], 0)
                 self.assertGreater(result["duration_seconds"], 0.0)
 
+    def test_arwif_batch_diff_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_alpha_path = tmp_dir / "left-alpha.arwif"
+            right_alpha_path = tmp_dir / "right-alpha.arwif"
+            left_beta_path = tmp_dir / "left-beta.arwif"
+            right_beta_path = tmp_dir / "right-beta.arwif"
+
+            save_wave_library(
+                left_alpha_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="alpha",
+                            top_k=2,
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Alpha left",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_alpha_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(392, 0.6)),
+                            label="alpha",
+                            top_k=2,
+                            metadata={"duration_seconds": 0.5},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 12000,
+                        "default_duration_seconds": 0.5,
+                        "title": "Alpha right",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                left_beta_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Beta pair",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_beta_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Beta pair",
+                    },
+                ),
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_alpha_path),
+                str(left_beta_path),
+                "--right",
+                str(right_alpha_path),
+                str(right_beta_path),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["pairs_compared"], 2)
+            self.assertEqual(batch_payload["changed_pairs"], 1)
+            self.assertEqual(batch_payload["unchanged_pairs"], 1)
+            self.assertEqual(batch_payload["invalid_pairs"], 0)
+            self.assertEqual(batch_payload["incompatible_pairs"], 0)
+            self.assertEqual(batch_payload["total_metadata_fields_changed"], 3)
+            self.assertEqual(batch_payload["total_changed_states"], 1)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            changed_result = next(result for result in batch_payload["results"] if result["pair_index"] == 0)
+            unchanged_result = next(result for result in batch_payload["results"] if result["pair_index"] == 1)
+
+            self.assertTrue(changed_result["pair_changed"], changed_result)
+            self.assertEqual(changed_result["change_summary"]["metadata_fields_changed"], 3)
+            self.assertEqual(changed_result["change_summary"]["changed_states"], 1)
+            self.assertIn("alpha", changed_result["changed_states"])
+
+            self.assertFalse(unchanged_result["pair_changed"], unchanged_result)
+            self.assertEqual(unchanged_result["change_summary"]["metadata_fields_changed"], 0)
+            self.assertEqual(unchanged_result["change_summary"]["changed_states"], 0)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

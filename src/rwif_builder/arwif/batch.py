@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .build import build_arwif_artifact
+from .diff import diff_arwif_artifacts
 from .normalize import normalize_arwif_artifact
 from .render import render_arwif_to_wav
 from .validation import validate_arwif_artifact
@@ -216,5 +217,76 @@ def batch_render_arwif_artifacts(
         "is_valid": failed_count == 0 and all(result.get("rendered", False) for result in results),
         "output_dir": str(output_dir_path),
         "total_duration_seconds": total_duration_seconds,
+        "results": results,
+    }
+
+
+def batch_diff_arwif_artifacts(
+    left_artifacts: list[str | Path],
+    right_artifacts: list[str | Path],
+    *,
+    allow_legacy: bool = False,
+) -> dict[str, Any]:
+    if not left_artifacts or not right_artifacts:
+        raise ValueError("at least one left and one right artifact must be provided")
+    if len(left_artifacts) != len(right_artifacts):
+        raise ValueError("left and right artifact collections must have the same length")
+
+    results: list[dict[str, Any]] = []
+    changed_pairs = 0
+    unchanged_pairs = 0
+    invalid_pairs = 0
+    incompatible_pairs = 0
+    total_metadata_fields_changed = 0
+    total_changed_states = 0
+
+    for pair_index, (left_artifact, right_artifact) in enumerate(zip(left_artifacts, right_artifacts, strict=True)):
+        payload = diff_arwif_artifacts(left_artifact, right_artifact, allow_legacy=allow_legacy)
+        payload["pair_index"] = pair_index
+
+        summary = payload.get("change_summary", {})
+        metadata_fields_changed = int(summary.get("metadata_fields_changed", 0))
+        changed_states = int(summary.get("changed_states", 0))
+        added_states = int(summary.get("added_states", 0))
+        removed_states = int(summary.get("removed_states", 0))
+        oscillator_count_delta = int(payload.get("oscillator_count_delta", 0))
+        state_count_delta = int(payload.get("state_count_delta", 0))
+
+        pair_changed = any(
+            (
+                metadata_fields_changed,
+                changed_states,
+                added_states,
+                removed_states,
+                oscillator_count_delta,
+                state_count_delta,
+            )
+        )
+        payload["pair_changed"] = pair_changed
+
+        if pair_changed:
+            changed_pairs += 1
+        else:
+            unchanged_pairs += 1
+
+        if not payload.get("left_valid", False) or not payload.get("right_valid", False):
+            invalid_pairs += 1
+        if not payload.get("compatible_format", False):
+            incompatible_pairs += 1
+
+        total_metadata_fields_changed += metadata_fields_changed
+        total_changed_states += changed_states
+        results.append(payload)
+
+    return {
+        "pairs_compared": len(results),
+        "changed_pairs": changed_pairs,
+        "unchanged_pairs": unchanged_pairs,
+        "invalid_pairs": invalid_pairs,
+        "incompatible_pairs": incompatible_pairs,
+        "is_valid": invalid_pairs == 0,
+        "allow_legacy": allow_legacy,
+        "total_metadata_fields_changed": total_metadata_fields_changed,
+        "total_changed_states": total_changed_states,
         "results": results,
     }

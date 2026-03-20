@@ -149,6 +149,7 @@ Reference command:
 rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 rwif arwif-batch-build first.yaml second.yaml --output-dir dist/built_arwif --json
+rwif arwif-batch-diff --left dist/alpha.baseline.arwif dist/beta.baseline.arwif --right dist/alpha.candidate.arwif dist/beta.candidate.arwif --json
 rwif arwif-batch-render dist/alpha.arwif dist/beta.arwif --output-dir dist/rendered_wav --json
 ```
 
@@ -163,6 +164,8 @@ The reference tooling validates source specs before build and import. That valid
 Invalid specs should fail before any artifact is written.
 
 For collection-scale authoring, the reference CLI also supports building multiple strict specs into one output directory while keeping the same validation semantics as single-spec `arwif-build`.
+
+For collection-scale comparison, the reference CLI also supports diffing multiple explicit left and right artifact pairs in one command while keeping the same state-level and metadata diff semantics as single-artifact `arwif-diff`.
 
 For collection-scale playback export, the reference CLI also supports rendering multiple validated artifacts into one output directory while keeping the same synthesis semantics as single-artifact `arwif-render`.
 

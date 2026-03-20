@@ -42,6 +42,12 @@ To run the same migration flow across multiple artifacts, use the batch command 
 rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --json
 ```
 
+To diff multiple ARWIF baseline and candidate pairs in one pass:
+
+```bash
+rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --json
+```
+
 To render multiple ARWIF artifacts into WAV outputs in one pass:
 
 ```bash

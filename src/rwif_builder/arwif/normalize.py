@@ -51,11 +51,13 @@ def normalize_arwif_artifact(
     spec_output: str | Path,
     *,
     output: str | Path | None = None,
+    report: str | Path | None = None,
     format: str | None = None,
 ) -> dict[str, Any]:
     artifact_path = Path(artifact)
     spec_output_path = Path(spec_output)
     output_path = Path(output) if output is not None else None
+    report_path = Path(report) if report is not None else None
 
     library = load_wave_library(artifact_path)
     source_report = validate_arwif_artifact(artifact_path, allow_legacy=True)
@@ -85,8 +87,19 @@ def normalize_arwif_artifact(
         "normalized_oscillator_count": sum(len(state.units) for state in library.states),
         "injected_defaults": normalization["injected_defaults"],
         "preserved_metadata_keys": normalization["preserved_metadata_keys"],
+        "preserved_state_metadata": normalization["preserved_state_metadata"],
         "normalized": True,
     }
+
+    report_document = _build_normalization_report(
+        artifact_path=artifact_path,
+        spec_output_path=spec_output_path,
+        output_path=output_path,
+        source_report=source_report,
+        spec_report=spec_report,
+        normalization=normalization,
+        states=library.states,
+    )
 
     if output_path is not None:
         import_payload = import_arwif_artifact(spec_output_path, output_path)
@@ -99,6 +112,19 @@ def normalize_arwif_artifact(
                 "output_validation_stats": import_payload["validation_stats"],
             }
         )
+        report_document["rebuilt_artifact_validation"] = {
+            "artifact": str(output_path),
+            "is_valid": import_payload["is_valid"],
+            "errors": list(import_payload["validation_errors"]),
+            "warnings": list(import_payload["validation_warnings"]),
+            "stats": dict(import_payload["validation_stats"]),
+        }
+
+    if report_path is not None:
+        report_format = _resolve_report_format(report_path)
+        _write_report_document(report_path, report_document, report_format)
+        payload["report_output"] = str(report_path)
+        payload["report_format"] = report_format
 
     return payload
 
@@ -117,9 +143,26 @@ def _resolve_export_format(output_path: Path, explicit_format: str | None) -> st
     raise ValueError("could not infer export format from output path; use --format yaml or --format json")
 
 
+def _resolve_report_format(output_path: Path) -> str:
+    suffix = output_path.suffix.lower()
+    if suffix == ".json":
+        return "json"
+    if suffix in {".yaml", ".yml"}:
+        return "yaml"
+    raise ValueError("could not infer report format from report path; use a .json, .yaml, or .yml suffix")
+
+
 def _write_spec_document(output_path: Path, document: dict[str, Any], export_format: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if export_format == "json":
+        output_path.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+        return
+    output_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+
+
+def _write_report_document(output_path: Path, document: dict[str, Any], report_format: str) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if report_format == "json":
         output_path.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n", encoding="utf-8")
         return
     output_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
@@ -182,6 +225,8 @@ def _artifact_to_normalized_spec(library_metadata: dict[str, Any], states: tuple
         if key not in _LIBRARY_SPEC_KEYS and key not in _LIBRARY_INTERNAL_KEYS
     }
 
+    preserved_state_metadata: list[dict[str, Any]] = []
+
     document: dict[str, Any] = {}
     for key in (
         "title",
@@ -199,10 +244,25 @@ def _artifact_to_normalized_spec(library_metadata: dict[str, Any], states: tuple
     if metadata_extras:
         document["metadata"] = metadata_extras
 
-    document["states"] = [_state_to_spec(state) for state in states]
+    document_states: list[dict[str, Any]] = []
+    for index, state in enumerate(states):
+        document_states.append(_state_to_spec(state))
+        state_metadata = dict(state.metadata or {})
+        preserved_extras = {key: value for key, value in state_metadata.items() if key not in _STATE_SPEC_KEYS}
+        preserved_state_metadata.append(
+            {
+                "index": index,
+                "label": state.label,
+                "preserved_metadata_keys": sorted(preserved_extras.keys()),
+                "preserved_metadata": preserved_extras,
+            }
+        )
+    document["states"] = document_states
     return document, {
         "injected_defaults": injected_defaults,
         "preserved_metadata_keys": sorted(metadata_extras.keys()),
+        "preserved_metadata": metadata_extras,
+        "preserved_state_metadata": preserved_state_metadata,
     }
 
 
@@ -231,3 +291,47 @@ def _state_to_spec(state: Any) -> dict[str, Any]:
 
     entry["oscillators"] = [{"hz": unit.frequency_index, "amplitude": unit.amplitude} for unit in state.units]
     return entry
+
+
+def _build_normalization_report(
+    *,
+    artifact_path: Path,
+    spec_output_path: Path,
+    output_path: Path | None,
+    source_report: Any,
+    spec_report: Any,
+    normalization: dict[str, Any],
+    states: tuple[Any, ...],
+) -> dict[str, Any]:
+    return {
+        "report_version": 1,
+        "artifact": str(artifact_path),
+        "normalized_spec_output": str(spec_output_path),
+        "rebuilt_artifact_output": str(output_path) if output_path is not None else None,
+        "source_validation": {
+            "artifact": str(artifact_path),
+            "is_valid": source_report.is_valid,
+            "legacy_mode": source_report.stats.get("legacy_mode", False),
+            "errors": list(source_report.errors),
+            "warnings": list(source_report.warnings),
+            "stats": dict(source_report.stats),
+        },
+        "normalization": {
+            "injected_defaults": list(normalization["injected_defaults"]),
+            "preserved_library_metadata_keys": list(normalization["preserved_metadata_keys"]),
+            "preserved_library_metadata": dict(normalization["preserved_metadata"]),
+            "preserved_state_metadata": list(normalization["preserved_state_metadata"]),
+        },
+        "normalized_spec_validation": {
+            "spec": str(spec_output_path),
+            "is_valid": spec_report.is_valid,
+            "errors": list(spec_report.errors),
+            "warnings": list(spec_report.warnings),
+            "stats": dict(spec_report.stats),
+        },
+        "normalized_content": {
+            "state_count": len(states),
+            "oscillator_count": sum(len(state.units) for state in states),
+            "state_labels": [str(state.label) for state in states if state.label],
+        },
+    }

@@ -124,7 +124,7 @@ See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile d
 An end-to-end ARWIF authoring path is now available:
 
 ```bash
-rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --json
+rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --report dist/CEG_legacy.normalized.report.json --json
 rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
@@ -137,7 +137,7 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 
 `rwif arwif-build` and `rwif arwif-import` now run the same strict source-spec validation used by `rwif arwif-validate-spec`, so malformed YAML or JSON specs fail with field-level diagnostics before any artifact is written.
 
-`rwif arwif-normalize` upgrades legacy or loosely specified ARWIF artifacts into a strict ARWIF `v0.1` source spec and can optionally rebuild a strict artifact from that normalized spec.
+`rwif arwif-normalize` upgrades legacy or loosely specified ARWIF artifacts into a strict ARWIF `v0.1` source spec, can optionally rebuild a strict artifact from that normalized spec, and can emit a machine-readable normalization report as `.json`, `.yaml`, or `.yml` based on the report filename.
 
 ## On-Disk Contract
 

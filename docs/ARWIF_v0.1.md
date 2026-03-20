@@ -182,7 +182,7 @@ Reference tooling may support these files in a legacy-compatibility mode, but th
 The reference normalization path upgrades those artifacts into a strict source spec and optional rebuilt strict artifact:
 
 ```bash
-rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --json
+rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --report dist/CEG_legacy.normalized.report.json --json
 rwif arwif-validate dist/CEG_legacy.normalized.arwif --json
 ```
 
@@ -193,3 +193,4 @@ Normalization currently:
 - preserves non-reserved library metadata and state metadata
 - writes a strict ARWIF `v0.1` source spec that passes `arwif-validate-spec`
 - optionally rebuilds a strict artifact from that normalized spec
+- optionally writes a normalization report artifact containing source validation, preserved metadata, normalized-spec validation, normalized content counts, and rebuilt-artifact validation when an output artifact is requested

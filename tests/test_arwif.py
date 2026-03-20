@@ -383,6 +383,7 @@ states:
             legacy_artifact_path = tmp_dir / "legacy.arwif"
             normalized_spec_path = tmp_dir / "legacy.normalized.yaml"
             normalized_artifact_path = tmp_dir / "legacy.normalized.arwif"
+            report_path = tmp_dir / "legacy.normalized.report.json"
 
             save_wave_library(
                 legacy_artifact_path,
@@ -407,15 +408,20 @@ states:
                 str(normalized_spec_path),
                 "--output",
                 str(normalized_artifact_path),
+                "--report",
+                str(report_path),
                 "--json",
             )
             self.assertTrue(normalize_payload["normalized"], normalize_payload)
             self.assertTrue(normalize_payload["legacy_mode"], normalize_payload)
             self.assertTrue(normalized_spec_path.exists())
             self.assertTrue(normalized_artifact_path.exists())
+            self.assertTrue(report_path.exists())
             self.assertTrue(normalize_payload["output_is_valid"], normalize_payload)
             self.assertIn("sample_rate_hz", normalize_payload["injected_defaults"])
             self.assertIn("default_duration_seconds", normalize_payload["injected_defaults"])
+            self.assertEqual(normalize_payload["report_format"], "json")
+            self.assertEqual(normalize_payload["report_output"], str(report_path))
 
             normalized_document = yaml.safe_load(normalized_spec_path.read_text(encoding="utf-8"))
             self.assertEqual(normalized_document["title"], "Legacy triad")
@@ -423,6 +429,24 @@ states:
             self.assertEqual(normalized_document["default_duration_seconds"], 1.0)
             self.assertEqual(normalized_document["metadata"]["prototype_source"], "pre-spec")
             self.assertEqual(normalized_document["states"][0]["metadata"]["note"], "prototype")
+
+            report_document = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report_document["report_version"], 1)
+            self.assertEqual(report_document["artifact"], str(legacy_artifact_path))
+            self.assertEqual(report_document["normalized_spec_output"], str(normalized_spec_path))
+            self.assertEqual(report_document["rebuilt_artifact_output"], str(normalized_artifact_path))
+            self.assertTrue(report_document["source_validation"]["legacy_mode"])
+            self.assertIn("sample_rate_hz", report_document["normalization"]["injected_defaults"])
+            self.assertEqual(
+                report_document["normalization"]["preserved_library_metadata"]["prototype_source"],
+                "pre-spec",
+            )
+            self.assertEqual(
+                report_document["normalization"]["preserved_state_metadata"][0]["preserved_metadata"]["note"],
+                "prototype",
+            )
+            self.assertTrue(report_document["normalized_spec_validation"]["is_valid"])
+            self.assertTrue(report_document["rebuilt_artifact_validation"]["is_valid"])
 
             spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(normalized_spec_path), "--json")
             self.assertTrue(spec_payload["is_valid"], spec_payload)

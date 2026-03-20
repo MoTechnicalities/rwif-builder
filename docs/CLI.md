@@ -66,6 +66,12 @@ Exports an ARWIF artifact to a YAML or JSON source spec.
 
 Current implementation: writes a strict-spec-compatible document capturing playback metadata, state-level metadata, and oscillator-bank contents so the artifact can be imported again.
 
+### `rwif arwif-normalize`
+
+Normalizes a legacy or strict ARWIF artifact into a strict ARWIF `v0.1` source spec and optional rebuilt artifact.
+
+Current implementation: loads the source artifact in legacy-compatible mode, injects strict defaults for missing playback metadata, preserves non-reserved metadata, writes a strict YAML or JSON spec, and can rebuild a strict artifact from that normalized spec.
+
 ### `rwif arwif-inspect`
 
 Summarizes an ARWIF artifact in ARWIF-native terms.

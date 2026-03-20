@@ -178,3 +178,18 @@ For strict ARWIF `v0.1` artifacts produced by the reference builder, the exporte
 Pre-spec ARWIF prototype files may omit the strict metadata fields while still reusing the `RWIFACT1` envelope and oscillator-bank interpretation.
 
 Reference tooling may support these files in a legacy-compatibility mode, but they should not be considered fully compliant ARWIF `v0.1` artifacts.
+
+The reference normalization path upgrades those artifacts into a strict source spec and optional rebuilt strict artifact:
+
+```bash
+rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --json
+rwif arwif-validate dist/CEG_legacy.normalized.arwif --json
+```
+
+Normalization currently:
+
+- loads the source artifact in legacy-compatible mode
+- injects defaults for missing strict playback metadata fields
+- preserves non-reserved library metadata and state metadata
+- writes a strict ARWIF `v0.1` source spec that passes `arwif-validate-spec`
+- optionally rebuilds a strict artifact from that normalized spec

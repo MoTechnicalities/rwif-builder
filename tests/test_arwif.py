@@ -376,6 +376,60 @@ states:
             self.assertEqual(diff_payload["change_summary"]["removed_states"], 0)
             self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
 
+    def test_arwif_normalize_legacy_artifact(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            legacy_artifact_path = tmp_dir / "legacy.arwif"
+            normalized_spec_path = tmp_dir / "legacy.normalized.yaml"
+            normalized_artifact_path = tmp_dir / "legacy.normalized.arwif"
+
+            save_wave_library(
+                legacy_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=384,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.8), AtomicWaveUnit(392, 0.8)),
+                            label="legacy",
+                            metadata={"note": "prototype"},
+                        ),
+                    ),
+                    metadata={"title": "Legacy triad", "prototype_source": "pre-spec"},
+                ),
+            )
+
+            normalize_payload = self._run_json(
+                repo_root,
+                "arwif-normalize",
+                str(legacy_artifact_path),
+                "--spec",
+                str(normalized_spec_path),
+                "--output",
+                str(normalized_artifact_path),
+                "--json",
+            )
+            self.assertTrue(normalize_payload["normalized"], normalize_payload)
+            self.assertTrue(normalize_payload["legacy_mode"], normalize_payload)
+            self.assertTrue(normalized_spec_path.exists())
+            self.assertTrue(normalized_artifact_path.exists())
+            self.assertTrue(normalize_payload["output_is_valid"], normalize_payload)
+            self.assertIn("sample_rate_hz", normalize_payload["injected_defaults"])
+            self.assertIn("default_duration_seconds", normalize_payload["injected_defaults"])
+
+            normalized_document = yaml.safe_load(normalized_spec_path.read_text(encoding="utf-8"))
+            self.assertEqual(normalized_document["title"], "Legacy triad")
+            self.assertEqual(normalized_document["sample_rate_hz"], 48000)
+            self.assertEqual(normalized_document["default_duration_seconds"], 1.0)
+            self.assertEqual(normalized_document["metadata"]["prototype_source"], "pre-spec")
+            self.assertEqual(normalized_document["states"][0]["metadata"]["note"], "prototype")
+
+            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(normalized_spec_path), "--json")
+            self.assertTrue(spec_payload["is_valid"], spec_payload)
+
+            validate_payload = self._run_json(repo_root, "arwif-validate", str(normalized_artifact_path), "--json")
+            self.assertTrue(validate_payload["is_valid"], validate_payload)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

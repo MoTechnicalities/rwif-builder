@@ -11,6 +11,7 @@ from .arwif.diff import diff_arwif_artifacts
 from .arwif.export import export_arwif_artifact
 from .arwif.importing import import_arwif_artifact
 from .arwif.inspect import inspect_arwif_artifact
+from .arwif.normalize import normalize_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
@@ -93,6 +94,17 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_export_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_export_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_export_parser.set_defaults(handler=handle_arwif_export)
+
+    arwif_normalize_parser = subparsers.add_parser(
+        "arwif-normalize",
+        help="Normalize a legacy or strict ARWIF artifact into a strict source spec and optional rebuilt artifact",
+    )
+    arwif_normalize_parser.add_argument("artifact", help="Path to .arwif artifact")
+    arwif_normalize_parser.add_argument("--spec", required=True, help="Destination .yaml, .yml, or .json spec path")
+    arwif_normalize_parser.add_argument("--output", help="Optional destination for a rebuilt strict .arwif artifact")
+    arwif_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
+    arwif_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_normalize_parser.set_defaults(handler=handle_arwif_normalize)
 
     arwif_inspect_parser = subparsers.add_parser("arwif-inspect", help="Inspect an ARWIF audio artifact")
     arwif_inspect_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -255,6 +267,34 @@ def handle_arwif_export(args: argparse.Namespace) -> int:
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_normalize(args: argparse.Namespace) -> int:
+    try:
+        payload = normalize_arwif_artifact(
+            Path(args.artifact),
+            Path(args.spec),
+            output=Path(args.output) if args.output else None,
+            format=args.format,
+        )
+    except ValueError as exc:
+        source_report = validate_arwif_artifact(Path(args.artifact), allow_legacy=True)
+        return _print_error_payload(
+            {
+                "artifact": str(Path(args.artifact)),
+                "spec_output": str(Path(args.spec)),
+                "output": str(Path(args.output)) if args.output else None,
+                "normalized": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(source_report.errors) or [str(exc)],
+                "warnings": list(source_report.warnings),
+                "stats": dict(source_report.stats),
+            },
+            args.json,
+        )
+    _print_payload(payload, args.json)
+    return 0 if payload.get("output_is_valid", True) else 1
 
 
 def handle_arwif_inspect(args: argparse.Namespace) -> int:

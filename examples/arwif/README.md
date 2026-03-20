@@ -25,6 +25,12 @@ Export it back to a source spec:
 rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
 ```
 
+Normalize the legacy prototype into a strict source spec and rebuilt artifact:
+
+```bash
+rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --json
+```
+
 Import the exported spec again:
 
 ```bash

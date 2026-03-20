@@ -288,11 +288,18 @@ def validate_arwif_spec(path: str | Path) -> ARWIFSpecValidationReport:
     if load_errors:
         return ARWIFSpecValidationReport(spec=str(spec_path), is_valid=False, errors=load_errors)
 
+    assert document is not None
+    return validate_arwif_spec_document(document, source=str(spec_path))
+
+
+def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<memory>") -> ARWIFSpecValidationReport:
+    if not isinstance(document, dict):
+        return ARWIFSpecValidationReport(spec=source, is_valid=False, errors=("ARWIF spec must be a mapping",))
+
     errors: list[str] = []
     warnings: list[str] = []
     stats: dict[str, Any] = {}
 
-    assert document is not None
     _validate_top_level(document, errors, warnings)
     sample_rate_hz = document.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ)
     state_count = 0
@@ -320,7 +327,7 @@ def validate_arwif_spec(path: str | Path) -> ARWIFSpecValidationReport:
 
     normalized_document = _deep_copy_document(document) if not errors else None
     return ARWIFSpecValidationReport(
-        spec=str(spec_path),
+        spec=source,
         is_valid=not errors,
         errors=tuple(errors),
         warnings=tuple(warnings),

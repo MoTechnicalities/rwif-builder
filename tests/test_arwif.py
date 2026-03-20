@@ -685,6 +685,102 @@ states:
             self.assertTrue(alpha_validate_payload["is_valid"], alpha_validate_payload)
             self.assertTrue(beta_validate_payload["is_valid"], beta_validate_payload)
 
+    def test_arwif_batch_render_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_artifact_path = tmp_dir / "alpha.arwif"
+            second_artifact_path = tmp_dir / "beta.arwif"
+            output_dir = tmp_dir / "renders"
+
+            save_wave_library(
+                first_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="alpha",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Alpha chord",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                second_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(392, 0.6),),
+                            label="beta-intro",
+                            metadata={"duration_seconds": 0.5},
+                        ),
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta-outro",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Beta phrase",
+                    },
+                ),
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-render",
+                str(first_artifact_path),
+                str(second_artifact_path),
+                "--output-dir",
+                str(output_dir),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["artifacts_processed"], 2)
+            self.assertEqual(batch_payload["rendered_count"], 2)
+            self.assertEqual(batch_payload["failed_count"], 0)
+            self.assertEqual(batch_payload["output_dir"], str(output_dir))
+            self.assertAlmostEqual(batch_payload["total_duration_seconds"], 1.0, places=3)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            expected_outputs = {
+                output_dir / "alpha.wav": 0.25,
+                output_dir / "beta.wav": 0.75,
+            }
+            for path, expected_duration in expected_outputs.items():
+                self.assertTrue(path.exists(), path)
+                with wave.open(str(path), "rb") as handle:
+                    self.assertEqual(handle.getnchannels(), 1)
+                    self.assertEqual(handle.getframerate(), 8000)
+                    self.assertAlmostEqual(handle.getnframes() / 8000.0, expected_duration, places=3)
+
+            rendered_outputs = {result["output"] for result in batch_payload["results"]}
+            self.assertEqual(rendered_outputs, {str(path) for path in expected_outputs})
+            for result in batch_payload["results"]:
+                self.assertTrue(result["rendered"], result)
+                self.assertGreater(result["segment_count"], 0)
+                self.assertGreater(result["duration_seconds"], 0.0)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

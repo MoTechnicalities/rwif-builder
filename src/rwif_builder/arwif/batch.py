@@ -5,6 +5,7 @@ from typing import Any
 
 from .build import build_arwif_artifact
 from .normalize import normalize_arwif_artifact
+from .render import render_arwif_to_wav
 from .validation import validate_arwif_artifact
 from .validation import validate_arwif_spec
 
@@ -152,5 +153,68 @@ def batch_normalize_arwif_artifacts(
         "report_dir": str(report_dir_path) if report_dir_path is not None else None,
         "assumptions_dir": str(assumptions_dir_path) if assumptions_dir_path is not None else None,
         "total_assumption_count": total_assumption_count,
+        "results": results,
+    }
+
+
+def batch_render_arwif_artifacts(
+    artifacts: list[str | Path],
+    output_dir: str | Path,
+    *,
+    allow_legacy: bool = False,
+    sample_rate_override: int | None = None,
+    duration_override: float | None = None,
+    normalize_override: bool | None = None,
+) -> dict[str, Any]:
+    if not artifacts:
+        raise ValueError("at least one artifact must be provided")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    results: list[dict[str, Any]] = []
+    rendered_count = 0
+    failed_count = 0
+    total_duration_seconds = 0.0
+
+    for artifact in artifacts:
+        artifact_path = Path(artifact)
+        output_path = output_dir_path / f"{artifact_path.stem}.wav"
+        try:
+            payload = render_arwif_to_wav(
+                artifact_path,
+                output_path,
+                allow_legacy=allow_legacy,
+                sample_rate_override=sample_rate_override,
+                duration_override=duration_override,
+                normalize_override=normalize_override,
+            )
+        except ValueError as exc:
+            validation_report = validate_arwif_artifact(artifact_path, allow_legacy=allow_legacy)
+            payload = {
+                "artifact": str(artifact_path),
+                "output": str(output_path),
+                "rendered": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(validation_report.errors) or [str(exc)],
+                "warnings": list(validation_report.warnings),
+                "stats": dict(validation_report.stats),
+            }
+            failed_count += 1
+        else:
+            rendered_count += 1
+            total_duration_seconds += float(payload.get("duration_seconds", 0.0))
+            payload["rendered"] = True
+
+        results.append(payload)
+
+    return {
+        "artifacts_processed": len(artifacts),
+        "rendered_count": rendered_count,
+        "failed_count": failed_count,
+        "is_valid": failed_count == 0 and all(result.get("rendered", False) for result in results),
+        "output_dir": str(output_dir_path),
+        "total_duration_seconds": total_duration_seconds,
         "results": results,
     }

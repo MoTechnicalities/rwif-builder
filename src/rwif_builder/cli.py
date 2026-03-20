@@ -7,8 +7,9 @@ from shutil import copyfile
 from typing import Any
 
 from .arwif.build import build_arwif_artifact
-from .arwif.batch import batch_normalize_arwif_artifacts
 from .arwif.batch import batch_build_arwif_artifacts
+from .arwif.batch import batch_normalize_arwif_artifacts
+from .arwif.batch import batch_render_arwif_artifacts
 from .arwif.diff import diff_arwif_artifacts
 from .arwif.export import export_arwif_artifact
 from .arwif.importing import import_arwif_artifact
@@ -134,6 +135,19 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
     arwif_batch_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_normalize_parser.set_defaults(handler=handle_arwif_batch_normalize)
+
+    arwif_batch_render_parser = subparsers.add_parser(
+        "arwif-batch-render",
+        help="Render multiple ARWIF artifacts to PCM WAV",
+    )
+    arwif_batch_render_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_render_parser.add_argument("--output-dir", required=True, help="Destination directory for .wav files")
+    arwif_batch_render_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_batch_render_parser.add_argument("--sample-rate", type=int, help="Override output sample rate")
+    arwif_batch_render_parser.add_argument("--duration", type=float, help="Override default segment duration in seconds")
+    arwif_batch_render_parser.add_argument("--no-normalize", action="store_true", help="Disable peak normalization")
+    arwif_batch_render_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_render_parser.set_defaults(handler=handle_arwif_batch_render)
 
     arwif_inspect_parser = subparsers.add_parser("arwif-inspect", help="Inspect an ARWIF audio artifact")
     arwif_inspect_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -347,6 +361,19 @@ def handle_arwif_batch_normalize(args: argparse.Namespace) -> int:
         report_dir=Path(args.report_dir) if args.report_dir else None,
         assumptions_dir=Path(args.assumptions_dir) if args.assumptions_dir else None,
         format=args.format,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_render(args: argparse.Namespace) -> int:
+    payload = batch_render_arwif_artifacts(
+        [Path(artifact) for artifact in args.artifacts],
+        Path(args.output_dir),
+        allow_legacy=args.legacy,
+        sample_rate_override=args.sample_rate,
+        duration_override=args.duration,
+        normalize_override=False if args.no_normalize else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

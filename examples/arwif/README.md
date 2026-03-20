@@ -42,6 +42,12 @@ To run the same migration flow across multiple artifacts, use the batch command 
 rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --json
 ```
 
+To render multiple ARWIF artifacts into WAV outputs in one pass:
+
+```bash
+rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --json
+```
+
 Import the exported spec again:
 
 ```bash

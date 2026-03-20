@@ -54,6 +54,12 @@ Builds multiple ARWIF artifacts from YAML or JSON oscillator specs.
 
 Current implementation: accepts one or more strict ARWIF source specs, writes artifacts into `--output-dir`, reuses the same strict build flow as `arwif-build`, and returns an aggregated result payload with per-spec build results plus collection-level counts.
 
+### `rwif arwif-batch-render`
+
+Renders multiple ARWIF artifacts to mono 16-bit PCM WAV.
+
+Current implementation: accepts one or more `.arwif` artifacts, writes `.wav` files into `--output-dir`, reuses the same render path as `arwif-render`, and returns an aggregated result payload with per-artifact render details plus collection-level counts and total rendered duration.
+
 ### `rwif arwif-validate-spec`
 
 Validates an ARWIF YAML or JSON source spec before build or import.

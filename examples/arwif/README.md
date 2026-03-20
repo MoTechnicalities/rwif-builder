@@ -24,6 +24,12 @@ Inspect it semantically:
 rwif arwif-inspect dist/CEG_v0_1.arwif --json
 ```
 
+Compare two ARWIF variants:
+
+```bash
+rwif arwif-diff old.arwif new.arwif --json
+```
+
 Then validate it:
 
 Strict validation of the v0.1 example:

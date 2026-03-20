@@ -7,6 +7,7 @@ from shutil import copyfile
 from typing import Any
 
 from .arwif.build import build_arwif_artifact
+from .arwif.diff import diff_arwif_artifacts
 from .arwif.inspect import inspect_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
@@ -76,6 +77,13 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_inspect_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_inspect_parser.set_defaults(handler=handle_arwif_inspect)
+
+    arwif_diff_parser = subparsers.add_parser("arwif-diff", help="Compare two ARWIF audio artifacts")
+    arwif_diff_parser.add_argument("left", help="First .arwif artifact path")
+    arwif_diff_parser.add_argument("right", help="Second .arwif artifact path")
+    arwif_diff_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_diff_parser.set_defaults(handler=handle_arwif_diff)
 
     arwif_validate_parser = subparsers.add_parser("arwif-validate", help="Validate an ARWIF audio artifact")
     arwif_validate_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -163,6 +171,12 @@ def handle_arwif_inspect(args: argparse.Namespace) -> int:
     payload = inspect_arwif_artifact(Path(args.artifact), allow_legacy=args.legacy)
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_diff(args: argparse.Namespace) -> int:
+    payload = diff_arwif_artifacts(Path(args.left), Path(args.right), allow_legacy=args.legacy)
+    _print_payload(payload, args.json)
+    return 0 if payload["left_valid"] and payload["right_valid"] else 1
 
 
 def handle_arwif_validate(args: argparse.Namespace) -> int:

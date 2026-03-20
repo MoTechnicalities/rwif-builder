@@ -166,6 +166,78 @@ states:
             self.assertTrue(legacy_inspect_payload["is_valid"], legacy_inspect_payload)
             self.assertTrue(legacy_inspect_payload["legacy_mode"])
 
+    def test_arwif_diff_reports_metadata_and_state_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left.arwif"
+            right_path = tmp_dir / "right.arwif"
+
+            save_wave_library(
+                left_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="CE",
+                            top_k=2,
+                            metadata={"duration_seconds": 0.5},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.5,
+                        "normalize": True,
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(392, 0.6)),
+                            label="CE",
+                            top_k=2,
+                            metadata={"duration_seconds": 1.0},
+                        ),
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="C5",
+                            top_k=1,
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 12000,
+                        "default_duration_seconds": 1.0,
+                        "normalize": False,
+                    },
+                ),
+            )
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(diff_payload["left_valid"], diff_payload)
+            self.assertTrue(diff_payload["right_valid"], diff_payload)
+            self.assertEqual(diff_payload["change_summary"]["added_states"], 1)
+            self.assertEqual(diff_payload["change_summary"]["changed_states"], 1)
+            self.assertIn("C5", diff_payload["added_states"])
+            self.assertIn("CE", diff_payload["changed_states"])
+            self.assertIn("sample_rate_hz", diff_payload["metadata_changes"])
+            self.assertEqual(diff_payload["oscillator_count_delta"], 1)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

@@ -54,6 +54,12 @@ Summarizes an ARWIF artifact in ARWIF-native terms.
 
 Current implementation: reports playback metadata, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, and sample oscillator entries.
 
+### `rwif arwif-diff`
+
+Compares two ARWIF artifacts in ARWIF-native terms.
+
+Current implementation: reports top-level playback metadata changes, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
+
 ### `rwif arwif-validate`
 
 Validates an ARWIF audio artifact profile layered on the RWIF container.

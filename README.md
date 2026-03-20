@@ -71,12 +71,13 @@ rwif stats
 rwif diff
 rwif patch
 rwif arwif-build
+rwif arwif-diff
 rwif arwif-inspect
 rwif arwif-validate
 rwif arwif-render
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-build`, `arwif-inspect`, `arwif-validate`, and `arwif-render`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-build`, `arwif-diff`, `arwif-inspect`, `arwif-validate`, and `arwif-render`.
 
 ## Configuration
 
@@ -121,6 +122,7 @@ An end-to-end ARWIF authoring path is now available:
 ```bash
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 rwif arwif-inspect dist/CEG_v0_1.arwif --json
+rwif arwif-diff dist/CEG_v0_1.arwif examples/arwif/CEG_v0_1.arwif --json
 rwif arwif-validate dist/CEG_v0_1.arwif --json
 rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 ```

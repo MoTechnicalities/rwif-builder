@@ -606,6 +606,85 @@ states:
                 self.assertEqual(result["assumptions_format"], "json")
                 self.assertGreater(result["assumption_count"], 0)
 
+    def test_arwif_batch_build_specs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_spec_path = tmp_dir / "alpha.yaml"
+            second_spec_path = tmp_dir / "beta.yaml"
+            output_dir = tmp_dir / "artifacts"
+
+            first_spec_path.write_text(
+                """
+title: Alpha chord
+sample_rate_hz: 8000
+default_duration_seconds: 0.25
+states:
+  - label: alpha
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 330
+        amplitude: 0.7
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            second_spec_path.write_text(
+                """
+title: Beta chord
+sample_rate_hz: 12000
+default_duration_seconds: 0.5
+states:
+  - label: beta
+    duration_seconds: 0.5
+    oscillators:
+      - hz: 392
+        amplitude: 0.6
+      - hz: 523
+        amplitude: 0.4
+      - hz: 659
+        amplitude: 0.2
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-build",
+                str(first_spec_path),
+                str(second_spec_path),
+                "--output-dir",
+                str(output_dir),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["specs_processed"], 2)
+            self.assertEqual(batch_payload["built_count"], 2)
+            self.assertEqual(batch_payload["failed_count"], 0)
+            self.assertEqual(batch_payload["output_dir"], str(output_dir))
+            self.assertEqual(batch_payload["total_oscillator_count"], 5)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            expected_artifacts = {
+                output_dir / "alpha.arwif",
+                output_dir / "beta.arwif",
+            }
+            for path in expected_artifacts:
+                self.assertTrue(path.exists(), path)
+
+            for result in batch_payload["results"]:
+                self.assertTrue(result["is_valid"], result)
+                self.assertTrue(result["spec_is_valid"], result)
+
+            alpha_validate_payload = self._run_json(repo_root, "arwif-validate", str(output_dir / "alpha.arwif"), "--json")
+            beta_validate_payload = self._run_json(repo_root, "arwif-validate", str(output_dir / "beta.arwif"), "--json")
+            self.assertTrue(alpha_validate_payload["is_valid"], alpha_validate_payload)
+            self.assertTrue(beta_validate_payload["is_valid"], beta_validate_payload)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

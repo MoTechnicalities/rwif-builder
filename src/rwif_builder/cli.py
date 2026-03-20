@@ -8,6 +8,7 @@ from typing import Any
 
 from .arwif.build import build_arwif_artifact
 from .arwif.batch import batch_normalize_arwif_artifacts
+from .arwif.batch import batch_build_arwif_artifacts
 from .arwif.diff import diff_arwif_artifacts
 from .arwif.export import export_arwif_artifact
 from .arwif.importing import import_arwif_artifact
@@ -70,6 +71,15 @@ def build_parser() -> argparse.ArgumentParser:
     patch_parser.add_argument("--output", required=False, help="Override output artifact path")
     patch_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     patch_parser.set_defaults(handler=handle_patch)
+
+    arwif_batch_build_parser = subparsers.add_parser(
+        "arwif-batch-build",
+        help="Build multiple ARWIF artifacts from YAML or JSON specs",
+    )
+    arwif_batch_build_parser.add_argument("specs", nargs="+", help="Paths to ARWIF source specs")
+    arwif_batch_build_parser.add_argument("--output-dir", required=True, help="Destination directory for .arwif artifacts")
+    arwif_batch_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_build_parser.set_defaults(handler=handle_arwif_batch_build)
 
     arwif_build_parser = subparsers.add_parser("arwif-build", help="Build an ARWIF artifact from a YAML or JSON spec")
     arwif_build_parser.add_argument("--spec", required=True, help="Path to an ARWIF build spec")
@@ -226,6 +236,15 @@ def handle_patch(args: argparse.Namespace) -> int:
     config = load_config(Path(args.config))
     payload = patch_artifact(config, base=args.base, output_override=args.output)
     return _print_payload(payload, args.json)
+
+
+def handle_arwif_batch_build(args: argparse.Namespace) -> int:
+    payload = batch_build_arwif_artifacts(
+        [Path(spec) for spec in args.specs],
+        Path(args.output_dir),
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
 
 
 def handle_arwif_build(args: argparse.Namespace) -> int:

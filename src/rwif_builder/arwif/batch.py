@@ -3,8 +3,60 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .build import build_arwif_artifact
 from .normalize import normalize_arwif_artifact
 from .validation import validate_arwif_artifact
+from .validation import validate_arwif_spec
+
+
+def batch_build_arwif_artifacts(
+    specs: list[str | Path],
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    if not specs:
+        raise ValueError("at least one spec must be provided")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    results: list[dict[str, Any]] = []
+    built_count = 0
+    failed_count = 0
+    total_oscillator_count = 0
+
+    for spec in specs:
+        spec_path = Path(spec)
+        output_path = output_dir_path / f"{spec_path.stem}.arwif"
+        try:
+            payload = build_arwif_artifact(spec_path, output_path)
+        except ValueError as exc:
+            spec_report = validate_arwif_spec(spec_path)
+            payload = {
+                "artifact": str(output_path),
+                "spec": str(spec_path),
+                "built": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(spec_report.errors) or [str(exc)],
+                "warnings": list(spec_report.warnings),
+                "stats": dict(spec_report.stats),
+            }
+            failed_count += 1
+        else:
+            built_count += 1
+            total_oscillator_count += int(payload.get("oscillator_count", 0))
+
+        results.append(payload)
+
+    return {
+        "specs_processed": len(specs),
+        "built_count": built_count,
+        "failed_count": failed_count,
+        "is_valid": failed_count == 0 and all(result.get("is_valid", False) for result in results),
+        "output_dir": str(output_dir_path),
+        "total_oscillator_count": total_oscillator_count,
+        "results": results,
+    }
 
 
 def batch_normalize_arwif_artifacts(

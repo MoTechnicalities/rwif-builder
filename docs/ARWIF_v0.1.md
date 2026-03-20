@@ -148,6 +148,7 @@ Reference command:
 ```bash
 rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
+rwif arwif-batch-build first.yaml second.yaml --output-dir dist/built_arwif --json
 ```
 
 The reference tooling validates source specs before build and import. That validation checks:
@@ -159,6 +160,8 @@ The reference tooling validates source specs before build and import. That valid
 - reserved metadata keys that will be overridden by strict ARWIF library metadata
 
 Invalid specs should fail before any artifact is written.
+
+For collection-scale authoring, the reference CLI also supports building multiple strict specs into one output directory while keeping the same validation semantics as single-spec `arwif-build`.
 
 ## Export And Round Trip
 

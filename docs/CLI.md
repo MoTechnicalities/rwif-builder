@@ -48,6 +48,12 @@ Builds an ARWIF artifact from a YAML or JSON oscillator spec.
 
 Current implementation: runs strict ARWIF source-spec validation first, emits a strict ARWIF `v0.1` artifact only when the spec is valid, validates the generated file immediately, and returns both spec-validation and artifact-validation metadata.
 
+### `rwif arwif-batch-build`
+
+Builds multiple ARWIF artifacts from YAML or JSON oscillator specs.
+
+Current implementation: accepts one or more strict ARWIF source specs, writes artifacts into `--output-dir`, reuses the same strict build flow as `arwif-build`, and returns an aggregated result payload with per-spec build results plus collection-level counts.
+
 ### `rwif arwif-validate-spec`
 
 Validates an ARWIF YAML or JSON source spec before build or import.

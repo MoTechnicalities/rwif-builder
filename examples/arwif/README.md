@@ -17,6 +17,7 @@ Build the strict example from source spec:
 ```bash
 rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
+rwif arwif-batch-build first.yaml second.yaml --output-dir dist/built_arwif --json
 ```
 
 Export it back to a source spec:

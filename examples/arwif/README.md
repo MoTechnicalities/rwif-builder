@@ -18,6 +18,18 @@ Build the strict example from source spec:
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 ```
 
+Export it back to a source spec:
+
+```bash
+rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
+```
+
+Import the exported spec again:
+
+```bash
+rwif arwif-import --spec dist/CEG_v0_1.export.yaml --output dist/CEG_v0_1.roundtrip.arwif --json
+```
+
 Inspect it semantically:
 
 ```bash

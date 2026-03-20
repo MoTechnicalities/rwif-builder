@@ -48,6 +48,18 @@ Builds an ARWIF artifact from a YAML or JSON oscillator spec.
 
 Current implementation: emits a strict ARWIF `v0.1` artifact, validates the generated file immediately, and returns state-count plus oscillator-count metadata.
 
+### `rwif arwif-import`
+
+Imports an ARWIF YAML or JSON spec into an ARWIF artifact.
+
+Current implementation: wraps the strict ARWIF builder flow with an import-oriented command surface so exported specs can be round-tripped back into artifacts.
+
+### `rwif arwif-export`
+
+Exports an ARWIF artifact to a YAML or JSON source spec.
+
+Current implementation: writes a strict-spec-compatible document capturing playback metadata, state-level metadata, and oscillator-bank contents so the artifact can be imported again.
+
 ### `rwif arwif-inspect`
 
 Summarizes an ARWIF artifact in ARWIF-native terms.

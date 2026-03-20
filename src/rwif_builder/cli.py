@@ -8,6 +8,8 @@ from typing import Any
 
 from .arwif.build import build_arwif_artifact
 from .arwif.diff import diff_arwif_artifacts
+from .arwif.export import export_arwif_artifact
+from .arwif.importing import import_arwif_artifact
 from .arwif.inspect import inspect_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
@@ -71,6 +73,20 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_build_parser.add_argument("--output", required=True, help="Destination .arwif path")
     arwif_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_build_parser.set_defaults(handler=handle_arwif_build)
+
+    arwif_import_parser = subparsers.add_parser("arwif-import", help="Import an ARWIF YAML or JSON spec into an artifact")
+    arwif_import_parser.add_argument("--spec", required=True, help="Path to an ARWIF import spec")
+    arwif_import_parser.add_argument("--output", required=True, help="Destination .arwif path")
+    arwif_import_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_import_parser.set_defaults(handler=handle_arwif_import)
+
+    arwif_export_parser = subparsers.add_parser("arwif-export", help="Export an ARWIF artifact to a YAML or JSON spec")
+    arwif_export_parser.add_argument("artifact", help="Path to .arwif artifact")
+    arwif_export_parser.add_argument("output", help="Destination .yaml, .yml, or .json path")
+    arwif_export_parser.add_argument("--format", choices=("yaml", "json"), help="Override export format")
+    arwif_export_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_export_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_export_parser.set_defaults(handler=handle_arwif_export)
 
     arwif_inspect_parser = subparsers.add_parser("arwif-inspect", help="Inspect an ARWIF audio artifact")
     arwif_inspect_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -163,6 +179,23 @@ def handle_patch(args: argparse.Namespace) -> int:
 
 def handle_arwif_build(args: argparse.Namespace) -> int:
     payload = build_arwif_artifact(Path(args.spec), Path(args.output))
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_import(args: argparse.Namespace) -> int:
+    payload = import_arwif_artifact(Path(args.spec), Path(args.output))
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_export(args: argparse.Namespace) -> int:
+    payload = export_arwif_artifact(
+        Path(args.artifact),
+        Path(args.output),
+        format=args.format,
+        allow_legacy=args.legacy,
+    )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
 

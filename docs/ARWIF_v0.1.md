@@ -149,6 +149,18 @@ Reference command:
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 ```
 
+## Export And Round Trip
+
+Reference tooling also supports artifact-to-spec export and spec-to-artifact import:
+
+```bash
+rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
+rwif arwif-import --spec dist/CEG_v0_1.export.yaml --output dist/CEG_v0_1.roundtrip.arwif --json
+rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
+```
+
+For strict ARWIF `v0.1` artifacts produced by the reference builder, the exported spec is intended to round-trip without changing playback metadata, state ordering, or oscillator-bank contents.
+
 ## Legacy Prototype Files
 
 Pre-spec ARWIF prototype files may omit the strict metadata fields while still reusing the `RWIFACT1` envelope and oscillator-bank interpretation.

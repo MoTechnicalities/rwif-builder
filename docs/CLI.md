@@ -42,6 +42,12 @@ Plans or executes an incremental rebuild based on changed inputs.
 
 Current implementation: detects source-level and pipeline-level changes against a base artifact manifest, then either copies the base artifact when nothing changed or performs a deterministic rebuild.
 
+### `rwif arwif-build`
+
+Builds an ARWIF artifact from a YAML or JSON oscillator spec.
+
+Current implementation: emits a strict ARWIF `v0.1` artifact, validates the generated file immediately, and returns state-count plus oscillator-count metadata.
+
 ### `rwif arwif-validate`
 
 Validates an ARWIF audio artifact profile layered on the RWIF container.

@@ -70,11 +70,12 @@ rwif inspect
 rwif stats
 rwif diff
 rwif patch
+rwif arwif-build
 rwif arwif-validate
 rwif arwif-render
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-validate`, and `arwif-render`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-build`, `arwif-validate`, and `arwif-render`.
 
 ## Configuration
 
@@ -113,6 +114,14 @@ See [docs/MVP.md](docs/MVP.md) for the scope contract and [docs/RWIF_DEEP_DIVE.m
 See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and transformer activation paths.
 
 See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile draft and [docs/ARWIF_CONTAINER_DECISION.md](docs/ARWIF_CONTAINER_DECISION.md) for the container-strategy analysis.
+
+An end-to-end ARWIF authoring path is now available:
+
+```bash
+rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
+rwif arwif-validate dist/CEG_v0_1.arwif --json
+rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
+```
 
 ## On-Disk Contract
 

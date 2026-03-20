@@ -94,6 +94,61 @@ For each segment:
 5. concatenate segments in order
 6. normalize if enabled
 
+## Authoring Spec
+
+The reference builder command accepts a YAML or JSON spec and writes a strict ARWIF `v0.1` artifact.
+
+Minimum shape:
+
+```yaml
+title: C major triad
+sample_rate_hz: 48000
+default_duration_seconds: 1.0
+
+states:
+  - label: CEG
+    duration_seconds: 1.0
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 330
+        amplitude: 0.7
+      - hz: 392
+        amplitude: 0.6
+```
+
+Supported top-level fields:
+
+- `title`
+- `description`
+- `sample_rate_hz`
+- `default_duration_seconds`
+- `default_phase_radians`
+- `default_attack_ms`
+- `default_release_ms`
+- `normalize`
+- `metadata` for additional library metadata
+- `states`
+
+Supported per-state fields:
+
+- `label`
+- `duration_seconds`
+- `phase_radians`
+- `gain`
+- `attack_ms`
+- `release_ms`
+- `vector_length`
+- `top_k`
+- `metadata` for additional state metadata
+- `oscillators`, where each oscillator is `{ hz, amplitude }`
+
+Reference command:
+
+```bash
+rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
+```
+
 ## Legacy Prototype Files
 
 Pre-spec ARWIF prototype files may omit the strict metadata fields while still reusing the `RWIFACT1` envelope and oscillator-bank interpretation.

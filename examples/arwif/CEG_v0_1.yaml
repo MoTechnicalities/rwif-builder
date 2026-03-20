@@ -1,0 +1,21 @@
+title: C major triad
+description: Strict ARWIF v0.1 source spec for the published CEG example.
+sample_rate_hz: 48000
+default_duration_seconds: 1.0
+default_attack_ms: 5.0
+default_release_ms: 5.0
+normalize: true
+
+metadata:
+  authoring_source: rwif arwif-build
+
+states:
+  - label: CEG
+    duration_seconds: 1.0
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 330
+        amplitude: 0.7
+      - hz: 392
+        amplitude: 0.6

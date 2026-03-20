@@ -6,6 +6,7 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any
 
+from .arwif.build import build_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from . import __version__
@@ -62,6 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
     patch_parser.add_argument("--output", required=False, help="Override output artifact path")
     patch_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     patch_parser.set_defaults(handler=handle_patch)
+
+    arwif_build_parser = subparsers.add_parser("arwif-build", help="Build an ARWIF artifact from a YAML or JSON spec")
+    arwif_build_parser.add_argument("--spec", required=True, help="Path to an ARWIF build spec")
+    arwif_build_parser.add_argument("--output", required=True, help="Destination .arwif path")
+    arwif_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_build_parser.set_defaults(handler=handle_arwif_build)
 
     arwif_validate_parser = subparsers.add_parser("arwif-validate", help="Validate an ARWIF audio artifact")
     arwif_validate_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -137,6 +144,12 @@ def handle_patch(args: argparse.Namespace) -> int:
     config = load_config(Path(args.config))
     payload = patch_artifact(config, base=args.base, output_override=args.output)
     return _print_payload(payload, args.json)
+
+
+def handle_arwif_build(args: argparse.Namespace) -> int:
+    payload = build_arwif_artifact(Path(args.spec), Path(args.output))
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
 
 
 def handle_arwif_validate(args: argparse.Namespace) -> int:

@@ -15,6 +15,56 @@ from rwif_builder.writer.rwif_writer import save_wave_library
 
 
 class ARWIFIntegrationTest(unittest.TestCase):
+    def test_arwif_build_validate_and_render(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            spec_path = tmp_dir / "demo.arwif.yaml"
+            artifact_path = tmp_dir / "demo.arwif"
+            wav_path = tmp_dir / "demo.wav"
+            spec_path.write_text(
+                """
+title: Built triad
+sample_rate_hz: 8000
+default_duration_seconds: 0.25
+states:
+  - label: intro
+    duration_seconds: 0.1
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 330
+        amplitude: 0.7
+  - label: sustain
+    oscillators:
+      - hz: 392
+        amplitude: 0.6
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(spec_path),
+                "--output",
+                str(artifact_path),
+                "--json",
+            )
+            self.assertTrue(artifact_path.exists())
+            self.assertTrue(build_payload["is_valid"], build_payload)
+            self.assertEqual(build_payload["state_count"], 2)
+            self.assertEqual(build_payload["oscillator_count"], 3)
+
+            validate_payload = self._run_json(repo_root, "arwif-validate", str(artifact_path), "--json")
+            self.assertTrue(validate_payload["is_valid"], validate_payload)
+
+            render_payload = self._run_json(repo_root, "arwif-render", str(artifact_path), str(wav_path), "--json")
+            self.assertEqual(render_payload["segment_count"], 2)
+            self.assertTrue(wav_path.exists())
+
     def test_arwif_validate_and_render(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

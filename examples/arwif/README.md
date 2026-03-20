@@ -28,10 +28,12 @@ rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
 Normalize the legacy prototype into a strict source spec and rebuilt artifact:
 
 ```bash
-rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --report dist/CEG_legacy.normalized.report.json --json
+rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --report dist/CEG_legacy.normalized.report.json --assumptions dist/CEG_legacy.normalized.assumptions.json --json
 ```
 
 The optional normalization report captures the legacy-validation result, injected strict defaults, preserved library and state metadata, normalized-spec validation, normalized content counts, and rebuilt-artifact validation.
+
+The optional assumptions manifest captures the narrower migration contract: which defaults were injected, which library and state metadata fields were preserved, and which warnings still surfaced from the source artifact, normalized spec, or rebuilt artifact.
 
 Import the exported spec again:
 

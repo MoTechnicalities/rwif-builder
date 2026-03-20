@@ -70,7 +70,7 @@ Current implementation: writes a strict-spec-compatible document capturing playb
 
 Normalizes a legacy or strict ARWIF artifact into a strict ARWIF `v0.1` source spec and optional rebuilt artifact.
 
-Current implementation: loads the source artifact in legacy-compatible mode, injects strict defaults for missing playback metadata, preserves non-reserved metadata, writes a strict YAML or JSON spec, can rebuild a strict artifact from that normalized spec, and can emit a separate normalization report in JSON or YAML based on the `--report` file suffix.
+Current implementation: loads the source artifact in legacy-compatible mode, injects strict defaults for missing playback metadata, preserves non-reserved metadata, writes a strict YAML or JSON spec, can rebuild a strict artifact from that normalized spec, can emit a separate normalization report in JSON or YAML based on the `--report` file suffix, and can emit a smaller assumptions manifest based on the `--assumptions` file suffix for automation that only needs normalization decisions and warnings.
 
 ### `rwif arwif-inspect`
 

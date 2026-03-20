@@ -384,6 +384,7 @@ states:
             normalized_spec_path = tmp_dir / "legacy.normalized.yaml"
             normalized_artifact_path = tmp_dir / "legacy.normalized.arwif"
             report_path = tmp_dir / "legacy.normalized.report.json"
+            assumptions_path = tmp_dir / "legacy.normalized.assumptions.json"
 
             save_wave_library(
                 legacy_artifact_path,
@@ -410,6 +411,8 @@ states:
                 str(normalized_artifact_path),
                 "--report",
                 str(report_path),
+                "--assumptions",
+                str(assumptions_path),
                 "--json",
             )
             self.assertTrue(normalize_payload["normalized"], normalize_payload)
@@ -417,11 +420,15 @@ states:
             self.assertTrue(normalized_spec_path.exists())
             self.assertTrue(normalized_artifact_path.exists())
             self.assertTrue(report_path.exists())
+            self.assertTrue(assumptions_path.exists())
             self.assertTrue(normalize_payload["output_is_valid"], normalize_payload)
             self.assertIn("sample_rate_hz", normalize_payload["injected_defaults"])
             self.assertIn("default_duration_seconds", normalize_payload["injected_defaults"])
             self.assertEqual(normalize_payload["report_format"], "json")
             self.assertEqual(normalize_payload["report_output"], str(report_path))
+            self.assertEqual(normalize_payload["assumptions_format"], "json")
+            self.assertEqual(normalize_payload["assumptions_output"], str(assumptions_path))
+            self.assertGreater(normalize_payload["assumption_count"], 0)
 
             normalized_document = yaml.safe_load(normalized_spec_path.read_text(encoding="utf-8"))
             self.assertEqual(normalized_document["title"], "Legacy triad")
@@ -447,6 +454,48 @@ states:
             )
             self.assertTrue(report_document["normalized_spec_validation"]["is_valid"])
             self.assertTrue(report_document["rebuilt_artifact_validation"]["is_valid"])
+            self.assertEqual(report_document["normalized_document"]["metadata"]["prototype_source"], "pre-spec")
+
+            assumptions_document = json.loads(assumptions_path.read_text(encoding="utf-8"))
+            self.assertEqual(assumptions_document["manifest_version"], 1)
+            self.assertEqual(assumptions_document["artifact"], str(legacy_artifact_path))
+            self.assertEqual(assumptions_document["normalized_spec_output"], str(normalized_spec_path))
+            self.assertEqual(assumptions_document["rebuilt_artifact_output"], str(normalized_artifact_path))
+            self.assertTrue(assumptions_document["legacy_mode"])
+            self.assertEqual(
+                assumptions_document["summary"]["assumption_count"],
+                normalize_payload["assumption_count"],
+            )
+            self.assertGreaterEqual(assumptions_document["summary"]["default_injections"], 2)
+            self.assertEqual(assumptions_document["summary"]["preserved_library_metadata_fields"], 1)
+            self.assertEqual(assumptions_document["summary"]["preserved_state_metadata_fields"], 1)
+            assumption_kinds = {entry["kind"] for entry in assumptions_document["assumptions"]}
+            self.assertTrue(
+                {
+                    "default_injected",
+                    "library_metadata_preserved",
+                    "state_metadata_preserved",
+                    "source_warning",
+                }.issubset(assumption_kinds)
+            )
+            self.assertIn(
+                {
+                    "kind": "library_metadata_preserved",
+                    "field": "prototype_source",
+                    "value": "pre-spec",
+                },
+                assumptions_document["assumptions"],
+            )
+            self.assertIn(
+                {
+                    "kind": "state_metadata_preserved",
+                    "state_index": 0,
+                    "state_label": "legacy",
+                    "field": "note",
+                    "value": "prototype",
+                },
+                assumptions_document["assumptions"],
+            )
 
             spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(normalized_spec_path), "--json")
             self.assertTrue(spec_payload["is_valid"], spec_payload)

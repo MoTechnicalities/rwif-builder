@@ -103,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_normalize_parser.add_argument("--spec", required=True, help="Destination .yaml, .yml, or .json spec path")
     arwif_normalize_parser.add_argument("--output", help="Optional destination for a rebuilt strict .arwif artifact")
     arwif_normalize_parser.add_argument("--report", help="Optional destination .json, .yaml, or .yml normalization report path")
+    arwif_normalize_parser.add_argument("--assumptions", help="Optional destination .json, .yaml, or .yml assumptions manifest path")
     arwif_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
     arwif_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_normalize_parser.set_defaults(handler=handle_arwif_normalize)
@@ -277,6 +278,7 @@ def handle_arwif_normalize(args: argparse.Namespace) -> int:
             Path(args.spec),
             output=Path(args.output) if args.output else None,
             report=Path(args.report) if args.report else None,
+            assumptions=Path(args.assumptions) if args.assumptions else None,
             format=args.format,
         )
     except ValueError as exc:
@@ -287,6 +289,7 @@ def handle_arwif_normalize(args: argparse.Namespace) -> int:
                 "spec_output": str(Path(args.spec)),
                 "output": str(Path(args.output)) if args.output else None,
                 "report_output": str(Path(args.report)) if args.report else None,
+                "assumptions_output": str(Path(args.assumptions)) if args.assumptions else None,
                 "normalized": False,
                 "is_valid": False,
                 "message": str(exc),

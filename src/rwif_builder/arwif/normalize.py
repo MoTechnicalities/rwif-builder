@@ -52,12 +52,14 @@ def normalize_arwif_artifact(
     *,
     output: str | Path | None = None,
     report: str | Path | None = None,
+    assumptions: str | Path | None = None,
     format: str | None = None,
 ) -> dict[str, Any]:
     artifact_path = Path(artifact)
     spec_output_path = Path(spec_output)
     output_path = Path(output) if output is not None else None
     report_path = Path(report) if report is not None else None
+    assumptions_path = Path(assumptions) if assumptions is not None else None
 
     library = load_wave_library(artifact_path)
     source_report = validate_arwif_artifact(artifact_path, allow_legacy=True)
@@ -95,6 +97,7 @@ def normalize_arwif_artifact(
         artifact_path=artifact_path,
         spec_output_path=spec_output_path,
         output_path=output_path,
+        normalized_document=document,
         source_report=source_report,
         spec_report=spec_report,
         normalization=normalization,
@@ -121,10 +124,18 @@ def normalize_arwif_artifact(
         }
 
     if report_path is not None:
-        report_format = _resolve_report_format(report_path)
-        _write_report_document(report_path, report_document, report_format)
+        report_format = _resolve_auxiliary_format(report_path, label="report")
+        _write_auxiliary_document(report_path, report_document, report_format)
         payload["report_output"] = str(report_path)
         payload["report_format"] = report_format
+
+    if assumptions_path is not None:
+        assumptions_document = _build_assumptions_manifest(report_document)
+        assumptions_format = _resolve_auxiliary_format(assumptions_path, label="assumptions manifest")
+        _write_auxiliary_document(assumptions_path, assumptions_document, assumptions_format)
+        payload["assumptions_output"] = str(assumptions_path)
+        payload["assumptions_format"] = assumptions_format
+        payload["assumption_count"] = assumptions_document["summary"]["assumption_count"]
 
     return payload
 
@@ -143,13 +154,13 @@ def _resolve_export_format(output_path: Path, explicit_format: str | None) -> st
     raise ValueError("could not infer export format from output path; use --format yaml or --format json")
 
 
-def _resolve_report_format(output_path: Path) -> str:
+def _resolve_auxiliary_format(output_path: Path, *, label: str) -> str:
     suffix = output_path.suffix.lower()
     if suffix == ".json":
         return "json"
     if suffix in {".yaml", ".yml"}:
         return "yaml"
-    raise ValueError("could not infer report format from report path; use a .json, .yaml, or .yml suffix")
+    raise ValueError(f"could not infer {label} format from path; use a .json, .yaml, or .yml suffix")
 
 
 def _write_spec_document(output_path: Path, document: dict[str, Any], export_format: str) -> None:
@@ -160,7 +171,7 @@ def _write_spec_document(output_path: Path, document: dict[str, Any], export_for
     output_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
 
-def _write_report_document(output_path: Path, document: dict[str, Any], report_format: str) -> None:
+def _write_auxiliary_document(output_path: Path, document: dict[str, Any], report_format: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if report_format == "json":
         output_path.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n", encoding="utf-8")
@@ -298,6 +309,7 @@ def _build_normalization_report(
     artifact_path: Path,
     spec_output_path: Path,
     output_path: Path | None,
+    normalized_document: dict[str, Any],
     source_report: Any,
     spec_report: Any,
     normalization: dict[str, Any],
@@ -333,5 +345,90 @@ def _build_normalization_report(
             "state_count": len(states),
             "oscillator_count": sum(len(state.units) for state in states),
             "state_labels": [str(state.label) for state in states if state.label],
+        },
+        "normalized_document": normalized_document,
+    }
+
+
+def _build_assumptions_manifest(report_document: dict[str, Any]) -> dict[str, Any]:
+    normalized_document = dict(report_document.get("normalized_document", {}))
+    assumptions: list[dict[str, Any]] = []
+
+    for field in report_document["normalization"]["injected_defaults"]:
+        assumptions.append(
+            {
+                "kind": "default_injected",
+                "field": field,
+                "value": normalized_document.get(field),
+            }
+        )
+
+    for field in report_document["normalization"]["preserved_library_metadata_keys"]:
+        assumptions.append(
+            {
+                "kind": "library_metadata_preserved",
+                "field": field,
+                "value": report_document["normalization"]["preserved_library_metadata"].get(field),
+            }
+        )
+
+    for state_entry in report_document["normalization"]["preserved_state_metadata"]:
+        for field in state_entry["preserved_metadata_keys"]:
+            assumptions.append(
+                {
+                    "kind": "state_metadata_preserved",
+                    "state_index": state_entry["index"],
+                    "state_label": state_entry["label"],
+                    "field": field,
+                    "value": state_entry["preserved_metadata"].get(field),
+                }
+            )
+
+    for warning in report_document["source_validation"]["warnings"]:
+        assumptions.append(
+            {
+                "kind": "source_warning",
+                "message": warning,
+            }
+        )
+
+    for warning in report_document["normalized_spec_validation"]["warnings"]:
+        assumptions.append(
+            {
+                "kind": "normalized_spec_warning",
+                "message": warning,
+            }
+        )
+
+    rebuilt_artifact_validation = report_document.get("rebuilt_artifact_validation")
+    if isinstance(rebuilt_artifact_validation, dict):
+        for warning in rebuilt_artifact_validation.get("warnings", []):
+            assumptions.append(
+                {
+                    "kind": "rebuilt_artifact_warning",
+                    "message": warning,
+                }
+            )
+
+    return {
+        "manifest_version": 1,
+        "artifact": report_document["artifact"],
+        "normalized_spec_output": report_document["normalized_spec_output"],
+        "rebuilt_artifact_output": report_document["rebuilt_artifact_output"],
+        "legacy_mode": report_document["source_validation"]["legacy_mode"],
+        "assumptions": assumptions,
+        "summary": {
+            "assumption_count": len(assumptions),
+            "default_injections": len(report_document["normalization"]["injected_defaults"]),
+            "preserved_library_metadata_fields": len(report_document["normalization"]["preserved_library_metadata_keys"]),
+            "preserved_state_metadata_fields": sum(
+                len(state_entry["preserved_metadata_keys"])
+                for state_entry in report_document["normalization"]["preserved_state_metadata"]
+            ),
+            "source_warnings": len(report_document["source_validation"]["warnings"]),
+            "normalized_spec_warnings": len(report_document["normalized_spec_validation"]["warnings"]),
+            "rebuilt_artifact_warnings": len(rebuilt_artifact_validation.get("warnings", []))
+            if isinstance(rebuilt_artifact_validation, dict)
+            else 0,
         },
     }

@@ -61,6 +61,12 @@ Compares multiple ARWIF artifact pairs.
 Current implementation: accepts explicit pairwise `--left` and `--right` artifact collections of equal length, reuses the same comparison path as `arwif-diff`, and returns an aggregated result payload with per-pair diffs plus collection-level counts for changed, unchanged, invalid, incompatible, and changed-state totals.
 An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
+### `rwif arwif-batch-export`
+
+Exports multiple ARWIF artifacts to YAML or JSON specs.
+
+Current implementation: accepts one or more `.arwif` artifacts, writes strict source-spec-compatible documents into `--output-dir`, defaults to YAML unless `--format json` is supplied, reuses the same export path as `arwif-export`, and returns an aggregated result payload with per-artifact export details plus collection-level counts for exported files, states, and oscillators.
+
 ### `rwif arwif-batch-render`
 
 Renders multiple ARWIF artifacts to mono 16-bit PCM WAV.

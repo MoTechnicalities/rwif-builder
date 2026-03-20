@@ -8,6 +8,7 @@ import yaml
 
 from .build import build_arwif_artifact
 from .diff import diff_arwif_artifacts
+from .export import export_arwif_artifact
 from .normalize import normalize_arwif_artifact
 from .render import render_arwif_to_wav
 from .validation import validate_arwif_artifact
@@ -59,6 +60,82 @@ def batch_build_arwif_artifacts(
         "failed_count": failed_count,
         "is_valid": failed_count == 0 and all(result.get("is_valid", False) for result in results),
         "output_dir": str(output_dir_path),
+        "total_oscillator_count": total_oscillator_count,
+        "results": results,
+    }
+
+
+def batch_export_arwif_artifacts(
+    artifacts: list[str | Path],
+    output_dir: str | Path,
+    *,
+    format: str | None = None,
+    allow_legacy: bool = False,
+) -> dict[str, Any]:
+    if not artifacts:
+        raise ValueError("at least one artifact must be provided")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    if format is None:
+        output_suffix = ".yaml"
+        export_format = "yaml"
+    elif format == "json":
+        output_suffix = ".json"
+        export_format = "json"
+    elif format == "yaml":
+        output_suffix = ".yaml"
+        export_format = "yaml"
+    else:
+        raise ValueError("format must be yaml or json")
+
+    results: list[dict[str, Any]] = []
+    exported_count = 0
+    failed_count = 0
+    total_state_count = 0
+    total_oscillator_count = 0
+
+    for artifact in artifacts:
+        artifact_path = Path(artifact)
+        output_path = output_dir_path / f"{artifact_path.stem}.export{output_suffix}"
+        try:
+            payload = export_arwif_artifact(
+                artifact_path,
+                output_path,
+                format=export_format,
+                allow_legacy=allow_legacy,
+            )
+        except ValueError as exc:
+            validation_report = validate_arwif_artifact(artifact_path, allow_legacy=allow_legacy)
+            payload = {
+                "artifact": str(artifact_path),
+                "output": str(output_path),
+                "format": export_format,
+                "exported": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(validation_report.errors) or [str(exc)],
+                "warnings": list(validation_report.warnings),
+                "stats": dict(validation_report.stats),
+            }
+            failed_count += 1
+        else:
+            exported_count += 1
+            total_state_count += int(payload.get("state_count", 0))
+            total_oscillator_count += int(payload.get("oscillator_count", 0))
+            payload["exported"] = True
+
+        results.append(payload)
+
+    return {
+        "artifacts_processed": len(artifacts),
+        "exported_count": exported_count,
+        "failed_count": failed_count,
+        "is_valid": failed_count == 0 and all(result.get("is_valid", False) for result in results),
+        "format": export_format,
+        "output_dir": str(output_dir_path),
+        "total_state_count": total_state_count,
         "total_oscillator_count": total_oscillator_count,
         "results": results,
     }

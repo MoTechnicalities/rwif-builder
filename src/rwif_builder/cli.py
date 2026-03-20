@@ -9,6 +9,7 @@ from typing import Any
 from .arwif.build import build_arwif_artifact
 from .arwif.batch import batch_build_arwif_artifacts
 from .arwif.batch import batch_diff_arwif_artifacts
+from .arwif.batch import batch_export_arwif_artifacts
 from .arwif.batch import batch_normalize_arwif_artifacts
 from .arwif.batch import batch_render_arwif_artifacts
 from .arwif.diff import diff_arwif_artifacts
@@ -82,6 +83,17 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_build_parser.add_argument("--output-dir", required=True, help="Destination directory for .arwif artifacts")
     arwif_batch_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_build_parser.set_defaults(handler=handle_arwif_batch_build)
+
+    arwif_batch_export_parser = subparsers.add_parser(
+        "arwif-batch-export",
+        help="Export multiple ARWIF artifacts to YAML or JSON specs",
+    )
+    arwif_batch_export_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_export_parser.add_argument("--output-dir", required=True, help="Destination directory for exported specs")
+    arwif_batch_export_parser.add_argument("--format", choices=("yaml", "json"), help="Override export format")
+    arwif_batch_export_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_batch_export_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_export_parser.set_defaults(handler=handle_arwif_batch_export)
 
     arwif_build_parser = subparsers.add_parser("arwif-build", help="Build an ARWIF artifact from a YAML or JSON spec")
     arwif_build_parser.add_argument("--spec", required=True, help="Path to an ARWIF build spec")
@@ -281,6 +293,17 @@ def handle_arwif_batch_build(args: argparse.Namespace) -> int:
     payload = batch_build_arwif_artifacts(
         [Path(spec) for spec in args.specs],
         Path(args.output_dir),
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_export(args: argparse.Namespace) -> int:
+    payload = batch_export_arwif_artifacts(
+        [Path(artifact) for artifact in args.artifacts],
+        Path(args.output_dir),
+        format=args.format,
+        allow_legacy=args.legacy,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

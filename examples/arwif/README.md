@@ -48,6 +48,12 @@ To diff multiple ARWIF baseline and candidate pairs in one pass:
 rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-diff-report.json --json
 ```
 
+To export multiple ARWIF artifacts into strict source specs in one pass:
+
+```bash
+rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --format yaml --json
+```
+
 To render multiple ARWIF artifacts into WAV outputs in one pass:
 
 ```bash

@@ -930,6 +930,104 @@ states:
             self.assertEqual(report_document["unchanged_pairs"], batch_payload["unchanged_pairs"])
             self.assertEqual(len(report_document["results"]), 2)
 
+    def test_arwif_batch_export_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_artifact_path = tmp_dir / "alpha.arwif"
+            second_artifact_path = tmp_dir / "beta.arwif"
+            output_dir = tmp_dir / "exports"
+
+            save_wave_library(
+                first_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="alpha",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Alpha chord",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                second_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(392, 0.6),),
+                            label="beta-intro",
+                            metadata={"duration_seconds": 0.5},
+                        ),
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta-outro",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 12000,
+                        "default_duration_seconds": 0.5,
+                        "title": "Beta phrase",
+                    },
+                ),
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-export",
+                str(first_artifact_path),
+                str(second_artifact_path),
+                "--output-dir",
+                str(output_dir),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["artifacts_processed"], 2)
+            self.assertEqual(batch_payload["exported_count"], 2)
+            self.assertEqual(batch_payload["failed_count"], 0)
+            self.assertEqual(batch_payload["format"], "yaml")
+            self.assertEqual(batch_payload["output_dir"], str(output_dir))
+            self.assertEqual(batch_payload["total_state_count"], 3)
+            self.assertEqual(batch_payload["total_oscillator_count"], 4)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            expected_outputs = {
+                output_dir / "alpha.export.yaml",
+                output_dir / "beta.export.yaml",
+            }
+            for path in expected_outputs:
+                self.assertTrue(path.exists(), path)
+
+            alpha_document = yaml.safe_load((output_dir / "alpha.export.yaml").read_text(encoding="utf-8"))
+            beta_document = yaml.safe_load((output_dir / "beta.export.yaml").read_text(encoding="utf-8"))
+            self.assertEqual(alpha_document["title"], "Alpha chord")
+            self.assertEqual(alpha_document["states"][0]["label"], "alpha")
+            self.assertEqual(beta_document["title"], "Beta phrase")
+            self.assertEqual(len(beta_document["states"]), 2)
+
+            for result in batch_payload["results"]:
+                self.assertTrue(result["exported"], result)
+                self.assertTrue(result["is_valid"], result)
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],

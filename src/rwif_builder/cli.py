@@ -182,6 +182,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--assumptions-dir",
         help="Optional destination directory for assumptions manifests",
     )
+    arwif_batch_normalize_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated normalization report",
+    )
     arwif_batch_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
     arwif_batch_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_normalize_parser.set_defaults(handler=handle_arwif_batch_normalize)
@@ -497,6 +501,7 @@ def handle_arwif_batch_normalize(args: argparse.Namespace) -> int:
         report_dir=Path(args.report_dir) if args.report_dir else None,
         assumptions_dir=Path(args.assumptions_dir) if args.assumptions_dir else None,
         format=args.format,
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

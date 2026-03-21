@@ -676,6 +676,7 @@ states:
             output_dir = tmp_dir / "artifacts"
             report_dir = tmp_dir / "reports"
             assumptions_dir = tmp_dir / "assumptions"
+            batch_report_path = tmp_dir / "batch-normalize-report.yaml"
 
             save_wave_library(
                 first_artifact_path,
@@ -720,6 +721,8 @@ states:
                 str(report_dir),
                 "--assumptions-dir",
                 str(assumptions_dir),
+                "--output",
+                str(batch_report_path),
                 "--json",
             )
 
@@ -732,8 +735,14 @@ states:
             self.assertEqual(batch_payload["output_dir"], str(output_dir))
             self.assertEqual(batch_payload["report_dir"], str(report_dir))
             self.assertEqual(batch_payload["assumptions_dir"], str(assumptions_dir))
+            self.assertEqual(batch_payload["report_output"], str(batch_report_path))
+            self.assertEqual(batch_payload["report_format"], "yaml")
             self.assertGreater(batch_payload["total_assumption_count"], 0)
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = yaml.safe_load(batch_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["artifacts_processed"], 2)
+            self.assertEqual(persisted_report["normalized_count"], 2)
 
             expected_specs = {
                 spec_dir / "alpha.normalized.yaml",

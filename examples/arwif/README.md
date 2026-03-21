@@ -40,7 +40,7 @@ The optional assumptions manifest captures the narrower migration contract: whic
 To run the same migration flow across multiple artifacts, use the batch command and collect outputs into directories:
 
 ```bash
-rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --json
+rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --output dist/batch-normalize-report.yaml --json
 ```
 
 To diff multiple ARWIF baseline and candidate pairs in one pass:

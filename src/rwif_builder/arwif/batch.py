@@ -384,6 +384,7 @@ def batch_normalize_arwif_artifacts(
     report_dir: str | Path | None = None,
     assumptions_dir: str | Path | None = None,
     format: str | None = None,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not artifacts:
         raise ValueError("at least one artifact must be provided")
@@ -458,7 +459,7 @@ def batch_normalize_arwif_artifacts(
 
         results.append(payload)
 
-    return {
+    payload = {
         "artifacts_processed": len(artifacts),
         "normalized_count": normalized_count,
         "failed_count": failed_count,
@@ -471,6 +472,15 @@ def batch_normalize_arwif_artifacts(
         "total_assumption_count": total_assumption_count,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch normalize output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def batch_render_arwif_artifacts(

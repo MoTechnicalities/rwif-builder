@@ -140,7 +140,7 @@ An end-to-end ARWIF authoring path is now available:
 rwif arwif-normalize examples/arwif/CEG_legacy.arwif --spec dist/CEG_legacy.normalized.yaml --output dist/CEG_legacy.normalized.arwif --report dist/CEG_legacy.normalized.report.json --assumptions dist/CEG_legacy.normalized.assumptions.json --json
 rwif arwif-batch-build first.yaml second.yaml --output-dir dist/built_arwif --output dist/batch-build-report.json --json
 rwif arwif-batch-import first.yaml second.yaml --output-dir dist/imported_arwif --output dist/batch-import-report.yaml --json
-rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --json
+rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --output dist/batch-normalize-report.yaml --json
 rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-diff-report.json --json
 rwif arwif-batch-validate-spec first.yaml second.yaml --output dist/batch-validate-spec-report.json --json
 rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --output dist/batch-export-report.json --format yaml --json
@@ -165,7 +165,7 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 
 `rwif arwif-batch-import` scales that same strict source-spec path across multiple YAML or JSON specs in import form, writing artifacts into a target directory and returning aggregate import counts plus per-spec validation results, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
-`rwif arwif-batch-normalize` scales that same migration flow across multiple artifacts in one command, writing normalized specs into a target directory and optionally collecting rebuilt artifacts, reports, and assumptions manifests into sibling directories with an aggregated JSON result payload.
+`rwif arwif-batch-normalize` scales that same migration flow across multiple artifacts in one command, writing normalized specs into a target directory and optionally collecting rebuilt artifacts, per-artifact reports, and assumptions manifests into sibling directories, and can also persist the top-level aggregate report as `.json`, `.yaml`, or `.yml`.
 
 `rwif arwif-batch-diff` scales ARWIF artifact comparison across multiple explicit left and right pairs in one command, returns per-pair diff payloads plus collection-level counts for changed, unchanged, invalid, and incompatible comparisons, and can optionally persist the aggregated report as `.json`, `.yaml`, or `.yml` based on the output filename.
 

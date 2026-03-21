@@ -133,6 +133,7 @@ Current implementation: loads the source artifact in legacy-compatible mode, inj
 Normalizes multiple legacy or strict ARWIF artifacts into strict ARWIF `v0.1` source specs and optional auxiliary outputs.
 
 Current implementation: accepts one or more artifact paths, writes normalized specs into `--spec-dir`, can optionally rebuild strict artifacts into `--output-dir`, can emit JSON normalization reports into `--report-dir`, can emit JSON assumptions manifests into `--assumptions-dir`, and returns an aggregated result payload with per-artifact outcomes plus collection-level counts.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-inspect`
 

@@ -35,5 +35,18 @@ rwif_builder/
 
 ## Current State
 
-Only `cli` and `config` contain operational code in the scaffold.
-The remaining packages are intentionally present now so the public shape of the project is fixed before deeper implementation work starts.
+The repo is no longer just a scaffold.
+
+Operational code now exists across the RWIF authoring path and the ARWIF audio profile path, including validation, inspection, diffing, export/import, normalization, rendering, and batch workflows.
+
+## Format Family Mapping
+
+The broader vision described in [docs/VISION.md](docs/VISION.md) treats this repo as an authoring toolchain for a family of reasoning-oriented formats.
+
+The current implementation maps onto that vision in a narrow but concrete way:
+
+- `RWIF`: implemented here as the semantic-memory artifact builder, validator, inspector, differ, and patching toolchain
+- `ARWIF`: implemented here as the first structured sound profile layered on the RWIF container, with build, validate, inspect, diff, normalize, export, import, render, and batch operations
+- `MRWIF`, `TRWIF`, and future companions: not implemented here today, but documented as follow-on design targets in [docs/MRWIF.md](docs/MRWIF.md), [docs/TRWIF.md](docs/TRWIF.md), and [docs/VISION.md](docs/VISION.md)
+
+In that framing, `rwif-builder` is the first practical authoring environment for the format family, even though only the RWIF and ARWIF tracks are operational today.

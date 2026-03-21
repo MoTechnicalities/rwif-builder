@@ -6,6 +6,7 @@ from typing import Any
 from ..writer.rwif_writer import AtomicWaveUnit
 from ..writer.rwif_writer import WaveState
 from ..writer.rwif_writer import load_wave_library
+from .validation import CHANNEL_LAYOUT_CHANNELS
 from .validation import validate_arwif_artifact
 
 _METADATA_KEYS = (
@@ -13,6 +14,7 @@ _METADATA_KEYS = (
     "arwif_version",
     "frequency_unit",
     "playback_model",
+    "channel_layout",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_attack_ms",
@@ -22,6 +24,10 @@ _METADATA_KEYS = (
     "title",
     "description",
 )
+
+
+def _channel_gains_mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def diff_arwif_artifacts(left: str | Path, right: str | Path, *, allow_legacy: bool = False) -> dict[str, Any]:
@@ -72,6 +78,9 @@ def diff_arwif_artifacts(left: str | Path, right: str | Path, *, allow_legacy: b
         "left_legacy_mode": left_report.stats.get("legacy_mode", False),
         "right_legacy_mode": right_report.stats.get("legacy_mode", False),
         "metadata_changes": metadata_changes,
+        "left_spatial_summary": _spatial_summary(left_metadata, left_library.states),
+        "right_spatial_summary": _spatial_summary(right_metadata, right_library.states),
+        "spatial_changes": _spatial_changes(left_metadata, left_library.states, right_metadata, right_library.states),
         "state_count_delta": len(right_library.states) - len(left_library.states),
         "oscillator_count_delta": right_oscillator_count - left_oscillator_count,
         "added_states": added_states,
@@ -132,4 +141,43 @@ def _describe_state_change(left: WaveState, right: WaveState) -> dict[str, Any]:
         "metadata_changes": metadata_changes,
         "left_units": _serialize_units(left.units),
         "right_units": _serialize_units(right.units),
+    }
+
+
+def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) -> dict[str, Any]:
+    channel_layout = metadata.get("channel_layout")
+    declared_channels = list(CHANNEL_LAYOUT_CHANNELS.get(channel_layout, ())) if isinstance(channel_layout, str) else []
+    active_channels = sorted(
+        {
+            channel_name
+            for state in states
+            for channel_name, gain in _channel_gains_mapping(dict(state.metadata or {}).get("channel_gains")).items()
+            if float(gain) != 0.0
+        }
+    )
+    states_with_channel_gains = sum(
+        1 for state in states if _channel_gains_mapping(dict(state.metadata or {}).get("channel_gains"))
+    )
+    return {
+        "channel_layout": channel_layout,
+        "declared_channels": declared_channels,
+        "active_channels": active_channels,
+        "states_with_channel_gains": states_with_channel_gains,
+    }
+
+
+def _spatial_changes(
+    left_metadata: dict[str, Any],
+    left_states: tuple[WaveState, ...],
+    right_metadata: dict[str, Any],
+    right_states: tuple[WaveState, ...],
+) -> dict[str, Any]:
+    left_summary = _spatial_summary(left_metadata, left_states)
+    right_summary = _spatial_summary(right_metadata, right_states)
+    return {
+        "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
+        "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
+        "states_with_channel_gains_delta": (
+            right_summary["states_with_channel_gains"] - left_summary["states_with_channel_gains"]
+        ),
     }

@@ -4,7 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from ..writer.rwif_writer import load_wave_library
+from .validation import CHANNEL_LAYOUT_CHANNELS
 from .validation import validate_arwif_artifact
+
+
+def _channel_gains_mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> dict[str, Any]:
@@ -37,6 +42,7 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
                 "release_ms": state_metadata.get("release_ms", metadata.get("default_release_ms")),
                 "phase_radians": state_metadata.get("phase_radians", metadata.get("default_phase_radians", 0.0)),
                 "gain": state_metadata.get("gain", 1.0),
+                "channel_gains": _channel_gains_mapping(state_metadata.get("channel_gains")),
                 "min_frequency_hz": min(frequencies) if frequencies else None,
                 "max_frequency_hz": max(frequencies) if frequencies else None,
                 "max_amplitude": max((abs(amplitude) for amplitude in amplitudes), default=0.0),
@@ -52,6 +58,7 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
         "arwif_version": metadata.get("arwif_version"),
         "title": metadata.get("title"),
         "description": metadata.get("description"),
+        "channel_layout": metadata.get("channel_layout"),
         "playback_model": metadata.get("playback_model"),
         "frequency_unit": metadata.get("frequency_unit"),
         "sample_rate_hz": metadata.get("sample_rate_hz"),
@@ -68,5 +75,26 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
         "oscillator_count": oscillator_count,
         "max_frequency_hz": max_frequency_hz,
         "state_labels": labels,
+        "spatial_summary": _spatial_summary(metadata, state_summaries),
         "states": state_summaries,
+    }
+
+
+def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, Any]]) -> dict[str, Any]:
+    channel_layout = metadata.get("channel_layout")
+    declared_channels = list(CHANNEL_LAYOUT_CHANNELS.get(channel_layout, ())) if isinstance(channel_layout, str) else []
+    active_channels = sorted(
+        {
+            channel_name
+            for state in state_summaries
+            for channel_name, gain in state.get("channel_gains", {}).items()
+            if float(gain) != 0.0
+        }
+    )
+    states_with_channel_gains = sum(1 for state in state_summaries if state.get("channel_gains"))
+    return {
+        "channel_layout": channel_layout,
+        "declared_channels": declared_channels,
+        "active_channels": active_channels,
+        "states_with_channel_gains": states_with_channel_gains,
     }

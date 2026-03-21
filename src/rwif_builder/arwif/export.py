@@ -12,6 +12,7 @@ from .validation import validate_arwif_artifact
 _LIBRARY_SPEC_KEYS = {
     "title",
     "description",
+    "channel_layout",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_phase_radians",
@@ -31,9 +32,14 @@ _STATE_SPEC_KEYS = {
     "duration_seconds",
     "phase_radians",
     "gain",
+    "channel_gains",
     "attack_ms",
     "release_ms",
 }
+
+
+def _channel_gains_mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def export_arwif_artifact(
@@ -93,6 +99,7 @@ def _artifact_to_spec(library_metadata: dict[str, Any], states: tuple[Any, ...])
     for key in (
         "title",
         "description",
+        "channel_layout",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -119,6 +126,8 @@ def _state_to_spec(state: Any) -> dict[str, Any]:
     for key in ("duration_seconds", "phase_radians", "gain", "attack_ms", "release_ms"):
         if key in state_metadata:
             entry[key] = state_metadata[key]
+    if "channel_gains" in state_metadata:
+        entry["channel_gains"] = _channel_gains_mapping(state_metadata.get("channel_gains"))
 
     if state.vector_length:
         entry["vector_length"] = state.vector_length

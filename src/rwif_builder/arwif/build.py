@@ -12,6 +12,7 @@ from .validation import ARWIF_FORMAT
 from .validation import ARWIF_FREQUENCY_UNIT
 from .validation import ARWIF_PLAYBACK_MODEL
 from .validation import ARWIF_VERSION
+from .validation import CHANNEL_LAYOUT_CHANNELS
 from .validation import DEFAULT_ATTACK_MS
 from .validation import DEFAULT_DURATION_SECONDS
 from .validation import DEFAULT_RELEASE_MS
@@ -30,6 +31,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "default_phase_radians",
     "default_attack_ms",
     "default_release_ms",
+    "channel_layout",
 }
 
 
@@ -109,6 +111,12 @@ def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
         if optional_key in document:
             metadata[optional_key] = document[optional_key]
 
+    channel_layout = document.get("channel_layout")
+    if channel_layout is not None:
+        if not isinstance(channel_layout, str) or channel_layout not in CHANNEL_LAYOUT_CHANNELS:
+            raise ValueError("channel_layout must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
+        metadata["channel_layout"] = channel_layout
+
     metadata.update(
         {
             "format": ARWIF_FORMAT,
@@ -138,6 +146,14 @@ def _state_metadata(state_document: dict[str, Any]) -> dict[str, Any]:
         metadata["phase_radians"] = _require_finite_number(state_document["phase_radians"], "state phase_radians")
     if "gain" in state_document:
         metadata["gain"] = _require_finite_number(state_document["gain"], "state gain")
+    if "channel_gains" in state_document:
+        channel_gains_document = _require_mapping(state_document["channel_gains"], "state channel_gains")
+        channel_gains: dict[str, float] = {}
+        for channel_name, channel_gain in channel_gains_document.items():
+            if not isinstance(channel_name, str) or not channel_name:
+                raise ValueError("state channel_gains keys must be non-empty strings")
+            channel_gains[channel_name] = _require_finite_number(channel_gain, f"state channel_gains[{channel_name!r}]")
+        metadata["channel_gains"] = channel_gains
     if "attack_ms" in state_document:
         metadata["attack_ms"] = _require_non_negative_number(state_document["attack_ms"], "state attack_ms")
     if "release_ms" in state_document:

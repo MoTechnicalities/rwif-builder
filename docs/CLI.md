@@ -107,13 +107,13 @@ Current implementation: accepts one or more artifact paths, writes normalized sp
 
 Summarizes an ARWIF artifact in ARWIF-native terms.
 
-Current implementation: reports playback metadata, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, and sample oscillator entries.
+Current implementation: reports playback metadata, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering the declared layout, active channels, and how many states carry explicit channel gains.
 
 ### `rwif arwif-diff`
 
 Compares two ARWIF artifacts in ARWIF-native terms.
 
-Current implementation: reports top-level playback metadata changes, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
+Current implementation: reports top-level playback metadata changes, left and right spatial summaries, a compact spatial-change summary, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
 
 ### `rwif arwif-validate`
 
@@ -123,9 +123,9 @@ Current implementation: checks ARWIF metadata, oscillator-bank semantics, Nyquis
 
 ### `rwif arwif-render`
 
-Renders an ARWIF artifact to mono 16-bit PCM WAV.
+Renders an ARWIF artifact to 16-bit PCM WAV.
 
-Current implementation: interprets each state as a sequential oscillator-bank segment, applies a simple attack/release envelope, and optionally normalizes the rendered waveform.
+Current implementation: interprets each state as a sequential oscillator-bank segment, applies a simple attack/release envelope, projects states across channels when `channel_layout` and `channel_gains` are present, and optionally normalizes the rendered waveform.
 
 ## Output Rules
 

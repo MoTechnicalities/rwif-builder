@@ -20,6 +20,14 @@ DEFAULT_DURATION_SECONDS = 1.0
 DEFAULT_ATTACK_MS = 5.0
 DEFAULT_RELEASE_MS = 5.0
 
+CHANNEL_LAYOUT_CHANNELS: dict[str, tuple[str, ...]] = {
+    "mono": ("C",),
+    "stereo": ("L", "R"),
+    "quad": ("FL", "FR", "RL", "RR"),
+    "5.1": ("FL", "FR", "C", "LFE", "SL", "SR"),
+    "7.1": ("FL", "FR", "C", "LFE", "SL", "SR", "RL", "RR"),
+}
+
 _LIBRARY_OVERRIDE_KEYS = {
     "format",
     "arwif_version",
@@ -31,6 +39,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "default_phase_radians",
     "default_attack_ms",
     "default_release_ms",
+    "channel_layout",
 }
 
 
@@ -124,6 +133,7 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
     allowed_keys = {
         "title",
         "description",
+        "channel_layout",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -141,6 +151,13 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
         errors.append("title must be a string")
     if "description" in document and not isinstance(document["description"], str):
         errors.append("description must be a string")
+
+    channel_layout = document.get("channel_layout")
+    if channel_layout is not None:
+        if not isinstance(channel_layout, str):
+            errors.append("channel_layout must be a string")
+        elif channel_layout not in CHANNEL_LAYOUT_CHANNELS:
+            errors.append("channel_layout must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
 
     sample_rate_hz = document.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ)
     if not _is_positive_int(sample_rate_hz):
@@ -191,6 +208,7 @@ def _validate_state_document(
     *,
     index: int,
     sample_rate_hz: int,
+    channel_layout: str | None,
     errors: list[str],
     warnings: list[str],
 ) -> int:
@@ -204,6 +222,7 @@ def _validate_state_document(
         "duration_seconds",
         "phase_radians",
         "gain",
+        "channel_gains",
         "attack_ms",
         "release_ms",
         "vector_length",
@@ -226,6 +245,24 @@ def _validate_state_document(
         errors.append(f"{context}.phase_radians must be a finite number")
     if "gain" in state_document and not _is_number(state_document["gain"]):
         errors.append(f"{context}.gain must be a finite number")
+    if "channel_gains" in state_document:
+        channel_gains = state_document["channel_gains"]
+        if not isinstance(channel_gains, dict):
+            errors.append(f"{context}.channel_gains must be a mapping")
+        elif channel_layout is None:
+            errors.append(f"{context}.channel_gains requires top-level channel_layout")
+        else:
+            allowed_channels = set(CHANNEL_LAYOUT_CHANNELS[channel_layout])
+            for channel_name, gain_value in channel_gains.items():
+                if not isinstance(channel_name, str) or not channel_name:
+                    errors.append(f"{context}.channel_gains keys must be non-empty strings")
+                    continue
+                if channel_name not in allowed_channels:
+                    errors.append(
+                        f"{context}.channel_gains contains unknown channel {channel_name!r} for layout {channel_layout!r}"
+                    )
+                if not _is_number(gain_value):
+                    errors.append(f"{context}.channel_gains[{channel_name!r}] must be a finite number")
     if "attack_ms" in state_document and not _is_non_negative_number(state_document["attack_ms"]):
         errors.append(f"{context}.attack_ms must be non-negative")
     if "release_ms" in state_document and not _is_non_negative_number(state_document["release_ms"]):
@@ -302,6 +339,7 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
 
     _validate_top_level(document, errors, warnings)
     sample_rate_hz = document.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ)
+    channel_layout = document.get("channel_layout") if isinstance(document.get("channel_layout"), str) else None
     state_count = 0
     oscillator_count = 0
     if isinstance(document.get("states"), list):
@@ -313,6 +351,7 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
                     state_document,
                     index=index,
                     sample_rate_hz=sample_rate_hz,
+                    channel_layout=channel_layout,
                     errors=errors,
                     warnings=warnings,
                 )
@@ -321,6 +360,9 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     stats["oscillator_count"] = oscillator_count
     if _is_positive_int(sample_rate_hz):
         stats["sample_rate_hz"] = int(sample_rate_hz)
+    if channel_layout in CHANNEL_LAYOUT_CHANNELS:
+        stats["channel_layout"] = channel_layout
+        stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
     default_duration_seconds = document.get("default_duration_seconds", DEFAULT_DURATION_SECONDS)
     if _is_positive_number(default_duration_seconds):
         stats["default_duration_seconds"] = float(default_duration_seconds)
@@ -400,6 +442,7 @@ def _validate_state(
     *,
     index: int,
     sample_rate_hz: int,
+    channel_layout: str | None,
     default_duration_seconds: float,
     default_attack_ms: float,
     default_release_ms: float,
@@ -415,6 +458,25 @@ def _validate_state(
     gain = state_meta.get("gain", 1.0)
     if not _is_finite_number(gain):
         errors.append(f"state {index} gain must be finite")
+
+    channel_gains = state_meta.get("channel_gains")
+    if channel_gains is not None:
+        if not isinstance(channel_gains, dict):
+            errors.append(f"state {index} channel_gains must be a mapping")
+        elif channel_layout is None:
+            errors.append(f"state {index} channel_gains requires library channel_layout")
+        else:
+            allowed_channels = set(CHANNEL_LAYOUT_CHANNELS[channel_layout])
+            for channel_name, gain_value in channel_gains.items():
+                if not isinstance(channel_name, str) or not channel_name:
+                    errors.append(f"state {index} channel_gains keys must be non-empty strings")
+                    continue
+                if channel_name not in allowed_channels:
+                    errors.append(
+                        f"state {index} channel_gains contains unknown channel {channel_name!r} for layout {channel_layout!r}"
+                    )
+                if not _is_finite_number(gain_value):
+                    errors.append(f"state {index} channel_gains[{channel_name!r}] must be finite")
 
     phase_radians = state_meta.get("phase_radians", 0.0)
     if not _is_finite_number(phase_radians):
@@ -471,6 +533,11 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     metadata = dict(library.metadata)
     _validate_required_metadata(metadata, allow_legacy=allow_legacy, errors=errors, warnings=warnings)
     sample_rate_hz = _effective_sample_rate(metadata, allow_legacy, errors, warnings)
+    channel_layout = metadata.get("channel_layout")
+    if channel_layout is not None:
+        if not isinstance(channel_layout, str) or channel_layout not in CHANNEL_LAYOUT_CHANNELS:
+            errors.append("library metadata 'channel_layout' must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
+            channel_layout = None
     default_duration_seconds = _effective_default_duration(metadata, allow_legacy, errors, warnings)
     default_attack_ms = _effective_default_float(metadata, "default_attack_ms", DEFAULT_ATTACK_MS)
     default_release_ms = _effective_default_float(metadata, "default_release_ms", DEFAULT_RELEASE_MS)
@@ -479,6 +546,9 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["sample_rate_hz"] = sample_rate_hz
     stats["default_duration_seconds"] = default_duration_seconds
     stats["legacy_mode"] = allow_legacy and metadata.get("format") != ARWIF_FORMAT
+    if channel_layout is not None:
+        stats["channel_layout"] = channel_layout
+        stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
 
     if len(library.states) == 0:
         errors.append("ARWIF artifact must contain at least one state")
@@ -490,6 +560,7 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             state,
             index=index,
             sample_rate_hz=sample_rate_hz,
+            channel_layout=channel_layout,
             default_duration_seconds=default_duration_seconds,
             default_attack_ms=default_attack_ms,
             default_release_ms=default_release_ms,

@@ -184,7 +184,10 @@ states:
                             units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
                             label="CE",
                             top_k=2,
-                            metadata={"duration_seconds": 0.5},
+                            metadata={
+                                "duration_seconds": 0.5,
+                                "channel_gains": {"L": 1.0, "R": 0.25},
+                            },
                         ),
                     ),
                     metadata={
@@ -192,6 +195,7 @@ states:
                         "arwif_version": 1,
                         "frequency_unit": "hz",
                         "playback_model": "continuous_oscillator_bank",
+                        "channel_layout": "stereo",
                         "sample_rate_hz": 8000,
                         "default_duration_seconds": 0.5,
                         "normalize": True,
@@ -208,14 +212,20 @@ states:
                             units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(392, 0.6)),
                             label="CE",
                             top_k=2,
-                            metadata={"duration_seconds": 1.0},
+                            metadata={
+                                "duration_seconds": 1.0,
+                                "channel_gains": {"L": 0.2, "R": 1.0},
+                            },
                         ),
                         WaveState(
                             vector_length=512,
                             units=(AtomicWaveUnit(523, 0.4),),
                             label="C5",
                             top_k=1,
-                            metadata={"duration_seconds": 0.25},
+                            metadata={
+                                "duration_seconds": 0.25,
+                                "channel_gains": {"L": 0.6, "R": 0.6},
+                            },
                         ),
                     ),
                     metadata={
@@ -223,6 +233,7 @@ states:
                         "arwif_version": 1,
                         "frequency_unit": "hz",
                         "playback_model": "continuous_oscillator_bank",
+                        "channel_layout": "stereo",
                         "sample_rate_hz": 12000,
                         "default_duration_seconds": 1.0,
                         "normalize": False,
@@ -239,6 +250,15 @@ states:
             self.assertIn("CE", diff_payload["changed_states"])
             self.assertIn("sample_rate_hz", diff_payload["metadata_changes"])
             self.assertEqual(diff_payload["oscillator_count_delta"], 1)
+            self.assertIn("channel_gains", diff_payload["state_changes"]["CE"]["metadata_changes"])
+            self.assertEqual(
+                diff_payload["state_changes"]["CE"]["metadata_changes"]["channel_gains"]["right"]["R"],
+                1.0,
+            )
+            self.assertEqual(diff_payload["left_spatial_summary"]["channel_layout"], "stereo")
+            self.assertEqual(diff_payload["right_spatial_summary"]["active_channels"], ["L", "R"])
+            self.assertEqual(diff_payload["spatial_changes"]["states_with_channel_gains_delta"], 1)
+            self.assertFalse(diff_payload["spatial_changes"]["channel_layout_changed"])
 
     def test_arwif_validate_spec_reports_field_errors(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -375,6 +395,149 @@ states:
             self.assertEqual(diff_payload["change_summary"]["added_states"], 0)
             self.assertEqual(diff_payload["change_summary"]["removed_states"], 0)
             self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
+
+    def test_arwif_channel_aware_metadata_round_trip(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            source_spec_path = tmp_dir / "spatial.yaml"
+            artifact_path = tmp_dir / "spatial.arwif"
+            exported_spec_path = tmp_dir / "spatial.export.yaml"
+
+            source_spec_path.write_text(
+                """
+title: Stereo fixture
+channel_layout: stereo
+sample_rate_hz: 12000
+default_duration_seconds: 0.5
+states:
+  - label: left-heavy
+    channel_gains:
+      L: 1.0
+      R: 0.25
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+  - label: right-heavy
+    channel_gains:
+      L: 0.2
+      R: 1.0
+    oscillators:
+      - hz: 392
+        amplitude: 0.6
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(source_spec_path), "--json")
+            self.assertTrue(spec_payload["is_valid"], spec_payload)
+            self.assertEqual(spec_payload["stats"]["channel_layout"], "stereo")
+            self.assertEqual(spec_payload["stats"]["channel_count"], 2)
+
+            build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(source_spec_path),
+                "--output",
+                str(artifact_path),
+                "--json",
+            )
+            self.assertTrue(build_payload["is_valid"], build_payload)
+
+            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+            self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+            self.assertEqual(inspect_payload["channel_layout"], "stereo")
+            self.assertEqual(inspect_payload["states"][0]["channel_gains"]["L"], 1.0)
+            self.assertEqual(inspect_payload["states"][1]["channel_gains"]["R"], 1.0)
+            self.assertEqual(inspect_payload["spatial_summary"]["declared_channels"], ["L", "R"])
+            self.assertEqual(inspect_payload["spatial_summary"]["active_channels"], ["L", "R"])
+            self.assertEqual(inspect_payload["spatial_summary"]["states_with_channel_gains"], 2)
+
+            wav_path = tmp_dir / "spatial.wav"
+            render_payload = self._run_json(repo_root, "arwif-render", str(artifact_path), str(wav_path), "--json")
+            self.assertEqual(render_payload["channel_layout"], "stereo")
+            self.assertEqual(render_payload["channel_count"], 2)
+            with wave.open(str(wav_path), "rb") as handle:
+                self.assertEqual(handle.getnchannels(), 2)
+                self.assertEqual(handle.getframerate(), 12000)
+                self.assertGreater(handle.getnframes(), 0)
+
+            export_payload = self._run_json(
+                repo_root,
+                "arwif-export",
+                str(artifact_path),
+                str(exported_spec_path),
+                "--json",
+            )
+            self.assertTrue(export_payload["is_valid"], export_payload)
+
+            exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
+            self.assertEqual(exported_document["channel_layout"], "stereo")
+            self.assertEqual(exported_document["states"][0]["channel_gains"]["R"], 0.25)
+            self.assertEqual(exported_document["states"][1]["channel_gains"]["L"], 0.2)
+
+    def test_arwif_spatial_commands_do_not_crash_on_invalid_channel_gains(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            artifact_path = tmp_dir / "invalid-channel-gains.arwif"
+            export_path = tmp_dir / "invalid-channel-gains.yaml"
+
+            save_wave_library(
+                artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=256,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="broken",
+                            metadata={"channel_gains": "not-a-mapping"},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "channel_layout": "stereo",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                    },
+                ),
+            )
+
+            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json", allow_failure=True)
+            self.assertFalse(inspect_payload["is_valid"], inspect_payload)
+            self.assertIn("state 0 channel_gains must be a mapping", inspect_payload["errors"])
+            self.assertEqual(inspect_payload["spatial_summary"]["states_with_channel_gains"], 0)
+
+            export_payload = self._run_json(
+                repo_root,
+                "arwif-export",
+                str(artifact_path),
+                str(export_path),
+                "--json",
+                allow_failure=True,
+            )
+            self.assertFalse(export_payload["is_valid"], export_payload)
+            self.assertIn("state 0 channel_gains must be a mapping", export_payload["errors"])
+            exported_document = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+            self.assertEqual(exported_document["states"][0]["channel_gains"], {})
+
+            diff_payload = self._run_json(
+                repo_root,
+                "arwif-diff",
+                str(artifact_path),
+                str(artifact_path),
+                "--json",
+                allow_failure=True,
+            )
+            self.assertFalse(diff_payload["left_valid"], diff_payload)
+            self.assertFalse(diff_payload["right_valid"], diff_payload)
+            self.assertEqual(diff_payload["left_spatial_summary"]["states_with_channel_gains"], 0)
+            self.assertEqual(diff_payload["right_spatial_summary"]["states_with_channel_gains"], 0)
 
     def test_arwif_normalize_legacy_artifact(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

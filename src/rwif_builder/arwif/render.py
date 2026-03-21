@@ -8,6 +8,7 @@ import numpy as np
 
 from ..writer.rwif_writer import WaveState
 from ..writer.rwif_writer import load_wave_library
+from .validation import CHANNEL_LAYOUT_CHANNELS
 from .validation import DEFAULT_ATTACK_MS
 from .validation import DEFAULT_DURATION_SECONDS
 from .validation import DEFAULT_RELEASE_MS
@@ -29,6 +30,21 @@ def _apply_envelope(samples: np.ndarray, sample_rate_hz: int, attack_ms: float, 
     if release_count > 1:
         envelope[-release_count:] *= np.linspace(1.0, 0.0, release_count, endpoint=True)
     return samples * envelope
+
+
+def _resolve_channel_layout(metadata: dict[str, Any]) -> tuple[str | None, tuple[str, ...]]:
+    channel_layout = metadata.get("channel_layout")
+    if isinstance(channel_layout, str) and channel_layout in CHANNEL_LAYOUT_CHANNELS:
+        return channel_layout, CHANNEL_LAYOUT_CHANNELS[channel_layout]
+    return None, ("C",)
+
+
+def _state_channel_vector(state: WaveState, channels: tuple[str, ...]) -> np.ndarray:
+    state_meta = _state_metadata(state)
+    channel_gains = state_meta.get("channel_gains")
+    if not isinstance(channel_gains, dict):
+        return np.ones(len(channels), dtype=np.float64)
+    return np.array([float(channel_gains.get(channel_name, 0.0)) for channel_name in channels], dtype=np.float64)
 
 
 def _render_state(
@@ -68,6 +84,7 @@ def render_arwif_to_wav(
     output_path = Path(output)
     library = load_wave_library(artifact_path)
     metadata = dict(library.metadata)
+    channel_layout, channels = _resolve_channel_layout(metadata)
 
     sample_rate_hz = sample_rate_override or int(metadata.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ))
     if sample_rate_hz <= 0:
@@ -88,21 +105,21 @@ def render_arwif_to_wav(
 
     rendered_segments: list[np.ndarray] = []
     for state in library.states:
-        rendered_segments.append(
-            _render_state(
-                state,
-                sample_rate_hz=sample_rate_hz,
-                default_duration_seconds=default_duration_seconds,
-                default_attack_ms=default_attack_ms,
-                default_release_ms=default_release_ms,
-                phase_radians=default_phase_radians,
-            )
+        rendered_state = _render_state(
+            state,
+            sample_rate_hz=sample_rate_hz,
+            default_duration_seconds=default_duration_seconds,
+            default_attack_ms=default_attack_ms,
+            default_release_ms=default_release_ms,
+            phase_radians=default_phase_radians,
         )
+        channel_vector = _state_channel_vector(state, channels)
+        rendered_segments.append(rendered_state[:, np.newaxis] * channel_vector[np.newaxis, :])
 
     if not rendered_segments:
         raise ValueError("ARWIF artifact contains no states to render")
 
-    mixed = np.concatenate(rendered_segments)
+    mixed = np.concatenate(rendered_segments, axis=0)
     peak_before = float(np.max(np.abs(mixed))) if mixed.size else 0.0
     normalized = False
     if normalize and peak_before > 0.0:
@@ -116,7 +133,7 @@ def render_arwif_to_wav(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(output_path), "wb") as handle:
-        handle.setnchannels(1)
+        handle.setnchannels(len(channels))
         handle.setsampwidth(2)
         handle.setframerate(sample_rate_hz)
         handle.writeframes(pcm16.tobytes())
@@ -124,9 +141,12 @@ def render_arwif_to_wav(
     return {
         "artifact": str(artifact_path),
         "output": str(output_path),
+        "channel_layout": channel_layout,
+        "channel_count": len(channels),
+        "channel_labels": list(channels),
         "sample_rate_hz": sample_rate_hz,
         "segment_count": len(rendered_segments),
-        "duration_seconds": len(pcm16) / float(sample_rate_hz),
+        "duration_seconds": pcm16.shape[0] / float(sample_rate_hz),
         "legacy_mode": allow_legacy and metadata.get("format") != "arwif_audio",
         "normalized": normalized,
         "peak_before": peak_before,

@@ -15,11 +15,15 @@ ARWIF `v0.1` describes:
 
 It does not yet describe:
 
-- multichannel layouts
+- object-based or room-aware spatial layouts
 - streaming or chunked playback
 - compressed payloads
 - sample-accurate event scheduling
 - arbitrary wavetable synthesis
+
+See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking design path toward channel-aware, object-based, room-aware, and field-synthesis spatial ARWIF tiers.
+
+The current toolchain also accepts a minimal Level 1 spatial metadata slice: a top-level `channel_layout` and per-state `channel_gains`. The reference renderer can now emit multichannel PCM WAV for those declared layouts, but this remains a channel-aware authoring contract rather than a full object-based or room-aware spatial renderer.
 
 ## Container
 
@@ -83,16 +87,20 @@ For ARWIF `v0.1`, frequency validation is based on `sample_rate_hz` and Nyquist,
 
 ## Rendering Model
 
-The reference renderer produces mono 16-bit PCM WAV output.
+The reference renderer produces 16-bit PCM WAV output.
+
+When no `channel_layout` is present, output is mono.
+When a supported `channel_layout` is present, the renderer emits a multichannel WAV and applies each state's `channel_gains` across the declared layout.
 
 For each segment:
 
 1. create a time grid using `sample_rate_hz`
 2. synthesize one sine oscillator per atomic wave unit
-3. sum the oscillators
+3. sum the oscillators into a mono state signal
 4. apply gain and a simple attack/release envelope
-5. concatenate segments in order
-6. normalize if enabled
+5. project that state signal across channels using `channel_gains` when present
+6. concatenate segments in order
+7. normalize if enabled
 
 ## Authoring Spec
 
@@ -121,6 +129,7 @@ Supported top-level fields:
 
 - `title`
 - `description`
+- `channel_layout` as one of `mono`, `stereo`, `quad`, `5.1`, or `7.1`
 - `sample_rate_hz`
 - `default_duration_seconds`
 - `default_phase_radians`
@@ -136,6 +145,7 @@ Supported per-state fields:
 - `duration_seconds`
 - `phase_radians`
 - `gain`
+- `channel_gains` as a mapping of layout channel labels to finite gain values
 - `attack_ms`
 - `release_ms`
 - `vector_length`
@@ -184,6 +194,10 @@ rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 ```
 
 For strict ARWIF `v0.1` artifacts produced by the reference builder, the exported spec is intended to round-trip without changing playback metadata, state ordering, or oscillator-bank contents.
+
+The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, and the number of states carrying explicit `channel_gains` metadata.
+
+The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so channel-aware revisions can be reviewed without reading the entire per-state metadata diff.
 
 ## Legacy Prototype Files
 

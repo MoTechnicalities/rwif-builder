@@ -126,6 +126,10 @@ See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and
 
 See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile draft and [docs/ARWIF_CONTAINER_DECISION.md](docs/ARWIF_CONTAINER_DECISION.md) for the container-strategy analysis.
 
+See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking spatial ARWIF roadmap centered on AI comprehension, reasoning, and production.
+
+See [docs/VISION.md](docs/VISION.md) for the longer-term thesis connecting RWIF semantic memory, ARWIF structured sound, and possible future multimodal companions such as VRWIF.
+
 An end-to-end ARWIF authoring path is now available:
 
 ```bash
@@ -158,6 +162,19 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 `rwif arwif-batch-export` scales artifact-to-spec export across multiple ARWIF artifacts in one command, writes strict YAML or JSON source documents into a target directory, and returns collection-level counts for exported files, states, and oscillators.
 
 `rwif arwif-batch-render` scales ARWIF WAV export across multiple artifacts in one command, writing `.wav` files into a target directory while returning collection-level render counts and total rendered duration.
+
+The current ARWIF toolchain also accepts an initial Level 1 spatial slice: `channel_layout` at the spec level plus per-state `channel_gains`, giving the format a first channel-aware foothold for reasoning and authoring while allowing the reference renderer to emit multichannel WAV for supported layouts.
+
+`rwif arwif-inspect` and `rwif arwif-diff` now also expose compact spatial summaries so channel-aware revisions can be reviewed at a glance instead of only through raw metadata blocks.
+
+Reference example:
+
+```bash
+rwif arwif-inspect dist/CEG_v0_1.arwif --json
+rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
+```
+
+Those JSON payloads now include the declared channel layout, active channel usage, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
 
 ## On-Disk Contract
 

@@ -58,7 +58,7 @@ rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_spe
 To validate multiple strict ARWIF source specs in one pass:
 
 ```bash
-rwif arwif-batch-validate-spec first.yaml second.yaml --json
+rwif arwif-batch-validate-spec first.yaml second.yaml --output dist/batch-validate-spec-report.json --json
 ```
 
 To render multiple ARWIF artifacts into WAV outputs in one pass:

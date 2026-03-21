@@ -65,6 +65,7 @@ Current implementation: accepts one or more strict ARWIF source specs, writes ar
 Validates multiple ARWIF YAML or JSON source specs.
 
 Current implementation: accepts one or more strict ARWIF source specs, reuses the same validation path as `arwif-validate-spec`, and returns an aggregated result payload with per-spec validation details plus collection-level valid and invalid counts.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-diff`
 

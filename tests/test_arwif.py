@@ -937,6 +937,7 @@ states:
             tmp_dir = Path(tmp_dir_str)
             valid_spec_path = tmp_dir / "valid.yaml"
             invalid_spec_path = tmp_dir / "invalid.yaml"
+            report_path = tmp_dir / "batch-validate-spec-report.json"
 
             valid_spec_path.write_text(
                 """
@@ -974,6 +975,8 @@ states:
                 "arwif-batch-validate-spec",
                 str(valid_spec_path),
                 str(invalid_spec_path),
+                "--output",
+                str(report_path),
                 "--json",
                 allow_failure=True,
             )
@@ -984,7 +987,13 @@ states:
             self.assertEqual(batch_payload["invalid_count"], 1)
             self.assertEqual(batch_payload["total_state_count"], 2)
             self.assertEqual(batch_payload["total_oscillator_count"], 2)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "json")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["specs_processed"], 2)
+            self.assertEqual(persisted_report["invalid_count"], 1)
 
             valid_result = next(result for result in batch_payload["results"] if result["spec"] == str(valid_spec_path))
             invalid_result = next(result for result in batch_payload["results"] if result["spec"] == str(invalid_spec_path))

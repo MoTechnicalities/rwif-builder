@@ -120,6 +120,8 @@ def batch_import_arwif_artifacts(
 
 def batch_validate_arwif_specs(
     specs: list[str | Path],
+    *,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not specs:
         raise ValueError("at least one spec must be provided")
@@ -141,7 +143,7 @@ def batch_validate_arwif_specs(
         total_oscillator_count += int(report.stats.get("oscillator_count", 0))
         results.append(payload)
 
-    return {
+    payload = {
         "specs_processed": len(specs),
         "valid_count": valid_count,
         "invalid_count": invalid_count,
@@ -150,6 +152,15 @@ def batch_validate_arwif_specs(
         "total_oscillator_count": total_oscillator_count,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch validate spec output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def batch_validate_arwif_artifacts(

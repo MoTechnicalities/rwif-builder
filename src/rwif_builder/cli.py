@@ -102,6 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate multiple ARWIF YAML or JSON source specs",
     )
     arwif_batch_validate_spec_parser.add_argument("specs", nargs="+", help="Paths to ARWIF source specs")
+    arwif_batch_validate_spec_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated spec validation report",
+    )
     arwif_batch_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_validate_spec_parser.set_defaults(handler=handle_arwif_batch_validate_spec)
 
@@ -359,7 +363,10 @@ def handle_arwif_batch_import(args: argparse.Namespace) -> int:
 
 
 def handle_arwif_batch_validate_spec(args: argparse.Namespace) -> int:
-    payload = batch_validate_arwif_specs([Path(spec) for spec in args.specs])
+    payload = batch_validate_arwif_specs(
+        [Path(spec) for spec in args.specs],
+        output=Path(args.output) if args.output else None,
+    )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
 

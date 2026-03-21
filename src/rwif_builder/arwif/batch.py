@@ -645,6 +645,55 @@ def analyze_batch_diff_report(
 ) -> dict[str, Any]:
     report_path = Path(input_path)
     report_document = _load_auxiliary_document(report_path, label="batch diff analysis input")
+    analysis_payload = _analyze_batch_diff_payload(report_document, analysis_input=str(report_path))
+
+    if output is not None:
+        analysis_output_path = Path(output)
+        report_format = _resolve_auxiliary_format(analysis_output_path, label="batch diff analysis output")
+        _write_auxiliary_document(analysis_output_path, analysis_payload, report_format)
+        analysis_payload["report_output"] = str(analysis_output_path)
+        analysis_payload["report_format"] = report_format
+
+    return analysis_payload
+
+
+def batch_review_arwif_artifacts(
+    left_artifacts: list[str | Path],
+    right_artifacts: list[str | Path],
+    *,
+    allow_legacy: bool = False,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    diff_payload = batch_diff_arwif_artifacts(
+        left_artifacts,
+        right_artifacts,
+        allow_legacy=allow_legacy,
+    )
+    analysis_payload = _analyze_batch_diff_payload(diff_payload)
+
+    review_payload = {
+        "pairs_compared": diff_payload["pairs_compared"],
+        "changed_pairs": diff_payload["changed_pairs"],
+        "unchanged_pairs": diff_payload["unchanged_pairs"],
+        "invalid_pairs": diff_payload["invalid_pairs"],
+        "incompatible_pairs": diff_payload["incompatible_pairs"],
+        "is_valid": diff_payload["is_valid"] and analysis_payload["is_valid"],
+        "allow_legacy": allow_legacy,
+        "diff_report": diff_payload,
+        "analysis": analysis_payload,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch review output")
+        _write_auxiliary_document(output_path, review_payload, report_format)
+        review_payload["report_output"] = str(output_path)
+        review_payload["report_format"] = report_format
+
+    return review_payload
+
+
+def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_input: str | None = None) -> dict[str, Any]:
     results = report_document.get("results")
     if not isinstance(results, list):
         raise ValueError("batch diff analysis input must contain a 'results' list")
@@ -714,7 +763,6 @@ def analyze_batch_diff_report(
 
     pairs_compared = int(report_document.get("pairs_compared", len(results)))
     analysis_payload = {
-        "analysis_input": str(report_path),
         "pairs_compared": pairs_compared,
         "changed_pairs": changed_pairs,
         "unchanged_pairs": unchanged_pairs,
@@ -737,12 +785,8 @@ def analyze_batch_diff_report(
         },
     }
 
-    if output is not None:
-        analysis_output_path = Path(output)
-        report_format = _resolve_auxiliary_format(analysis_output_path, label="batch diff analysis output")
-        _write_auxiliary_document(analysis_output_path, analysis_payload, report_format)
-        analysis_payload["report_output"] = str(analysis_output_path)
-        analysis_payload["report_format"] = report_format
+    if analysis_input is not None:
+        analysis_payload["analysis_input"] = analysis_input
 
     return analysis_payload
 

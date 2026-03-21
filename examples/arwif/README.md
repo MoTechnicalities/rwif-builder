@@ -55,6 +55,12 @@ To analyze recurring change patterns from that saved batch diff report:
 rwif arwif-batch-diff-analyze dist/batch-diff-report.json --output dist/batch-diff-analysis.yaml --json
 ```
 
+To run the diff and recurring-change review in one pass:
+
+```bash
+rwif arwif-batch-review --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-review-report.json --json
+```
+
 To export multiple ARWIF artifacts into strict source specs in one pass:
 
 ```bash

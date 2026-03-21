@@ -82,6 +82,12 @@ Analyzes an aggregated ARWIF batch diff report.
 
 Current implementation: accepts a previously saved `arwif-batch-diff` report in `.json`, `.yaml`, or `.yml` format, aggregates recurring metadata and state changes across pairs, summarizes spatial drift counts, and can optionally persist the analysis result as `.json`, `.yaml`, or `.yml` based on the output suffix.
 
+### `rwif arwif-batch-review`
+
+Runs ARWIF batch diff and recurring-change analysis in one command.
+
+Current implementation: accepts pairwise `--left` and `--right` artifact collections like `arwif-batch-diff`, computes the per-pair diff report and the higher-level recurring-change analysis together, and can optionally persist the combined review result as `.json`, `.yaml`, or `.yml` based on the output suffix.
+
 ### `rwif arwif-batch-export`
 
 Exports multiple ARWIF artifacts to YAML or JSON specs.

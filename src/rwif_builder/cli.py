@@ -14,6 +14,7 @@ from .arwif.batch import batch_export_arwif_artifacts
 from .arwif.batch import batch_import_arwif_artifacts
 from .arwif.batch import batch_inspect_arwif_artifacts
 from .arwif.batch import batch_normalize_arwif_artifacts
+from .arwif.batch import batch_review_arwif_artifacts
 from .arwif.batch import batch_render_arwif_artifacts
 from .arwif.batch import batch_validate_arwif_artifacts
 from .arwif.batch import batch_validate_arwif_specs
@@ -272,6 +273,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arwif_batch_diff_analyze_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_diff_analyze_parser.set_defaults(handler=handle_arwif_batch_diff_analyze)
+
+    arwif_batch_review_parser = subparsers.add_parser(
+        "arwif-batch-review",
+        help="Run ARWIF batch diff and recurring-change analysis in one command",
+    )
+    arwif_batch_review_parser.add_argument(
+        "--left",
+        nargs="+",
+        required=True,
+        help="Left-hand .arwif artifact paths matched pairwise with --right",
+    )
+    arwif_batch_review_parser.add_argument(
+        "--right",
+        nargs="+",
+        required=True,
+        help="Right-hand .arwif artifact paths matched pairwise with --left",
+    )
+    arwif_batch_review_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated review report",
+    )
+    arwif_batch_review_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_batch_review_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_review_parser.set_defaults(handler=handle_arwif_batch_review)
 
     arwif_inspect_parser = subparsers.add_parser("arwif-inspect", help="Inspect an ARWIF audio artifact")
     arwif_inspect_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -571,6 +596,17 @@ def handle_arwif_batch_diff(args: argparse.Namespace) -> int:
 def handle_arwif_batch_diff_analyze(args: argparse.Namespace) -> int:
     payload = analyze_batch_diff_report(
         Path(args.input),
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_review(args: argparse.Namespace) -> int:
+    payload = batch_review_arwif_artifacts(
+        [Path(artifact) for artifact in args.left],
+        [Path(artifact) for artifact in args.right],
+        allow_legacy=args.legacy,
         output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)

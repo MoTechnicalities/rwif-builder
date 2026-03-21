@@ -145,6 +145,8 @@ Supported commands:
 - `rwif vrwif-validate-spec <spec> --json`
 - `rwif vrwif-inspect <spec> --json`
 - `rwif vrwif-diff <left> <right> --json`
+- `rwif vrwif-batch-inspect <spec...> --output <report.json|yaml> --json`
+- `rwif vrwif-batch-diff --left <spec...> --right <spec...> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-validate-spec <spec...> --output <report.json|yaml> --json`
 
 The current validator checks:
@@ -161,6 +163,8 @@ The current validator checks:
 The current inspection path reports compact scene summaries including object ids, object groups, appearance classes, positioned-object counts, trajectory counts, camera presence, and lighting presence.
 
 The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting id changes.
+
+The current batch inspection and batch diff paths scale those same review surfaces across collections of VRWIF scene specs, returning aggregated counts plus the full per-spec or per-pair payloads.
 
 It does not yet build artifacts or render them.
 

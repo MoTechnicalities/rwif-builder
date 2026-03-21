@@ -6,6 +6,8 @@ from typing import Any
 
 import yaml
 
+from .diff import diff_vrwif_specs
+from .inspect import inspect_vrwif_spec
 from .validation import validate_vrwif_spec
 
 
@@ -47,6 +49,118 @@ def batch_validate_vrwif_specs(
     if output is not None:
         output_path = Path(output)
         report_format = _resolve_auxiliary_format(output_path, label="batch validate spec output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def batch_inspect_vrwif_specs(
+    specs: list[str | Path],
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not specs:
+        raise ValueError("at least one spec must be provided")
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_object_count = 0
+    total_light_count = 0
+    scenes_with_camera = 0
+
+    for spec in specs:
+        payload = inspect_vrwif_spec(Path(spec))
+        if payload.get("is_valid", False):
+            valid_count += 1
+        else:
+            invalid_count += 1
+        total_object_count += int(payload.get("object_count", 0))
+        total_light_count += len(payload.get("lighting", [])) if isinstance(payload.get("lighting"), list) else 0
+        if isinstance(payload.get("camera"), dict) and payload.get("camera"):
+            scenes_with_camera += 1
+        results.append(payload)
+
+    payload = {
+        "specs_processed": len(specs),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "total_object_count": total_object_count,
+        "total_light_count": total_light_count,
+        "scenes_with_camera": scenes_with_camera,
+        "results": results,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch inspect output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def batch_diff_vrwif_specs(
+    left_specs: list[str | Path],
+    right_specs: list[str | Path],
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not left_specs or not right_specs:
+        raise ValueError("at least one left and one right spec must be provided")
+    if len(left_specs) != len(right_specs):
+        raise ValueError("left and right spec collections must have the same length")
+
+    results: list[dict[str, Any]] = []
+    changed_pairs = 0
+    unchanged_pairs = 0
+    invalid_pairs = 0
+    total_metadata_fields_changed = 0
+    total_changed_objects = 0
+
+    for pair_index, (left_spec, right_spec) in enumerate(zip(left_specs, right_specs, strict=True)):
+        payload = diff_vrwif_specs(left_spec, right_spec)
+        payload["pair_index"] = pair_index
+
+        summary = payload.get("change_summary", {})
+        metadata_fields_changed = int(summary.get("metadata_fields_changed", 0))
+        changed_objects = int(summary.get("changed_objects", 0))
+        added_objects = int(summary.get("added_objects", 0))
+        removed_objects = int(summary.get("removed_objects", 0))
+
+        pair_changed = any((metadata_fields_changed, changed_objects, added_objects, removed_objects))
+        payload["pair_changed"] = pair_changed
+
+        if pair_changed:
+            changed_pairs += 1
+        else:
+            unchanged_pairs += 1
+
+        if not payload.get("left_valid", False) or not payload.get("right_valid", False):
+            invalid_pairs += 1
+
+        total_metadata_fields_changed += metadata_fields_changed
+        total_changed_objects += changed_objects
+        results.append(payload)
+
+    payload = {
+        "pairs_compared": len(results),
+        "changed_pairs": changed_pairs,
+        "unchanged_pairs": unchanged_pairs,
+        "invalid_pairs": invalid_pairs,
+        "is_valid": invalid_pairs == 0,
+        "total_metadata_fields_changed": total_metadata_fields_changed,
+        "total_changed_objects": total_changed_objects,
+        "results": results,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch diff output")
         _write_auxiliary_document(output_path, payload, report_format)
         payload["report_output"] = str(output_path)
         payload["report_format"] = report_format

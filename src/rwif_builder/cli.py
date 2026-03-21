@@ -26,6 +26,8 @@ from .arwif.normalize import normalize_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
+from .vrwif.batch import batch_diff_vrwif_specs
+from .vrwif.batch import batch_inspect_vrwif_specs
 from .vrwif.batch import batch_validate_vrwif_specs
 from .vrwif.diff import diff_vrwif_specs
 from .vrwif.inspect import inspect_vrwif_spec
@@ -160,6 +162,41 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vrwif_batch_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_batch_validate_spec_parser.set_defaults(handler=handle_vrwif_batch_validate_spec)
+
+    vrwif_batch_inspect_parser = subparsers.add_parser(
+        "vrwif-batch-inspect",
+        help="Inspect multiple VRWIF YAML or JSON source specs",
+    )
+    vrwif_batch_inspect_parser.add_argument("specs", nargs="+", help="Paths to VRWIF source specs")
+    vrwif_batch_inspect_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated inspection report",
+    )
+    vrwif_batch_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_batch_inspect_parser.set_defaults(handler=handle_vrwif_batch_inspect)
+
+    vrwif_batch_diff_parser = subparsers.add_parser(
+        "vrwif-batch-diff",
+        help="Compare multiple VRWIF source spec pairs",
+    )
+    vrwif_batch_diff_parser.add_argument(
+        "--left",
+        nargs="+",
+        required=True,
+        help="Left-hand VRWIF source spec paths matched pairwise with --right",
+    )
+    vrwif_batch_diff_parser.add_argument(
+        "--right",
+        nargs="+",
+        required=True,
+        help="Right-hand VRWIF source spec paths matched pairwise with --left",
+    )
+    vrwif_batch_diff_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated diff report",
+    )
+    vrwif_batch_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_batch_diff_parser.set_defaults(handler=handle_vrwif_batch_diff)
 
     vrwif_validate_spec_parser = subparsers.add_parser("vrwif-validate-spec", help="Validate a VRWIF YAML or JSON source spec")
     vrwif_validate_spec_parser.add_argument("spec", help="Path to a VRWIF source spec")
@@ -504,6 +541,25 @@ def handle_arwif_validate_spec(args: argparse.Namespace) -> int:
 def handle_vrwif_batch_validate_spec(args: argparse.Namespace) -> int:
     payload = batch_validate_vrwif_specs(
         [Path(spec) for spec in args.specs],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_vrwif_batch_inspect(args: argparse.Namespace) -> int:
+    payload = batch_inspect_vrwif_specs(
+        [Path(spec) for spec in args.specs],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_vrwif_batch_diff(args: argparse.Namespace) -> int:
+    payload = batch_diff_vrwif_specs(
+        [Path(spec) for spec in args.left],
+        [Path(spec) for spec in args.right],
         output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)

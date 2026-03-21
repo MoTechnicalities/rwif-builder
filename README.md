@@ -90,13 +90,15 @@ rwif arwif-normalize
 rwif arwif-validate-spec
 rwif arwif-validate
 rwif arwif-render
+rwif vrwif-batch-diff
+rwif vrwif-batch-inspect
 rwif vrwif-diff
 rwif vrwif-inspect
 rwif vrwif-batch-validate-spec
 rwif vrwif-validate-spec
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, and `vrwif-validate-spec`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-inspect`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, and `vrwif-validate-spec`.
 
 ## Configuration
 
@@ -148,6 +150,8 @@ Reference example:
 rwif vrwif-validate-spec examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-inspect examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-diff examples/vrwif/scene_v0_1.yaml examples/vrwif/scene_v0_1.yaml --json
+rwif vrwif-batch-inspect first-scene.yaml second-scene.yaml --output dist/vrwif-batch-inspect-report.json --json
+rwif vrwif-batch-diff --left first-left.yaml second-left.yaml --right first-right.yaml second-right.yaml --output dist/vrwif-batch-diff-report.json --json
 rwif vrwif-batch-validate-spec first-scene.yaml second-scene.yaml --output dist/vrwif-batch-validate-report.json --json
 ```
 

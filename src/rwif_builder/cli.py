@@ -28,6 +28,7 @@ from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
 from .vrwif.batch import batch_diff_vrwif_specs
 from .vrwif.batch import analyze_batch_diff_report as analyze_vrwif_batch_diff_report
+from .vrwif.batch import analyze_batch_normalize_report as analyze_vrwif_batch_normalize_report
 from .vrwif.batch import batch_inspect_vrwif_specs
 from .vrwif.batch import batch_normalize_vrwif_specs
 from .vrwif.batch import batch_review_vrwif_specs
@@ -182,6 +183,21 @@ def build_parser() -> argparse.ArgumentParser:
     vrwif_batch_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
     vrwif_batch_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_batch_normalize_parser.set_defaults(handler=handle_vrwif_batch_normalize)
+
+    vrwif_batch_normalize_analyze_parser = subparsers.add_parser(
+        "vrwif-batch-normalize-analyze",
+        help="Analyze an aggregated VRWIF batch normalization report",
+    )
+    vrwif_batch_normalize_analyze_parser.add_argument(
+        "input",
+        help="Path to a batch normalization report in .json, .yaml, or .yml format",
+    )
+    vrwif_batch_normalize_analyze_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated normalization analysis report",
+    )
+    vrwif_batch_normalize_analyze_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_batch_normalize_analyze_parser.set_defaults(handler=handle_vrwif_batch_normalize_analyze)
 
     vrwif_batch_inspect_parser = subparsers.add_parser(
         "vrwif-batch-inspect",
@@ -624,6 +640,15 @@ def handle_vrwif_batch_normalize(args: argparse.Namespace) -> int:
         report_dir=Path(args.report_dir) if args.report_dir else None,
         assumptions_dir=Path(args.assumptions_dir) if args.assumptions_dir else None,
         format=args.format,
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_vrwif_batch_normalize_analyze(args: argparse.Namespace) -> int:
+    payload = analyze_vrwif_batch_normalize_report(
+        Path(args.input),
         output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)

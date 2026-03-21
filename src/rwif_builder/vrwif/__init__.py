@@ -1,4 +1,5 @@
 from .batch import analyze_batch_diff_report
+from .batch import analyze_batch_normalize_report
 from .batch import batch_diff_vrwif_specs
 from .batch import batch_inspect_vrwif_specs
 from .batch import batch_normalize_vrwif_specs
@@ -12,6 +13,7 @@ from .validation import validate_vrwif_spec_document
 
 __all__ = [
     "analyze_batch_diff_report",
+    "analyze_batch_normalize_report",
     "batch_diff_vrwif_specs",
     "batch_inspect_vrwif_specs",
     "batch_normalize_vrwif_specs",

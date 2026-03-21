@@ -94,6 +94,7 @@ rwif vrwif-batch-diff
 rwif vrwif-batch-diff-analyze
 rwif vrwif-batch-inspect
 rwif vrwif-batch-normalize
+rwif vrwif-batch-normalize-analyze
 rwif vrwif-batch-review
 rwif vrwif-diff
 rwif vrwif-inspect
@@ -102,7 +103,7 @@ rwif vrwif-normalize
 rwif vrwif-validate-spec
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-diff-analyze`, `vrwif-batch-inspect`, `vrwif-batch-normalize`, `vrwif-batch-review`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, `vrwif-normalize`, and `vrwif-validate-spec`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-diff-analyze`, `vrwif-batch-inspect`, `vrwif-batch-normalize`, `vrwif-batch-normalize-analyze`, `vrwif-batch-review`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, `vrwif-normalize`, and `vrwif-validate-spec`.
 
 ## Configuration
 
@@ -156,6 +157,7 @@ rwif vrwif-normalize examples/vrwif/scene_v0_1.yaml --output dist/scene_v0_1.nor
 rwif vrwif-inspect examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-diff examples/vrwif/scene_v0_1.yaml examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-batch-normalize first-scene.yaml second-scene.yaml --output-dir dist/normalized_vrwif --report-dir dist/vrwif_normalization_reports --assumptions-dir dist/vrwif_assumptions --output dist/vrwif-batch-normalize-report.json --json
+rwif vrwif-batch-normalize-analyze dist/vrwif-batch-normalize-report.json --output dist/vrwif-batch-normalize-analysis.json --json
 rwif vrwif-batch-inspect first-scene.yaml second-scene.yaml --output dist/vrwif-batch-inspect-report.json --json
 rwif vrwif-batch-diff --left first-left.yaml second-left.yaml --right first-right.yaml second-right.yaml --output dist/vrwif-batch-diff-report.json --json
 rwif vrwif-batch-diff-analyze dist/vrwif-batch-diff-report.json --output dist/vrwif-batch-diff-analysis.json --json

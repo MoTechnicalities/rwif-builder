@@ -655,6 +655,104 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue((assumptions_dir / "second.normalized.assumptions.json").exists())
             self.assertTrue(report_path.exists())
 
+    def test_vrwif_batch_normalize_analyze_report(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_path = tmp_dir / "first.yaml"
+            second_path = tmp_dir / "second.yaml"
+            output_dir = tmp_dir / "normalized"
+            report_path = tmp_dir / "vrwif-batch-normalize-report.json"
+            analysis_path = tmp_dir / "vrwif-batch-normalize-analysis.json"
+
+            first_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: first.scene",
+                        "reference_frame: SCENE",
+                        "unexpected_flag: true",
+                        "objects:",
+                        "  - object_id: object.first",
+                        "    class: prop",
+                        "    object_groups:",
+                        "      - zeta",
+                        "      - alpha",
+                        "    position:",
+                        "      x: 0",
+                        "      y: 0",
+                        "      z: 0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            second_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: second.scene",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.second",
+                        "    object_groups:",
+                        "      - beta",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 1",
+                        "      y: 0",
+                        "      z: 2",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            normalize_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-normalize",
+                str(first_path),
+                str(second_path),
+                "--output-dir",
+                str(output_dir),
+                "--output",
+                str(report_path),
+                "--json",
+            )
+            self.assertTrue(normalize_payload["is_valid"], normalize_payload)
+            self.assertTrue(report_path.exists())
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-normalize-analyze",
+                str(report_path),
+                "--output",
+                str(analysis_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["specs_processed"], 2)
+            self.assertEqual(analysis_payload["normalized_count"], 2)
+            self.assertEqual(analysis_payload["summary"]["specs_with_assumptions"], 2)
+            self.assertEqual(analysis_payload["summary"]["specs_with_source_errors"], 1)
+            self.assertEqual(
+                analysis_payload["normalization_action_frequencies"][0]["specs_affected"],
+                2,
+            )
+            self.assertEqual(
+                analysis_payload["normalization_action_frequencies"][0]["action"],
+                "inserted_vrwif_version",
+            )
+            self.assertIn(
+                "resolved_class_aliases",
+                [item["action"] for item in analysis_payload["normalization_action_frequencies"]],
+            )
+            self.assertIn(
+                "dropped_unknown_top_level_fields",
+                [item["action"] for item in analysis_payload["normalization_action_frequencies"]],
+            )
+            self.assertGreaterEqual(len(analysis_payload["source_error_frequencies"]), 1)
+            self.assertEqual(analysis_payload["top_specs_by_assumption_count"][0]["spec"], str(first_path))
+            self.assertTrue(analysis_path.exists())
+
     def test_vrwif_batch_diff_analyze_report(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

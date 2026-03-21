@@ -288,6 +288,25 @@ def analyze_batch_diff_report(
     return analysis_payload
 
 
+def analyze_batch_normalize_report(
+    input_path: str | Path,
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    report_path = Path(input_path)
+    report_document = _load_auxiliary_document(report_path, label="batch normalize analysis input")
+    analysis_payload = _analyze_batch_normalize_payload(report_document, analysis_input=str(report_path))
+
+    if output is not None:
+        analysis_output_path = Path(output)
+        report_format = _resolve_auxiliary_format(analysis_output_path, label="batch normalize analysis output")
+        _write_auxiliary_document(analysis_output_path, analysis_payload, report_format)
+        analysis_payload["report_output"] = str(analysis_output_path)
+        analysis_payload["report_format"] = report_format
+
+    return analysis_payload
+
+
 def batch_review_vrwif_specs(
     left_specs: list[str | Path],
     right_specs: list[str | Path],
@@ -315,6 +334,167 @@ def batch_review_vrwif_specs(
         review_payload["report_format"] = report_format
 
     return review_payload
+
+
+def _analyze_batch_normalize_payload(report_document: dict[str, Any], *, analysis_input: str | None = None) -> dict[str, Any]:
+    results = report_document.get("results")
+    if not isinstance(results, list):
+        raise ValueError("batch normalize analysis input must contain a 'results' list")
+
+    action_spec_counter: Counter[str] = Counter()
+    action_total_counter: Counter[str] = Counter()
+    action_spec_indexes: dict[str, list[int]] = {}
+    action_specs: dict[str, list[str]] = {}
+    source_error_counter: Counter[str] = Counter()
+    source_error_indexes: dict[str, list[int]] = {}
+    source_error_specs: dict[str, list[str]] = {}
+    source_warning_counter: Counter[str] = Counter()
+    source_warning_indexes: dict[str, list[int]] = {}
+    source_warning_specs: dict[str, list[str]] = {}
+    normalized_warning_counter: Counter[str] = Counter()
+    normalized_warning_indexes: dict[str, list[int]] = {}
+    normalized_warning_specs: dict[str, list[str]] = {}
+
+    normalized_count = 0
+    failed_count = 0
+    specs_with_assumptions = 0
+    specs_with_source_errors = 0
+    specs_with_source_warnings = 0
+    specs_with_normalized_warnings = 0
+
+    top_specs: list[dict[str, Any]] = []
+
+    for index, raw_result in enumerate(results):
+        if not isinstance(raw_result, dict):
+            continue
+
+        spec_index = index
+        spec_name = str(raw_result.get("spec", f"<spec {index}>"))
+        normalized = bool(raw_result.get("normalized", False))
+
+        if normalized:
+            normalized_count += 1
+        else:
+            failed_count += 1
+
+        source_errors = _string_list(raw_result.get("source_errors") or raw_result.get("errors"))
+        source_warnings = _string_list(raw_result.get("source_warnings") or raw_result.get("warnings"))
+        normalized_warnings = _string_list(raw_result.get("normalized_spec_warnings"))
+
+        if source_errors:
+            specs_with_source_errors += 1
+        if source_warnings:
+            specs_with_source_warnings += 1
+        if normalized_warnings:
+            specs_with_normalized_warnings += 1
+
+        normalization_summary = raw_result.get("normalization_summary")
+        actions_triggered: list[str] = []
+        if isinstance(normalization_summary, dict):
+            for action_name, raw_count in normalization_summary.items():
+                count = int(raw_count or 0)
+                if count <= 0:
+                    continue
+                action_key = str(action_name)
+                actions_triggered.append(action_key)
+                action_spec_counter[action_key] += 1
+                action_total_counter[action_key] += count
+                action_spec_indexes.setdefault(action_key, []).append(spec_index)
+                action_specs.setdefault(action_key, []).append(spec_name)
+
+        assumption_count = _estimate_assumption_count(
+            raw_result,
+            normalization_summary if isinstance(normalization_summary, dict) else None,
+            source_warnings,
+            normalized_warnings,
+        )
+        if assumption_count > 0:
+            specs_with_assumptions += 1
+
+        for message in source_errors:
+            source_error_counter[message] += 1
+            source_error_indexes.setdefault(message, []).append(spec_index)
+            source_error_specs.setdefault(message, []).append(spec_name)
+
+        for message in source_warnings:
+            source_warning_counter[message] += 1
+            source_warning_indexes.setdefault(message, []).append(spec_index)
+            source_warning_specs.setdefault(message, []).append(spec_name)
+
+        for message in normalized_warnings:
+            normalized_warning_counter[message] += 1
+            normalized_warning_indexes.setdefault(message, []).append(spec_index)
+            normalized_warning_specs.setdefault(message, []).append(spec_name)
+
+        top_specs.append(
+            {
+                "spec": spec_name,
+                "spec_index": spec_index,
+                "normalized": normalized,
+                "assumption_count": assumption_count,
+                "source_error_count": len(source_errors),
+                "source_warning_count": len(source_warnings),
+                "normalized_warning_count": len(normalized_warnings),
+                "actions_triggered": sorted(actions_triggered),
+            }
+        )
+
+    top_specs.sort(
+        key=lambda item: (
+            -int(item.get("assumption_count", 0)),
+            -len(item.get("actions_triggered", [])),
+            -int(item.get("source_error_count", 0)),
+            str(item.get("spec", "")),
+        )
+    )
+
+    analysis_payload = {
+        "specs_processed": int(report_document.get("specs_processed", len(results))),
+        "normalized_count": normalized_count,
+        "failed_count": failed_count,
+        "is_valid": failed_count == 0,
+        "normalization_action_frequencies": _rank_normalization_items(
+            action_spec_counter,
+            action_total_counter,
+            action_spec_indexes,
+            action_specs,
+            normalized_count,
+        ),
+        "actions_present_in_all_normalized_specs": _universal_items(action_spec_counter, normalized_count),
+        "source_error_frequencies": _rank_message_items(
+            source_error_counter,
+            source_error_indexes,
+            source_error_specs,
+            "error",
+            len(results),
+        ),
+        "source_warning_frequencies": _rank_message_items(
+            source_warning_counter,
+            source_warning_indexes,
+            source_warning_specs,
+            "warning",
+            len(results),
+        ),
+        "normalized_warning_frequencies": _rank_message_items(
+            normalized_warning_counter,
+            normalized_warning_indexes,
+            normalized_warning_specs,
+            "warning",
+            normalized_count,
+        ),
+        "summary": {
+            "specs_with_assumptions": specs_with_assumptions,
+            "specs_with_source_errors": specs_with_source_errors,
+            "specs_with_source_warnings": specs_with_source_warnings,
+            "specs_with_normalized_warnings": specs_with_normalized_warnings,
+        },
+        "top_specs_by_assumption_count": top_specs[:10],
+    }
+
+    if analysis_input is not None:
+        analysis_payload["analysis_input"] = analysis_input
+
+    return analysis_payload
 
 
 def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_input: str | None = None) -> dict[str, Any]:
@@ -529,6 +709,69 @@ def _rank_frequency_items(
             }
         )
     return ranked
+
+
+def _rank_normalization_items(
+    spec_counter: Counter[str],
+    total_counter: Counter[str],
+    spec_indexes: dict[str, list[int]],
+    specs: dict[str, list[str]],
+    normalized_count: int,
+) -> list[dict[str, Any]]:
+    denominator = normalized_count if normalized_count > 0 else 1
+    ranked: list[dict[str, Any]] = []
+    for name, spec_count in sorted(spec_counter.items(), key=lambda item: (-item[1], -total_counter[item[0]], item[0])):
+        ranked.append(
+            {
+                "action": name,
+                "specs_affected": spec_count,
+                "total_count": total_counter[name],
+                "spec_indexes": spec_indexes.get(name, []),
+                "specs": specs.get(name, []),
+                "frequency": spec_count / denominator,
+            }
+        )
+    return ranked
+
+
+def _rank_message_items(
+    counter: Counter[str],
+    spec_indexes: dict[str, list[int]],
+    specs: dict[str, list[str]],
+    label: str,
+    total_count: int,
+) -> list[dict[str, Any]]:
+    denominator = total_count if total_count > 0 else 1
+    ranked: list[dict[str, Any]] = []
+    for message, count in sorted(counter.items(), key=lambda item: (-item[1], item[0])):
+        ranked.append(
+            {
+                label: message,
+                "specs_affected": count,
+                "spec_indexes": spec_indexes.get(message, []),
+                "specs": specs.get(message, []),
+                "frequency": count / denominator,
+            }
+        )
+    return ranked
+
+
+def _estimate_assumption_count(
+    result: dict[str, Any],
+    normalization_summary: dict[str, Any] | None,
+    source_warnings: list[str],
+    normalized_warnings: list[str],
+) -> int:
+    explicit_count = result.get("assumption_count")
+    if explicit_count is not None:
+        return int(explicit_count or 0)
+
+    derived_count = 0
+    if normalization_summary is not None:
+        derived_count += sum(1 for raw_count in normalization_summary.values() if int(raw_count or 0) > 0)
+    derived_count += len(source_warnings)
+    derived_count += len(normalized_warnings)
+    return derived_count
 
 
 def _universal_items(counter: Counter[str], changed_pairs: int) -> list[str]:

@@ -146,6 +146,7 @@ Supported commands:
 - `rwif vrwif-normalize <spec> --output <normalized.{yaml|json}> --report <report.{json|yaml}> --assumptions <manifest.{json|yaml}> --json`
 - `rwif vrwif-inspect <spec> --json`
 - `rwif vrwif-diff <left> <right> --json`
+- `rwif vrwif-batch-normalize-analyze <report.{json|yaml}> --output <analysis.json|yaml> --json`
 - `rwif vrwif-batch-diff-analyze <report.{json|yaml}> --output <analysis.json|yaml> --json`
 - `rwif vrwif-batch-normalize <spec...> --output-dir <dir> --report-dir <dir> --assumptions-dir <dir> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-inspect <spec...> --output <report.json|yaml> --json`
@@ -182,6 +183,8 @@ The current diff path reports top-level metadata changes, added or removed objec
 The current batch normalization, batch inspection, and batch diff paths scale those same source-authoring and review surfaces across collections of VRWIF scene specs, returning aggregated counts plus the full per-spec or per-pair payloads.
 
 The current batch normalization path can also emit per-spec normalization reports and smaller per-spec assumptions manifests into sibling directories so canonicalization remains auditable across collections instead of only producing rewritten scene files.
+
+The current batch normalization analysis path builds on a saved `vrwif-batch-normalize` report, highlights recurring normalization actions such as alias resolution or unknown-field cleanup, summarizes recurring source or normalized warnings, and ranks the specs carrying the heaviest normalization burden so collection-scale cleanup work can be reviewed without opening every per-spec artifact.
 
 The current batch diff analysis path builds on a saved `vrwif-batch-diff` report, aggregates recurring metadata and object changes across all compared pairs, and summarizes scene-level drift such as reference-frame changes, camera changes, trajectory deltas, and lighting identity churn.
 

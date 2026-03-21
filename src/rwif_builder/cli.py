@@ -180,6 +180,10 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_render_parser.add_argument("--sample-rate", type=int, help="Override output sample rate")
     arwif_batch_render_parser.add_argument("--duration", type=float, help="Override default segment duration in seconds")
     arwif_batch_render_parser.add_argument("--no-normalize", action="store_true", help="Disable peak normalization")
+    arwif_batch_render_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated render report",
+    )
     arwif_batch_render_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_render_parser.set_defaults(handler=handle_arwif_batch_render)
 
@@ -188,6 +192,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate multiple ARWIF audio artifacts",
     )
     arwif_batch_validate_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_validate_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated validation report",
+    )
     arwif_batch_validate_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_batch_validate_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_validate_parser.set_defaults(handler=handle_arwif_batch_validate)
@@ -197,6 +205,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Inspect multiple ARWIF audio artifacts",
     )
     arwif_batch_inspect_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_inspect_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated inspection report",
+    )
     arwif_batch_inspect_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_batch_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_inspect_parser.set_defaults(handler=handle_arwif_batch_inspect)
@@ -476,6 +488,7 @@ def handle_arwif_batch_render(args: argparse.Namespace) -> int:
         sample_rate_override=args.sample_rate,
         duration_override=args.duration,
         normalize_override=False if args.no_normalize else None,
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
@@ -485,6 +498,7 @@ def handle_arwif_batch_validate(args: argparse.Namespace) -> int:
     payload = batch_validate_arwif_artifacts(
         [Path(artifact) for artifact in args.artifacts],
         allow_legacy=args.legacy,
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
@@ -494,6 +508,7 @@ def handle_arwif_batch_inspect(args: argparse.Namespace) -> int:
     payload = batch_inspect_arwif_artifacts(
         [Path(artifact) for artifact in args.artifacts],
         allow_legacy=args.legacy,
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

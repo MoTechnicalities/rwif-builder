@@ -144,9 +144,9 @@ rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_sp
 rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-diff-report.json --json
 rwif arwif-batch-validate-spec first.yaml second.yaml --json
 rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --format yaml --json
-rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --json
-rwif arwif-batch-validate dist/a.arwif dist/b.arwif --json
-rwif arwif-batch-inspect dist/a.arwif dist/b.arwif --json
+rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --output dist/batch-render-report.yaml --json
+rwif arwif-batch-validate dist/a.arwif dist/b.arwif --output dist/batch-validate-report.yaml --json
+rwif arwif-batch-inspect dist/a.arwif dist/b.arwif --output dist/batch-inspect-report.json --json
 rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 rwif arwif-export dist/CEG_v0_1.arwif dist/CEG_v0_1.export.yaml --json
@@ -173,11 +173,11 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 
 `rwif arwif-batch-export` scales artifact-to-spec export across multiple ARWIF artifacts in one command, writes strict YAML or JSON source documents into a target directory, and returns collection-level counts for exported files, states, and oscillators.
 
-`rwif arwif-batch-render` scales ARWIF WAV export across multiple artifacts in one command, writing `.wav` files into a target directory while returning collection-level render counts and total rendered duration.
+`rwif arwif-batch-render` scales ARWIF WAV export across multiple artifacts in one command, writing `.wav` files into a target directory while returning collection-level render counts and total rendered duration, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
-`rwif arwif-batch-validate` scales ARWIF artifact validation across multiple `.arwif` files in one command, supports `--legacy`, and returns collection-level valid and invalid counts plus the full per-artifact validation payloads.
+`rwif arwif-batch-validate` scales ARWIF artifact validation across multiple `.arwif` files in one command, supports `--legacy`, returns collection-level valid and invalid counts plus the full per-artifact validation payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
-`rwif arwif-batch-inspect` scales ARWIF artifact inspection across multiple `.arwif` files in one command, supports `--legacy`, and returns collection-level valid and invalid counts plus aggregate state, oscillator, and maximum-frequency totals alongside the full per-artifact inspection payloads.
+`rwif arwif-batch-inspect` scales ARWIF artifact inspection across multiple `.arwif` files in one command, supports `--legacy`, returns collection-level valid and invalid counts plus aggregate state, oscillator, and maximum-frequency totals alongside the full per-artifact inspection payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
 The current ARWIF toolchain also accepts an initial Level 1 spatial slice: `channel_layout` at the spec level plus per-state `channel_gains`, giving the format a first channel-aware foothold for reasoning and authoring while allowing the reference renderer to emit multichannel WAV for supported layouts.
 

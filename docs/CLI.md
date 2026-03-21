@@ -84,18 +84,21 @@ Current implementation: accepts one or more `.arwif` artifacts, writes strict so
 Renders multiple ARWIF artifacts to mono 16-bit PCM WAV.
 
 Current implementation: accepts one or more `.arwif` artifacts, writes `.wav` files into `--output-dir`, reuses the same render path as `arwif-render`, and returns an aggregated result payload with per-artifact render details plus collection-level counts and total rendered duration.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-validate`
 
 Validates multiple ARWIF audio artifacts.
 
 Current implementation: accepts one or more `.arwif` artifacts, reuses the same validation path as `arwif-validate`, supports `--legacy`, and returns an aggregated result payload with per-artifact validation details plus collection-level valid and invalid counts.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-inspect`
 
 Inspects multiple ARWIF audio artifacts.
 
 Current implementation: accepts one or more `.arwif` artifacts, reuses the same inspection path as `arwif-inspect`, supports `--legacy`, and returns an aggregated result payload with per-artifact inspection details plus collection-level valid and invalid counts, total states, total oscillators, and the maximum observed frequency.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-validate-spec`
 

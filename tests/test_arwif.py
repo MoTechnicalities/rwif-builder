@@ -999,6 +999,7 @@ states:
             tmp_dir = Path(tmp_dir_str)
             valid_artifact_path = tmp_dir / "valid.arwif"
             invalid_artifact_path = tmp_dir / "invalid.arwif"
+            report_path = tmp_dir / "batch-validate-report.yaml"
 
             save_wave_library(
                 valid_artifact_path,
@@ -1050,6 +1051,8 @@ states:
                 "arwif-batch-validate",
                 str(valid_artifact_path),
                 str(invalid_artifact_path),
+                "--output",
+                str(report_path),
                 "--json",
                 allow_failure=True,
             )
@@ -1061,7 +1064,13 @@ states:
             self.assertFalse(batch_payload["allow_legacy"])
             self.assertEqual(batch_payload["total_state_count"], 2)
             self.assertEqual(batch_payload["total_oscillator_count"], 3)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "yaml")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["artifacts_processed"], 2)
+            self.assertEqual(persisted_report["invalid_count"], 1)
 
             valid_result = next(result for result in batch_payload["results"] if result["artifact"] == str(valid_artifact_path))
             invalid_result = next(result for result in batch_payload["results"] if result["artifact"] == str(invalid_artifact_path))
@@ -1076,6 +1085,7 @@ states:
             tmp_dir = Path(tmp_dir_str)
             first_artifact_path = tmp_dir / "alpha.arwif"
             second_artifact_path = tmp_dir / "beta.arwif"
+            report_path = tmp_dir / "batch-inspect-report.json"
 
             save_wave_library(
                 first_artifact_path,
@@ -1134,6 +1144,8 @@ states:
                 "arwif-batch-inspect",
                 str(first_artifact_path),
                 str(second_artifact_path),
+                "--output",
+                str(report_path),
                 "--json",
             )
 
@@ -1145,7 +1157,13 @@ states:
             self.assertEqual(batch_payload["total_state_count"], 3)
             self.assertEqual(batch_payload["total_oscillator_count"], 4)
             self.assertEqual(batch_payload["max_frequency_hz"], 523)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "json")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["artifacts_processed"], 2)
+            self.assertEqual(persisted_report["max_frequency_hz"], 523)
 
             inspected_artifacts = {result["artifact"] for result in batch_payload["results"]}
             self.assertEqual(inspected_artifacts, {str(first_artifact_path), str(second_artifact_path)})
@@ -1167,6 +1185,7 @@ states:
             first_artifact_path = tmp_dir / "alpha.arwif"
             second_artifact_path = tmp_dir / "beta.arwif"
             output_dir = tmp_dir / "renders"
+            report_path = tmp_dir / "batch-render-report.yaml"
 
             save_wave_library(
                 first_artifact_path,
@@ -1227,6 +1246,8 @@ states:
                 str(second_artifact_path),
                 "--output-dir",
                 str(output_dir),
+                "--output",
+                str(report_path),
                 "--json",
             )
 
@@ -1236,7 +1257,13 @@ states:
             self.assertEqual(batch_payload["failed_count"], 0)
             self.assertEqual(batch_payload["output_dir"], str(output_dir))
             self.assertAlmostEqual(batch_payload["total_duration_seconds"], 1.0, places=3)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "yaml")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["artifacts_processed"], 2)
+            self.assertEqual(persisted_report["rendered_count"], 2)
 
             expected_outputs = {
                 output_dir / "alpha.wav": 0.25,

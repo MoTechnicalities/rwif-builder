@@ -64,19 +64,19 @@ rwif arwif-batch-validate-spec first.yaml second.yaml --json
 To render multiple ARWIF artifacts into WAV outputs in one pass:
 
 ```bash
-rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --json
+rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --output dist/batch-render-report.yaml --json
 ```
 
 To validate multiple ARWIF artifacts in one pass:
 
 ```bash
-rwif arwif-batch-validate dist/a.arwif dist/b.arwif --json
+rwif arwif-batch-validate dist/a.arwif dist/b.arwif --output dist/batch-validate-report.yaml --json
 ```
 
 To inspect multiple ARWIF artifacts in one pass:
 
 ```bash
-rwif arwif-batch-inspect dist/a.arwif dist/b.arwif --json
+rwif arwif-batch-inspect dist/a.arwif dist/b.arwif --output dist/batch-inspect-report.json --json
 ```
 
 Import the exported spec again:

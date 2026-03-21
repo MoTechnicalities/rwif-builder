@@ -156,6 +156,7 @@ def batch_validate_arwif_artifacts(
     artifacts: list[str | Path],
     *,
     allow_legacy: bool = False,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not artifacts:
         raise ValueError("at least one artifact must be provided")
@@ -178,7 +179,7 @@ def batch_validate_arwif_artifacts(
         total_oscillator_count += _artifact_oscillator_count(artifact_path)
         results.append(payload)
 
-    return {
+    payload = {
         "artifacts_processed": len(artifacts),
         "valid_count": valid_count,
         "invalid_count": invalid_count,
@@ -189,11 +190,21 @@ def batch_validate_arwif_artifacts(
         "results": results,
     }
 
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch validate output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
 
 def batch_inspect_arwif_artifacts(
     artifacts: list[str | Path],
     *,
     allow_legacy: bool = False,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not artifacts:
         raise ValueError("at least one artifact must be provided")
@@ -216,7 +227,7 @@ def batch_inspect_arwif_artifacts(
         max_frequency_hz = max(max_frequency_hz, int(payload.get("max_frequency_hz") or 0))
         results.append(payload)
 
-    return {
+    payload = {
         "artifacts_processed": len(artifacts),
         "valid_count": valid_count,
         "invalid_count": invalid_count,
@@ -227,6 +238,15 @@ def batch_inspect_arwif_artifacts(
         "max_frequency_hz": max_frequency_hz,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch inspect output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def _artifact_oscillator_count(artifact_path: Path) -> int:
@@ -418,6 +438,7 @@ def batch_render_arwif_artifacts(
     sample_rate_override: int | None = None,
     duration_override: float | None = None,
     normalize_override: bool | None = None,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not artifacts:
         raise ValueError("at least one artifact must be provided")
@@ -462,7 +483,7 @@ def batch_render_arwif_artifacts(
 
         results.append(payload)
 
-    return {
+    payload = {
         "artifacts_processed": len(artifacts),
         "rendered_count": rendered_count,
         "failed_count": failed_count,
@@ -471,6 +492,15 @@ def batch_render_arwif_artifacts(
         "total_duration_seconds": total_duration_seconds,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch render output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def batch_diff_arwif_artifacts(

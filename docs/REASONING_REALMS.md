@@ -76,7 +76,7 @@ Why it matters:
 
 Implemented here today:
 
-- no, draft only
+- partial: source-spec validation only
 
 Reference:
 

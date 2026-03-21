@@ -136,6 +136,28 @@ Minimum lighting fields:
 
 This keeps `VRWIF` inspectable and diffable without trying to encode full render-engine behavior.
 
+## Current Repo Surface
+
+This repo now implements an initial `VRWIF` source-spec validation path only.
+
+Supported commands:
+
+- `rwif vrwif-validate-spec <spec> --json`
+- `rwif vrwif-batch-validate-spec <spec...> --output <report.json|yaml> --json`
+
+The current validator checks:
+
+- top-level `scene_id`
+- top-level `reference_frame`
+- object identity via `object_id`
+- object grouping via `object_groups`
+- object placement via `position`
+- optional object `orientation` and `trajectory`
+- camera identity and placement
+- lighting identity plus directional or positional intent
+
+It does not yet build artifacts, inspect them, diff them, or render them.
+
 ## ARWIF Alignment
 
 The current `ARWIF` bridge work suggests a clean cross-realm contract:

@@ -1,0 +1,53 @@
+vrwif_version: 1
+scene_id: atrium.scene-01
+reference_frame: scene
+title: Atrium Scene
+description: Minimal VRWIF validation fixture aligned with ARWIF bridge semantics.
+
+objects:
+  - object_id: bell.source
+    object_groups:
+      - foreground
+      - percussion
+    appearance_class: bell
+    position:
+      x: 0.0
+      y: 1.2
+      z: 2.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 1.0
+    trajectory:
+      - offset_seconds: 0.0
+        position:
+          x: 0.0
+          y: 1.2
+          z: 2.0
+      - offset_seconds: 0.5
+        position:
+          x: 0.4
+          y: 1.2
+          z: 2.2
+
+camera:
+  camera_id: cam.main
+  position:
+    x: 0.0
+    y: 1.6
+    z: -3.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  framing_intent: centered-medium
+
+lighting:
+  - light_id: key.01
+    position:
+      x: 1.0
+      y: 2.0
+      z: -1.0
+    intensity: 2.5
+    color: warm
+    temperature_kelvin: 3200

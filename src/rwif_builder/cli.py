@@ -26,6 +26,8 @@ from .arwif.normalize import normalize_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
+from .vrwif.batch import batch_validate_vrwif_specs
+from .vrwif.validation import validate_vrwif_spec
 from . import __version__
 from .config.loader import load_config
 from .diffing import diff_artifacts
@@ -144,6 +146,23 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_validate_spec_parser.add_argument("spec", help="Path to an ARWIF source spec")
     arwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_validate_spec_parser.set_defaults(handler=handle_arwif_validate_spec)
+
+    vrwif_batch_validate_spec_parser = subparsers.add_parser(
+        "vrwif-batch-validate-spec",
+        help="Validate multiple VRWIF YAML or JSON source specs",
+    )
+    vrwif_batch_validate_spec_parser.add_argument("specs", nargs="+", help="Paths to VRWIF source specs")
+    vrwif_batch_validate_spec_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated spec validation report",
+    )
+    vrwif_batch_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_batch_validate_spec_parser.set_defaults(handler=handle_vrwif_batch_validate_spec)
+
+    vrwif_validate_spec_parser = subparsers.add_parser("vrwif-validate-spec", help="Validate a VRWIF YAML or JSON source spec")
+    vrwif_validate_spec_parser.add_argument("spec", help="Path to a VRWIF source spec")
+    vrwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_validate_spec_parser.set_defaults(handler=handle_vrwif_validate_spec)
 
     arwif_import_parser = subparsers.add_parser("arwif-import", help="Import an ARWIF YAML or JSON spec into an artifact")
     arwif_import_parser.add_argument("--spec", required=True, help="Path to an ARWIF import spec")
@@ -465,6 +484,21 @@ def handle_arwif_build(args: argparse.Namespace) -> int:
 
 def handle_arwif_validate_spec(args: argparse.Namespace) -> int:
     report = validate_arwif_spec(Path(args.spec))
+    _print_payload(report.to_payload(), args.json)
+    return 0 if report.is_valid else 1
+
+
+def handle_vrwif_batch_validate_spec(args: argparse.Namespace) -> int:
+    payload = batch_validate_vrwif_specs(
+        [Path(spec) for spec in args.specs],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_vrwif_validate_spec(args: argparse.Namespace) -> int:
+    report = validate_vrwif_spec(Path(args.spec))
     _print_payload(report.to_payload(), args.json)
     return 0 if report.is_valid else 1
 

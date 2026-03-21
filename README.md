@@ -90,9 +90,11 @@ rwif arwif-normalize
 rwif arwif-validate-spec
 rwif arwif-validate
 rwif arwif-render
+rwif vrwif-batch-validate-spec
+rwif vrwif-validate-spec
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, and `arwif-render`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-validate-spec`, and `vrwif-validate-spec`.
 
 ## Configuration
 
@@ -135,6 +137,15 @@ See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile d
 See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking spatial ARWIF roadmap centered on AI comprehension, reasoning, and production.
 
 See [docs/VISION.md](docs/VISION.md) for the longer-term thesis connecting RWIF semantic memory, ARWIF structured sound, and possible future multimodal companions such as VRWIF.
+
+The first concrete VRWIF surface is now source-spec validation only. That keeps the realm narrow while establishing a real schema contract for scene identity, object identity, grouping, camera intent, and lighting intent before build, inspect, or diff tooling exists.
+
+Reference example:
+
+```bash
+rwif vrwif-validate-spec examples/vrwif/scene_v0_1.yaml --json
+rwif vrwif-batch-validate-spec first-scene.yaml second-scene.yaml --output dist/vrwif-batch-validate-report.json --json
+```
 
 An end-to-end ARWIF authoring path is now available:
 

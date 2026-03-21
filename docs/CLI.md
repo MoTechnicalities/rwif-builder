@@ -53,12 +53,14 @@ Current implementation: runs strict ARWIF source-spec validation first, emits a 
 Builds multiple ARWIF artifacts from YAML or JSON oscillator specs.
 
 Current implementation: accepts one or more strict ARWIF source specs, writes artifacts into `--output-dir`, reuses the same strict build flow as `arwif-build`, and returns an aggregated result payload with per-spec build results plus collection-level counts.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-import`
 
 Imports multiple ARWIF YAML or JSON specs into ARWIF artifacts.
 
 Current implementation: accepts one or more strict ARWIF source specs, writes artifacts into `--output-dir`, reuses the same import path as `arwif-import`, and returns an aggregated result payload with per-spec import results plus collection-level counts.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-validate-spec`
 
@@ -79,6 +81,7 @@ An optional `--output` path can persist that aggregated report as `.json`, `.yam
 Exports multiple ARWIF artifacts to YAML or JSON specs.
 
 Current implementation: accepts one or more `.arwif` artifacts, writes strict source-spec-compatible documents into `--output-dir`, defaults to YAML unless `--format json` is supplied, reuses the same export path as `arwif-export`, and returns an aggregated result payload with per-artifact export details plus collection-level counts for exported files, states, and oscillators.
+An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
 ### `rwif arwif-batch-render`
 

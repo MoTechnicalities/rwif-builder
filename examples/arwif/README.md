@@ -52,7 +52,7 @@ rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right
 To export multiple ARWIF artifacts into strict source specs in one pass:
 
 ```bash
-rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --format yaml --json
+rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --output dist/batch-export-report.json --format yaml --json
 ```
 
 To validate multiple strict ARWIF source specs in one pass:

@@ -85,6 +85,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arwif_batch_build_parser.add_argument("specs", nargs="+", help="Paths to ARWIF source specs")
     arwif_batch_build_parser.add_argument("--output-dir", required=True, help="Destination directory for .arwif artifacts")
+    arwif_batch_build_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated build report",
+    )
     arwif_batch_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_build_parser.set_defaults(handler=handle_arwif_batch_build)
 
@@ -94,6 +98,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arwif_batch_import_parser.add_argument("specs", nargs="+", help="Paths to ARWIF source specs")
     arwif_batch_import_parser.add_argument("--output-dir", required=True, help="Destination directory for .arwif artifacts")
+    arwif_batch_import_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated import report",
+    )
     arwif_batch_import_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_import_parser.set_defaults(handler=handle_arwif_batch_import)
 
@@ -116,6 +124,10 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_export_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
     arwif_batch_export_parser.add_argument("--output-dir", required=True, help="Destination directory for exported specs")
     arwif_batch_export_parser.add_argument("--format", choices=("yaml", "json"), help="Override export format")
+    arwif_batch_export_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated export report",
+    )
     arwif_batch_export_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_batch_export_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_export_parser.set_defaults(handler=handle_arwif_batch_export)
@@ -348,6 +360,7 @@ def handle_arwif_batch_build(args: argparse.Namespace) -> int:
     payload = batch_build_arwif_artifacts(
         [Path(spec) for spec in args.specs],
         Path(args.output_dir),
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
@@ -357,6 +370,7 @@ def handle_arwif_batch_import(args: argparse.Namespace) -> int:
     payload = batch_import_arwif_artifacts(
         [Path(spec) for spec in args.specs],
         Path(args.output_dir),
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1
@@ -377,6 +391,7 @@ def handle_arwif_batch_export(args: argparse.Namespace) -> int:
         Path(args.output_dir),
         format=args.format,
         allow_legacy=args.legacy,
+        output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

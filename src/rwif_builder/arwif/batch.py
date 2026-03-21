@@ -21,6 +21,8 @@ from .validation import validate_arwif_spec
 def batch_build_arwif_artifacts(
     specs: list[str | Path],
     output_dir: str | Path,
+    *,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not specs:
         raise ValueError("at least one spec must be provided")
@@ -57,7 +59,7 @@ def batch_build_arwif_artifacts(
 
         results.append(payload)
 
-    return {
+    payload = {
         "specs_processed": len(specs),
         "built_count": built_count,
         "failed_count": failed_count,
@@ -67,10 +69,21 @@ def batch_build_arwif_artifacts(
         "results": results,
     }
 
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch build output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
 
 def batch_import_arwif_artifacts(
     specs: list[str | Path],
     output_dir: str | Path,
+    *,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not specs:
         raise ValueError("at least one spec must be provided")
@@ -107,7 +120,7 @@ def batch_import_arwif_artifacts(
 
         results.append(payload)
 
-    return {
+    payload = {
         "specs_processed": len(specs),
         "imported_count": imported_count,
         "failed_count": failed_count,
@@ -116,6 +129,15 @@ def batch_import_arwif_artifacts(
         "total_oscillator_count": total_oscillator_count,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch import output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def batch_validate_arwif_specs(
@@ -274,6 +296,7 @@ def batch_export_arwif_artifacts(
     *,
     format: str | None = None,
     allow_legacy: bool = False,
+    output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not artifacts:
         raise ValueError("at least one artifact must be provided")
@@ -331,7 +354,7 @@ def batch_export_arwif_artifacts(
 
         results.append(payload)
 
-    return {
+    payload = {
         "artifacts_processed": len(artifacts),
         "exported_count": exported_count,
         "failed_count": failed_count,
@@ -342,6 +365,15 @@ def batch_export_arwif_artifacts(
         "total_oscillator_count": total_oscillator_count,
         "results": results,
     }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch export output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def batch_normalize_arwif_artifacts(

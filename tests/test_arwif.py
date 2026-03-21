@@ -776,6 +776,7 @@ states:
             first_spec_path = tmp_dir / "alpha.yaml"
             second_spec_path = tmp_dir / "beta.yaml"
             output_dir = tmp_dir / "artifacts"
+            report_path = tmp_dir / "batch-build-report.json"
 
             first_spec_path.write_text(
                 """
@@ -821,6 +822,8 @@ states:
                 str(second_spec_path),
                 "--output-dir",
                 str(output_dir),
+                "--output",
+                str(report_path),
                 "--json",
             )
 
@@ -830,7 +833,13 @@ states:
             self.assertEqual(batch_payload["failed_count"], 0)
             self.assertEqual(batch_payload["output_dir"], str(output_dir))
             self.assertEqual(batch_payload["total_oscillator_count"], 5)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "json")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["specs_processed"], 2)
+            self.assertEqual(persisted_report["built_count"], 2)
 
             expected_artifacts = {
                 output_dir / "alpha.arwif",
@@ -855,6 +864,7 @@ states:
             first_spec_path = tmp_dir / "alpha.yaml"
             second_spec_path = tmp_dir / "beta.yaml"
             output_dir = tmp_dir / "imports"
+            report_path = tmp_dir / "batch-import-report.yaml"
 
             first_spec_path.write_text(
                 """
@@ -900,6 +910,8 @@ states:
                 str(second_spec_path),
                 "--output-dir",
                 str(output_dir),
+                "--output",
+                str(report_path),
                 "--json",
             )
 
@@ -909,7 +921,13 @@ states:
             self.assertEqual(batch_payload["failed_count"], 0)
             self.assertEqual(batch_payload["output_dir"], str(output_dir))
             self.assertEqual(batch_payload["total_oscillator_count"], 5)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "yaml")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["specs_processed"], 2)
+            self.assertEqual(persisted_report["imported_count"], 2)
 
             expected_artifacts = {
                 output_dir / "alpha.arwif",
@@ -1448,6 +1466,7 @@ states:
             first_artifact_path = tmp_dir / "alpha.arwif"
             second_artifact_path = tmp_dir / "beta.arwif"
             output_dir = tmp_dir / "exports"
+            report_path = tmp_dir / "batch-export-report.json"
 
             save_wave_library(
                 first_artifact_path,
@@ -1508,6 +1527,8 @@ states:
                 str(second_artifact_path),
                 "--output-dir",
                 str(output_dir),
+                "--output",
+                str(report_path),
                 "--json",
             )
 
@@ -1519,7 +1540,13 @@ states:
             self.assertEqual(batch_payload["output_dir"], str(output_dir))
             self.assertEqual(batch_payload["total_state_count"], 3)
             self.assertEqual(batch_payload["total_oscillator_count"], 4)
+            self.assertEqual(batch_payload["report_output"], str(report_path))
+            self.assertEqual(batch_payload["report_format"], "json")
             self.assertEqual(len(batch_payload["results"]), 2)
+
+            persisted_report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["artifacts_processed"], 2)
+            self.assertEqual(persisted_report["exported_count"], 2)
 
             expected_outputs = {
                 output_dir / "alpha.export.yaml",

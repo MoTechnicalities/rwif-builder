@@ -146,9 +146,11 @@ Supported commands:
 - `rwif vrwif-normalize <spec> --output <normalized.{yaml|json}> --json`
 - `rwif vrwif-inspect <spec> --json`
 - `rwif vrwif-diff <left> <right> --json`
+- `rwif vrwif-batch-diff-analyze <report.{json|yaml}> --output <analysis.json|yaml> --json`
 - `rwif vrwif-batch-normalize <spec...> --output-dir <dir> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-inspect <spec...> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-diff --left <spec...> --right <spec...> --output <report.json|yaml> --json`
+- `rwif vrwif-batch-review --left <spec...> --right <spec...> --output <review.json|yaml> --json`
 - `rwif vrwif-batch-validate-spec <spec...> --output <report.json|yaml> --json`
 
 The current validator checks:
@@ -176,6 +178,10 @@ The current inspection path reports compact scene summaries including object ids
 The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting id changes.
 
 The current batch normalization, batch inspection, and batch diff paths scale those same source-authoring and review surfaces across collections of VRWIF scene specs, returning aggregated counts plus the full per-spec or per-pair payloads.
+
+The current batch diff analysis path builds on a saved `vrwif-batch-diff` report, aggregates recurring metadata and object changes across all compared pairs, and summarizes scene-level drift such as reference-frame changes, camera changes, trajectory deltas, and lighting identity churn.
+
+The current batch review path collapses those two review steps into one command by running pairwise VRWIF batch diff and the recurring-change analysis together in a single payload.
 
 It does not yet build artifacts or render them.
 

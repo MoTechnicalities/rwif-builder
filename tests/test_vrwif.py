@@ -614,6 +614,265 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue((output_dir / "second.normalized.yaml").exists())
             self.assertTrue(report_path.exists())
 
+    def test_vrwif_batch_diff_analyze_report(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_a = tmp_dir / "left-a.yaml"
+            right_a = tmp_dir / "right-a.yaml"
+            left_b = tmp_dir / "left-b.yaml"
+            right_b = tmp_dir / "right-b.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-diff-report.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-diff-analysis.json"
+
+            left_a.write_text(
+                "\n".join(
+                    [
+                        "scene_id: analyze.a",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - base",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.a",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.6",
+                        "    z: -3.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "lighting:",
+                        "  - light_id: light.a",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 2.0",
+                        "      z: -1.0",
+                        "    intensity: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_a.write_text(
+                "\n".join(
+                    [
+                        "scene_id: analyze.a",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - base",
+                        "      - focus",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.a",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.6",
+                        "    z: -3.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "lighting:",
+                        "  - light_id: light.a",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 2.0",
+                        "      z: -1.0",
+                        "    intensity: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            left_b.write_text(
+                "\n".join(
+                    [
+                        "scene_id: analyze.b",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.beta",
+                        "    object_groups:",
+                        "      - support",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 0.0",
+                        "      z: 1.0",
+                        "camera:",
+                        "  camera_id: cam.b",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.6",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_b.write_text(
+                "\n".join(
+                    [
+                        "scene_id: analyze.b",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.beta",
+                        "    object_groups:",
+                        "      - support",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 0.0",
+                        "      z: 1.0",
+                        "camera:",
+                        "  camera_id: cam.b",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.9",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_a),
+                str(left_b),
+                "--right",
+                str(right_a),
+                str(right_b),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+            self.assertEqual(diff_payload["changed_pairs"], 2)
+            self.assertEqual(diff_payload["unchanged_pairs"], 0)
+            self.assertTrue(diff_payload["results"][1]["pair_changed"])
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["pairs_compared"], 2)
+            self.assertEqual(analysis_payload["changed_pairs"], 2)
+            self.assertEqual(analysis_payload["metadata_field_frequencies"][0]["field"], "reference_frame")
+            self.assertEqual(analysis_payload["changed_object_frequencies"][0]["object"], "object.alpha")
+            self.assertEqual(analysis_payload["scene_change_summary"]["reference_frame_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["objects_changed_in_all_changed_pairs"], [])
+            self.assertEqual(analysis_payload["analysis_input"], str(diff_report_path))
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_review_specs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-scene.yaml"
+            right_path = tmp_dir / "right-scene.yaml"
+            review_report_path = tmp_dir / "vrwif-batch-review-report.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: review.scene",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - alpha",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 1.0",
+                        "lighting:",
+                        "  - light_id: light.left",
+                        "    position:",
+                        "      x: -1.0",
+                        "      y: 2.0",
+                        "      z: -1.0",
+                        "    intensity: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: review.scene",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - alpha",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 1.0",
+                        "lighting:",
+                        "  - light_id: light.right",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 2.0",
+                        "      z: -1.0",
+                        "    intensity: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "vrwif-batch-review",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(review_report_path),
+                "--json",
+            )
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["pairs_compared"], 1)
+            self.assertEqual(payload["changed_pairs"], 1)
+            self.assertEqual(payload["diff_report"]["changed_pairs"], 1)
+            self.assertEqual(payload["analysis"]["scene_change_summary"]["light_ids_changed_pairs"], 1)
+            self.assertTrue(review_report_path.exists())
+
     def test_vrwif_validate_spec_rejects_invalid_scene_shape(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

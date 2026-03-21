@@ -1070,6 +1070,96 @@ states:
             self.assertFalse(invalid_result["is_valid"], invalid_result)
             self.assertIn("library metadata 'sample_rate_hz' must be a positive integer", invalid_result["errors"])
 
+    def test_arwif_batch_inspect_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_artifact_path = tmp_dir / "alpha.arwif"
+            second_artifact_path = tmp_dir / "beta.arwif"
+
+            save_wave_library(
+                first_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="alpha",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Alpha batch inspect",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                second_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(392, 0.6),),
+                            label="beta-intro",
+                            metadata={"duration_seconds": 0.5},
+                        ),
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta-outro",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 12000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Beta batch inspect",
+                    },
+                ),
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-inspect",
+                str(first_artifact_path),
+                str(second_artifact_path),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["artifacts_processed"], 2)
+            self.assertEqual(batch_payload["valid_count"], 2)
+            self.assertEqual(batch_payload["invalid_count"], 0)
+            self.assertFalse(batch_payload["allow_legacy"])
+            self.assertEqual(batch_payload["total_state_count"], 3)
+            self.assertEqual(batch_payload["total_oscillator_count"], 4)
+            self.assertEqual(batch_payload["max_frequency_hz"], 523)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            inspected_artifacts = {result["artifact"] for result in batch_payload["results"]}
+            self.assertEqual(inspected_artifacts, {str(first_artifact_path), str(second_artifact_path)})
+
+            alpha_result = next(result for result in batch_payload["results"] if result["artifact"] == str(first_artifact_path))
+            beta_result = next(result for result in batch_payload["results"] if result["artifact"] == str(second_artifact_path))
+
+            self.assertEqual(alpha_result["state_count"], 1)
+            self.assertEqual(alpha_result["oscillator_count"], 2)
+            self.assertEqual(alpha_result["state_labels"], ["alpha"])
+            self.assertEqual(beta_result["state_count"], 2)
+            self.assertEqual(beta_result["max_frequency_hz"], 523)
+            self.assertEqual(beta_result["state_labels"], ["beta-intro", "beta-outro"])
+
     def test_arwif_batch_render_artifacts(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

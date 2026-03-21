@@ -73,6 +73,12 @@ To validate multiple ARWIF artifacts in one pass:
 rwif arwif-batch-validate dist/a.arwif dist/b.arwif --json
 ```
 
+To inspect multiple ARWIF artifacts in one pass:
+
+```bash
+rwif arwif-batch-inspect dist/a.arwif dist/b.arwif --json
+```
+
 Import the exported spec again:
 
 ```bash

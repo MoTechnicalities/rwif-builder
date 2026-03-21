@@ -11,6 +11,7 @@ from .arwif.batch import batch_build_arwif_artifacts
 from .arwif.batch import batch_diff_arwif_artifacts
 from .arwif.batch import batch_export_arwif_artifacts
 from .arwif.batch import batch_import_arwif_artifacts
+from .arwif.batch import batch_inspect_arwif_artifacts
 from .arwif.batch import batch_normalize_arwif_artifacts
 from .arwif.batch import batch_render_arwif_artifacts
 from .arwif.batch import batch_validate_arwif_artifacts
@@ -190,6 +191,15 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_validate_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_batch_validate_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_validate_parser.set_defaults(handler=handle_arwif_batch_validate)
+
+    arwif_batch_inspect_parser = subparsers.add_parser(
+        "arwif-batch-inspect",
+        help="Inspect multiple ARWIF audio artifacts",
+    )
+    arwif_batch_inspect_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_inspect_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_batch_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_inspect_parser.set_defaults(handler=handle_arwif_batch_inspect)
 
     arwif_batch_diff_parser = subparsers.add_parser(
         "arwif-batch-diff",
@@ -473,6 +483,15 @@ def handle_arwif_batch_render(args: argparse.Namespace) -> int:
 
 def handle_arwif_batch_validate(args: argparse.Namespace) -> int:
     payload = batch_validate_arwif_artifacts(
+        [Path(artifact) for artifact in args.artifacts],
+        allow_legacy=args.legacy,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_inspect(args: argparse.Namespace) -> int:
+    payload = batch_inspect_arwif_artifacts(
         [Path(artifact) for artifact in args.artifacts],
         allow_legacy=args.legacy,
     )

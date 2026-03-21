@@ -11,6 +11,7 @@ from .build import build_arwif_artifact
 from .diff import diff_arwif_artifacts
 from .export import export_arwif_artifact
 from .importing import import_arwif_artifact
+from .inspect import inspect_arwif_artifact
 from .normalize import normalize_arwif_artifact
 from .render import render_arwif_to_wav
 from .validation import validate_arwif_artifact
@@ -185,6 +186,45 @@ def batch_validate_arwif_artifacts(
         "allow_legacy": allow_legacy,
         "total_state_count": total_state_count,
         "total_oscillator_count": total_oscillator_count,
+        "results": results,
+    }
+
+
+def batch_inspect_arwif_artifacts(
+    artifacts: list[str | Path],
+    *,
+    allow_legacy: bool = False,
+) -> dict[str, Any]:
+    if not artifacts:
+        raise ValueError("at least one artifact must be provided")
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_state_count = 0
+    total_oscillator_count = 0
+    max_frequency_hz = 0
+
+    for artifact in artifacts:
+        payload = inspect_arwif_artifact(Path(artifact), allow_legacy=allow_legacy)
+        if payload.get("is_valid", False):
+            valid_count += 1
+        else:
+            invalid_count += 1
+        total_state_count += int(payload.get("state_count", 0))
+        total_oscillator_count += int(payload.get("oscillator_count", 0))
+        max_frequency_hz = max(max_frequency_hz, int(payload.get("max_frequency_hz") or 0))
+        results.append(payload)
+
+    return {
+        "artifacts_processed": len(artifacts),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "allow_legacy": allow_legacy,
+        "total_state_count": total_state_count,
+        "total_oscillator_count": total_oscillator_count,
+        "max_frequency_hz": max_frequency_hz,
         "results": results,
     }
 

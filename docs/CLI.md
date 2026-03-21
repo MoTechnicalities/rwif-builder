@@ -91,6 +91,12 @@ Validates multiple ARWIF audio artifacts.
 
 Current implementation: accepts one or more `.arwif` artifacts, reuses the same validation path as `arwif-validate`, supports `--legacy`, and returns an aggregated result payload with per-artifact validation details plus collection-level valid and invalid counts.
 
+### `rwif arwif-batch-inspect`
+
+Inspects multiple ARWIF audio artifacts.
+
+Current implementation: accepts one or more `.arwif` artifacts, reuses the same inspection path as `arwif-inspect`, supports `--legacy`, and returns an aggregated result payload with per-artifact inspection details plus collection-level valid and invalid counts, total states, total oscillators, and the maximum observed frequency.
+
 ### `rwif arwif-validate-spec`
 
 Validates an ARWIF YAML or JSON source spec before build or import.

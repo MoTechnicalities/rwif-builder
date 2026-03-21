@@ -442,6 +442,7 @@ class VRWIFValidationTest(unittest.TestCase):
             source_path = tmp_dir / "loose-scene.yaml"
             normalized_path = tmp_dir / "normalized-scene.yaml"
             report_path = tmp_dir / "normalized-scene.report.json"
+            assumptions_path = tmp_dir / "normalized-scene.assumptions.json"
 
             source_path.write_text(
                 "\n".join(
@@ -526,6 +527,8 @@ class VRWIFValidationTest(unittest.TestCase):
                 str(normalized_path),
                 "--report",
                 str(report_path),
+                "--assumptions",
+                str(assumptions_path),
                 "--json",
             )
             self.assertTrue(payload["normalized"], payload)
@@ -540,7 +543,10 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue(normalized_path.exists())
             self.assertEqual(payload["report_output"], str(report_path))
             self.assertEqual(payload["report_format"], "json")
+            self.assertEqual(payload["assumptions_output"], str(assumptions_path))
+            self.assertEqual(payload["assumptions_format"], "json")
             self.assertTrue(report_path.exists())
+            self.assertTrue(assumptions_path.exists())
 
             report_document = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report_document["report_version"], 1)
@@ -549,6 +555,14 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertFalse(report_document["source_validation"]["is_valid"])
             self.assertTrue(report_document["normalized_validation"]["is_valid"])
             self.assertEqual(report_document["normalized_document"]["reference_frame"], "world")
+
+            assumptions_document = json.loads(assumptions_path.read_text(encoding="utf-8"))
+            self.assertEqual(assumptions_document["manifest_version"], 1)
+            self.assertEqual(assumptions_document["spec"], str(source_path))
+            self.assertEqual(assumptions_document["spec_output"], str(normalized_path))
+            self.assertEqual(assumptions_document["scene_id"], "courtyard.scene")
+            self.assertGreaterEqual(assumptions_document["summary"]["assumption_count"], 6)
+            self.assertTrue(any(item["kind"] == "alias_resolved" for item in assumptions_document["assumptions"]))
 
             inspect_payload = self._run_json(repo_root, "vrwif-inspect", str(normalized_path), "--json")
             self.assertEqual(inspect_payload["reference_frame"], "world")
@@ -567,6 +581,7 @@ class VRWIFValidationTest(unittest.TestCase):
             second_path = tmp_dir / "second.yaml"
             output_dir = tmp_dir / "normalized"
             report_dir = tmp_dir / "reports"
+            assumptions_dir = tmp_dir / "assumptions"
             report_path = tmp_dir / "vrwif-batch-normalize-report.json"
 
             first_path.write_text(
@@ -618,6 +633,8 @@ class VRWIFValidationTest(unittest.TestCase):
                 str(output_dir),
                 "--report-dir",
                 str(report_dir),
+                "--assumptions-dir",
+                str(assumptions_dir),
                 "--output",
                 str(report_path),
                 "--json",
@@ -628,10 +645,14 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["failed_count"], 0)
             self.assertEqual(payload["total_object_count"], 2)
             self.assertEqual(payload["report_dir"], str(report_dir))
+            self.assertEqual(payload["assumptions_dir"], str(assumptions_dir))
+            self.assertGreaterEqual(payload["total_assumption_count"], 1)
             self.assertTrue((output_dir / "first.normalized.yaml").exists())
             self.assertTrue((output_dir / "second.normalized.yaml").exists())
             self.assertTrue((report_dir / "first.normalized.report.json").exists())
             self.assertTrue((report_dir / "second.normalized.report.json").exists())
+            self.assertTrue((assumptions_dir / "first.normalized.assumptions.json").exists())
+            self.assertTrue((assumptions_dir / "second.normalized.assumptions.json").exists())
             self.assertTrue(report_path.exists())
 
     def test_vrwif_batch_diff_analyze_report(self) -> None:

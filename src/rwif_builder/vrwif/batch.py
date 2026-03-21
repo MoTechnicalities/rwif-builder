@@ -63,6 +63,7 @@ def batch_normalize_vrwif_specs(
     output_dir: str | Path,
     *,
     report_dir: str | Path | None = None,
+    assumptions_dir: str | Path | None = None,
     format: str | None = None,
     output: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -71,9 +72,12 @@ def batch_normalize_vrwif_specs(
 
     output_dir_path = Path(output_dir)
     report_dir_path = Path(report_dir) if report_dir is not None else None
+    assumptions_dir_path = Path(assumptions_dir) if assumptions_dir is not None else None
     output_dir_path.mkdir(parents=True, exist_ok=True)
     if report_dir_path is not None:
         report_dir_path.mkdir(parents=True, exist_ok=True)
+    if assumptions_dir_path is not None:
+        assumptions_dir_path.mkdir(parents=True, exist_ok=True)
 
     if format is None:
         output_suffix = ".yaml"
@@ -89,19 +93,32 @@ def batch_normalize_vrwif_specs(
     failed_count = 0
     total_object_count = 0
     total_light_count = 0
+    total_assumption_count = 0
 
     for spec in specs:
         spec_path = Path(spec)
         output_path = output_dir_path / f"{spec_path.stem}.normalized{output_suffix}"
         report_path = report_dir_path / f"{spec_path.stem}.normalized.report.json" if report_dir_path is not None else None
+        assumptions_path = (
+            assumptions_dir_path / f"{spec_path.stem}.normalized.assumptions.json"
+            if assumptions_dir_path is not None
+            else None
+        )
         try:
-            payload = normalize_vrwif_spec(spec_path, output_path, report=report_path, format=format)
+            payload = normalize_vrwif_spec(
+                spec_path,
+                output_path,
+                report=report_path,
+                assumptions=assumptions_path,
+                format=format,
+            )
         except ValueError as exc:
             source_report = validate_vrwif_spec(spec_path)
             payload = {
                 "spec": str(spec_path),
                 "output": str(output_path),
                 "report_output": str(report_path) if report_path is not None else None,
+                "assumptions_output": str(assumptions_path) if assumptions_path is not None else None,
                 "normalized": False,
                 "is_valid": False,
                 "message": str(exc),
@@ -114,6 +131,7 @@ def batch_normalize_vrwif_specs(
             normalized_count += 1
             total_object_count += int(payload.get("normalized_object_count", 0))
             total_light_count += int(payload.get("normalized_light_count", 0))
+            total_assumption_count += int(payload.get("assumption_count", 0))
 
         results.append(payload)
 
@@ -124,8 +142,10 @@ def batch_normalize_vrwif_specs(
         "is_valid": failed_count == 0,
         "output_dir": str(output_dir_path),
         "report_dir": str(report_dir_path) if report_dir_path is not None else None,
+        "assumptions_dir": str(assumptions_dir_path) if assumptions_dir_path is not None else None,
         "total_object_count": total_object_count,
         "total_light_count": total_light_count,
+        "total_assumption_count": total_assumption_count,
         "results": results,
     }
 

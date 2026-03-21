@@ -60,11 +60,13 @@ def normalize_vrwif_spec(
     output: str | Path,
     *,
     report: str | Path | None = None,
+    assumptions: str | Path | None = None,
     format: str | None = None,
 ) -> dict[str, Any]:
     spec_path = Path(spec)
     output_path = Path(output)
     report_path = Path(report) if report is not None else None
+    assumptions_path = Path(assumptions) if assumptions is not None else None
 
     source_document, load_errors = _load_spec_document(spec_path)
     if source_document is None:
@@ -112,6 +114,14 @@ def normalize_vrwif_spec(
         _write_auxiliary_document(report_path, report_document, report_format)
         payload["report_output"] = str(report_path)
         payload["report_format"] = report_format
+
+    if assumptions_path is not None:
+        assumptions_document = _build_assumptions_manifest(report_document)
+        assumptions_format = _resolve_auxiliary_format(assumptions_path, label="assumptions manifest")
+        _write_auxiliary_document(assumptions_path, assumptions_document, assumptions_format)
+        payload["assumptions_output"] = str(assumptions_path)
+        payload["assumptions_format"] = assumptions_format
+        payload["assumption_count"] = assumptions_document["summary"]["assumption_count"]
 
     return payload
 
@@ -448,4 +458,117 @@ def _build_normalization_report(
         },
         "normalization_summary": dict(normalization_summary),
         "normalized_document": _deep_copy_document(normalized_document),
+    }
+
+
+def _build_assumptions_manifest(report_document: dict[str, Any]) -> dict[str, Any]:
+    normalized_document = dict(report_document.get("normalized_document", {}))
+    normalization_summary = dict(report_document.get("normalization_summary", {}))
+    assumptions: list[dict[str, Any]] = []
+
+    if int(normalization_summary.get("inserted_vrwif_version", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "field_normalized",
+                "field": "vrwif_version",
+                "value": normalized_document.get("vrwif_version"),
+                "reason": "strict_version_inserted",
+            }
+        )
+
+    if int(normalization_summary.get("resolved_class_aliases", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "alias_resolved",
+                "field": "appearance_class",
+                "source_field": "class",
+                "count": int(normalization_summary.get("resolved_class_aliases", 0)),
+            }
+        )
+
+    if int(normalization_summary.get("deduplicated_object_groups", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "collection_normalized",
+                "field": "object_groups",
+                "count": int(normalization_summary.get("deduplicated_object_groups", 0)),
+                "reason": "sorted_and_deduplicated",
+            }
+        )
+
+    if int(normalization_summary.get("sorted_object_trajectories", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "trajectory_sorted",
+                "field": "objects[].trajectory",
+                "count": int(normalization_summary.get("sorted_object_trajectories", 0)),
+            }
+        )
+
+    if int(normalization_summary.get("sorted_camera_trajectory", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "trajectory_sorted",
+                "field": "camera.trajectory",
+                "count": int(normalization_summary.get("sorted_camera_trajectory", 0)),
+            }
+        )
+
+    if int(normalization_summary.get("reordered_objects", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "collection_reordered",
+                "field": "objects",
+                "reason": "stable_object_id_order",
+            }
+        )
+
+    if int(normalization_summary.get("reordered_lights", 0)) > 0:
+        assumptions.append(
+            {
+                "kind": "collection_reordered",
+                "field": "lighting",
+                "reason": "stable_light_id_order",
+            }
+        )
+
+    for field in ("dropped_unknown_top_level_fields", "dropped_unknown_object_fields", "dropped_unknown_camera_fields", "dropped_unknown_light_fields"):
+        count = int(normalization_summary.get(field, 0))
+        if count > 0:
+            assumptions.append(
+                {
+                    "kind": "unknown_fields_dropped",
+                    "field": field,
+                    "count": count,
+                }
+            )
+
+    for warning in report_document.get("source_validation", {}).get("warnings", []):
+        assumptions.append(
+            {
+                "kind": "source_warning",
+                "message": warning,
+            }
+        )
+
+    for warning in report_document.get("normalized_validation", {}).get("warnings", []):
+        assumptions.append(
+            {
+                "kind": "normalized_spec_warning",
+                "message": warning,
+            }
+        )
+
+    return {
+        "manifest_version": 1,
+        "spec": report_document.get("spec"),
+        "spec_output": report_document.get("spec_output"),
+        "scene_id": report_document.get("normalized_validation", {}).get("stats", {}).get("scene_id"),
+        "reference_frame": report_document.get("normalized_validation", {}).get("stats", {}).get("reference_frame"),
+        "assumptions": assumptions,
+        "summary": {
+            "assumption_count": len(assumptions),
+            "source_warning_count": len(report_document.get("source_validation", {}).get("warnings", [])),
+            "normalized_warning_count": len(report_document.get("normalized_validation", {}).get("warnings", [])),
+        },
     }

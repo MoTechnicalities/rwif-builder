@@ -152,10 +152,10 @@ Reference example:
 
 ```bash
 rwif vrwif-validate-spec examples/vrwif/scene_v0_1.yaml --json
-rwif vrwif-normalize examples/vrwif/scene_v0_1.yaml --output dist/scene_v0_1.normalized.yaml --report dist/scene_v0_1.normalized.report.json --json
+rwif vrwif-normalize examples/vrwif/scene_v0_1.yaml --output dist/scene_v0_1.normalized.yaml --report dist/scene_v0_1.normalized.report.json --assumptions dist/scene_v0_1.normalized.assumptions.json --json
 rwif vrwif-inspect examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-diff examples/vrwif/scene_v0_1.yaml examples/vrwif/scene_v0_1.yaml --json
-rwif vrwif-batch-normalize first-scene.yaml second-scene.yaml --output-dir dist/normalized_vrwif --report-dir dist/vrwif_normalization_reports --output dist/vrwif-batch-normalize-report.json --json
+rwif vrwif-batch-normalize first-scene.yaml second-scene.yaml --output-dir dist/normalized_vrwif --report-dir dist/vrwif_normalization_reports --assumptions-dir dist/vrwif_assumptions --output dist/vrwif-batch-normalize-report.json --json
 rwif vrwif-batch-inspect first-scene.yaml second-scene.yaml --output dist/vrwif-batch-inspect-report.json --json
 rwif vrwif-batch-diff --left first-left.yaml second-left.yaml --right first-right.yaml second-right.yaml --output dist/vrwif-batch-diff-report.json --json
 rwif vrwif-batch-diff-analyze dist/vrwif-batch-diff-report.json --output dist/vrwif-batch-diff-analysis.json --json

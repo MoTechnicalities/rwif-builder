@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import math
 from typing import Any
 
 import yaml
@@ -13,6 +14,7 @@ _LIBRARY_SPEC_KEYS = {
     "title",
     "description",
     "channel_layout",
+    "listener_anchor",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_phase_radians",
@@ -33,6 +35,10 @@ _STATE_SPEC_KEYS = {
     "phase_radians",
     "gain",
     "channel_gains",
+    "position",
+    "orientation",
+    "spread",
+    "distance_model",
     "attack_ms",
     "release_ms",
 }
@@ -40,6 +46,28 @@ _STATE_SPEC_KEYS = {
 
 def _channel_gains_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _spatial_vector_mapping(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, float] = {}
+    for axis in ("x", "y", "z"):
+        component = value.get(axis)
+        if not isinstance(component, (int, float)) or not math.isfinite(float(component)):
+            return {}
+        result[axis] = float(component)
+    return result
+
+
+def _spread_value(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and math.isfinite(float(value)) and float(value) >= 0.0:
+        return float(value)
+    return None
+
+
+def _distance_model_value(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def export_arwif_artifact(
@@ -100,6 +128,7 @@ def _artifact_to_spec(library_metadata: dict[str, Any], states: tuple[Any, ...])
         "title",
         "description",
         "channel_layout",
+        "listener_anchor",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -128,6 +157,16 @@ def _state_to_spec(state: Any) -> dict[str, Any]:
             entry[key] = state_metadata[key]
     if "channel_gains" in state_metadata:
         entry["channel_gains"] = _channel_gains_mapping(state_metadata.get("channel_gains"))
+    if "position" in state_metadata:
+        entry["position"] = _spatial_vector_mapping(state_metadata.get("position"))
+    if "orientation" in state_metadata:
+        entry["orientation"] = _spatial_vector_mapping(state_metadata.get("orientation"))
+    spread = _spread_value(state_metadata.get("spread"))
+    if spread is not None:
+        entry["spread"] = spread
+    distance_model = _distance_model_value(state_metadata.get("distance_model"))
+    if distance_model is not None:
+        entry["distance_model"] = distance_model
 
     if state.vector_length:
         entry["vector_length"] = state.vector_length

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ _METADATA_KEYS = (
     "frequency_unit",
     "playback_model",
     "channel_layout",
+    "listener_anchor",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_attack_ms",
@@ -28,6 +30,28 @@ _METADATA_KEYS = (
 
 def _channel_gains_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _spatial_vector_mapping(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, float] = {}
+    for axis in ("x", "y", "z"):
+        component = value.get(axis)
+        if not isinstance(component, (int, float)) or not math.isfinite(float(component)):
+            return {}
+        result[axis] = float(component)
+    return result
+
+
+def _spread_value(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and math.isfinite(float(value)) and float(value) >= 0.0:
+        return float(value)
+    return None
+
+
+def _distance_model_value(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def diff_arwif_artifacts(left: str | Path, right: str | Path, *, allow_legacy: bool = False) -> dict[str, Any]:
@@ -147,6 +171,7 @@ def _describe_state_change(left: WaveState, right: WaveState) -> dict[str, Any]:
 def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) -> dict[str, Any]:
     channel_layout = metadata.get("channel_layout")
     declared_channels = list(CHANNEL_LAYOUT_CHANNELS.get(channel_layout, ())) if isinstance(channel_layout, str) else []
+    listener_anchor = _spatial_vector_mapping(metadata.get("listener_anchor"))
     active_channels = sorted(
         {
             channel_name
@@ -158,11 +183,29 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
     states_with_channel_gains = sum(
         1 for state in states if _channel_gains_mapping(dict(state.metadata or {}).get("channel_gains"))
     )
+    positioned_states = sum(1 for state in states if _spatial_vector_mapping(dict(state.metadata or {}).get("position")))
+    states_with_orientation = sum(
+        1 for state in states if _spatial_vector_mapping(dict(state.metadata or {}).get("orientation"))
+    )
+    states_with_spread = sum(1 for state in states if _spread_value(dict(state.metadata or {}).get("spread")) is not None)
+    distance_models = sorted(
+        {
+            str(distance_model)
+            for state in states
+            for distance_model in [_distance_model_value(dict(state.metadata or {}).get("distance_model"))]
+            if distance_model is not None
+        }
+    )
     return {
         "channel_layout": channel_layout,
         "declared_channels": declared_channels,
+        "listener_anchor": listener_anchor,
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
+        "positioned_states": positioned_states,
+        "states_with_orientation": states_with_orientation,
+        "states_with_spread": states_with_spread,
+        "distance_models": distance_models,
     }
 
 
@@ -175,9 +218,16 @@ def _spatial_changes(
     left_summary = _spatial_summary(left_metadata, left_states)
     right_summary = _spatial_summary(right_metadata, right_states)
     return {
+        "listener_anchor_changed": left_summary["listener_anchor"] != right_summary["listener_anchor"],
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
         "states_with_channel_gains_delta": (
             right_summary["states_with_channel_gains"] - left_summary["states_with_channel_gains"]
         ),
+        "positioned_states_delta": right_summary["positioned_states"] - left_summary["positioned_states"],
+        "states_with_orientation_delta": (
+            right_summary["states_with_orientation"] - left_summary["states_with_orientation"]
+        ),
+        "states_with_spread_delta": right_summary["states_with_spread"] - left_summary["states_with_spread"],
+        "distance_models_changed": left_summary["distance_models"] != right_summary["distance_models"],
     }

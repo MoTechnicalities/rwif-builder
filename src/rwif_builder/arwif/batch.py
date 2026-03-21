@@ -708,9 +708,17 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     removed_state_pair_indexes: dict[str, list[int]] = {}
 
     channel_layout_changed_pairs = 0
+    listener_anchor_changed_pairs = 0
     active_channels_changed_pairs = 0
     channel_gains_delta_pairs = 0
     total_states_with_channel_gains_delta = 0
+    positioned_state_delta_pairs = 0
+    total_positioned_states_delta = 0
+    orientation_state_delta_pairs = 0
+    total_states_with_orientation_delta = 0
+    spread_state_delta_pairs = 0
+    total_states_with_spread_delta = 0
+    distance_models_changed_pairs = 0
 
     changed_pairs = 0
     unchanged_pairs = 0
@@ -752,6 +760,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
 
         spatial_changes = raw_result.get("spatial_changes")
         if isinstance(spatial_changes, dict):
+            if bool(spatial_changes.get("listener_anchor_changed", False)):
+                listener_anchor_changed_pairs += 1
             if bool(spatial_changes.get("channel_layout_changed", False)):
                 channel_layout_changed_pairs += 1
             if bool(spatial_changes.get("active_channels_changed", False)):
@@ -760,6 +770,20 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             total_states_with_channel_gains_delta += channel_gains_delta
             if channel_gains_delta != 0:
                 channel_gains_delta_pairs += 1
+            positioned_states_delta = int(spatial_changes.get("positioned_states_delta", 0) or 0)
+            total_positioned_states_delta += positioned_states_delta
+            if positioned_states_delta != 0:
+                positioned_state_delta_pairs += 1
+            orientation_states_delta = int(spatial_changes.get("states_with_orientation_delta", 0) or 0)
+            total_states_with_orientation_delta += orientation_states_delta
+            if orientation_states_delta != 0:
+                orientation_state_delta_pairs += 1
+            spread_states_delta = int(spatial_changes.get("states_with_spread_delta", 0) or 0)
+            total_states_with_spread_delta += spread_states_delta
+            if spread_states_delta != 0:
+                spread_state_delta_pairs += 1
+            if bool(spatial_changes.get("distance_models_changed", False)):
+                distance_models_changed_pairs += 1
 
     pairs_compared = int(report_document.get("pairs_compared", len(results)))
     analysis_payload = {
@@ -778,10 +802,18 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
         "states_added_in_all_changed_pairs": _universal_items(added_state_counter, changed_pairs),
         "states_removed_in_all_changed_pairs": _universal_items(removed_state_counter, changed_pairs),
         "spatial_change_summary": {
+            "listener_anchor_changed_pairs": listener_anchor_changed_pairs,
             "channel_layout_changed_pairs": channel_layout_changed_pairs,
             "active_channels_changed_pairs": active_channels_changed_pairs,
             "pairs_with_channel_gain_count_delta": channel_gains_delta_pairs,
             "total_states_with_channel_gains_delta": total_states_with_channel_gains_delta,
+            "pairs_with_positioned_state_delta": positioned_state_delta_pairs,
+            "total_positioned_states_delta": total_positioned_states_delta,
+            "pairs_with_orientation_state_delta": orientation_state_delta_pairs,
+            "total_states_with_orientation_delta": total_states_with_orientation_delta,
+            "pairs_with_spread_state_delta": spread_state_delta_pairs,
+            "total_states_with_spread_delta": total_states_with_spread_delta,
+            "distance_models_changed_pairs": distance_models_changed_pairs,
         },
     }
 

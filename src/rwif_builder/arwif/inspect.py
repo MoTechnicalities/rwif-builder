@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,28 @@ from .validation import validate_arwif_artifact
 
 def _channel_gains_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _spatial_vector_mapping(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, float] = {}
+    for axis in ("x", "y", "z"):
+        component = value.get(axis)
+        if not isinstance(component, (int, float)) or not math.isfinite(float(component)):
+            return {}
+        result[axis] = float(component)
+    return result
+
+
+def _spread_value(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and math.isfinite(float(value)) and float(value) >= 0.0:
+        return float(value)
+    return None
+
+
+def _distance_model_value(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> dict[str, Any]:
@@ -43,6 +66,10 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
                 "phase_radians": state_metadata.get("phase_radians", metadata.get("default_phase_radians", 0.0)),
                 "gain": state_metadata.get("gain", 1.0),
                 "channel_gains": _channel_gains_mapping(state_metadata.get("channel_gains")),
+                "position": _spatial_vector_mapping(state_metadata.get("position")),
+                "orientation": _spatial_vector_mapping(state_metadata.get("orientation")),
+                "spread": _spread_value(state_metadata.get("spread")),
+                "distance_model": _distance_model_value(state_metadata.get("distance_model")),
                 "min_frequency_hz": min(frequencies) if frequencies else None,
                 "max_frequency_hz": max(frequencies) if frequencies else None,
                 "max_amplitude": max((abs(amplitude) for amplitude in amplitudes), default=0.0),
@@ -59,6 +86,7 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
         "title": metadata.get("title"),
         "description": metadata.get("description"),
         "channel_layout": metadata.get("channel_layout"),
+        "listener_anchor": _spatial_vector_mapping(metadata.get("listener_anchor")),
         "playback_model": metadata.get("playback_model"),
         "frequency_unit": metadata.get("frequency_unit"),
         "sample_rate_hz": metadata.get("sample_rate_hz"),
@@ -83,6 +111,7 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
 def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, Any]]) -> dict[str, Any]:
     channel_layout = metadata.get("channel_layout")
     declared_channels = list(CHANNEL_LAYOUT_CHANNELS.get(channel_layout, ())) if isinstance(channel_layout, str) else []
+    listener_anchor = _spatial_vector_mapping(metadata.get("listener_anchor"))
     active_channels = sorted(
         {
             channel_name
@@ -92,9 +121,24 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
         }
     )
     states_with_channel_gains = sum(1 for state in state_summaries if state.get("channel_gains"))
+    positioned_states = sum(1 for state in state_summaries if state.get("position"))
+    states_with_orientation = sum(1 for state in state_summaries if state.get("orientation"))
+    states_with_spread = sum(1 for state in state_summaries if state.get("spread") is not None)
+    distance_models = sorted(
+        {
+            str(state.get("distance_model"))
+            for state in state_summaries
+            if isinstance(state.get("distance_model"), str)
+        }
+    )
     return {
         "channel_layout": channel_layout,
         "declared_channels": declared_channels,
+        "listener_anchor": listener_anchor,
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
+        "positioned_states": positioned_states,
+        "states_with_orientation": states_with_orientation,
+        "states_with_spread": states_with_spread,
+        "distance_models": distance_models,
     }

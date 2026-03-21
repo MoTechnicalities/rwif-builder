@@ -396,88 +396,6 @@ states:
             self.assertEqual(diff_payload["change_summary"]["removed_states"], 0)
             self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
 
-    def test_arwif_channel_aware_metadata_round_trip(self) -> None:
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as tmp_dir_str:
-            tmp_dir = Path(tmp_dir_str)
-            source_spec_path = tmp_dir / "spatial.yaml"
-            artifact_path = tmp_dir / "spatial.arwif"
-            exported_spec_path = tmp_dir / "spatial.export.yaml"
-
-            source_spec_path.write_text(
-                """
-title: Stereo fixture
-channel_layout: stereo
-sample_rate_hz: 12000
-default_duration_seconds: 0.5
-states:
-  - label: left-heavy
-    channel_gains:
-      L: 1.0
-      R: 0.25
-    oscillators:
-      - hz: 261
-        amplitude: 0.8
-  - label: right-heavy
-    channel_gains:
-      L: 0.2
-      R: 1.0
-    oscillators:
-      - hz: 392
-        amplitude: 0.6
-""".strip()
-                + "\n",
-                encoding="utf-8",
-            )
-
-            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(source_spec_path), "--json")
-            self.assertTrue(spec_payload["is_valid"], spec_payload)
-            self.assertEqual(spec_payload["stats"]["channel_layout"], "stereo")
-            self.assertEqual(spec_payload["stats"]["channel_count"], 2)
-
-            build_payload = self._run_json(
-                repo_root,
-                "arwif-build",
-                "--spec",
-                str(source_spec_path),
-                "--output",
-                str(artifact_path),
-                "--json",
-            )
-            self.assertTrue(build_payload["is_valid"], build_payload)
-
-            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
-            self.assertTrue(inspect_payload["is_valid"], inspect_payload)
-            self.assertEqual(inspect_payload["channel_layout"], "stereo")
-            self.assertEqual(inspect_payload["states"][0]["channel_gains"]["L"], 1.0)
-            self.assertEqual(inspect_payload["states"][1]["channel_gains"]["R"], 1.0)
-            self.assertEqual(inspect_payload["spatial_summary"]["declared_channels"], ["L", "R"])
-            self.assertEqual(inspect_payload["spatial_summary"]["active_channels"], ["L", "R"])
-            self.assertEqual(inspect_payload["spatial_summary"]["states_with_channel_gains"], 2)
-
-            wav_path = tmp_dir / "spatial.wav"
-            render_payload = self._run_json(repo_root, "arwif-render", str(artifact_path), str(wav_path), "--json")
-            self.assertEqual(render_payload["channel_layout"], "stereo")
-            self.assertEqual(render_payload["channel_count"], 2)
-            with wave.open(str(wav_path), "rb") as handle:
-                self.assertEqual(handle.getnchannels(), 2)
-                self.assertEqual(handle.getframerate(), 12000)
-                self.assertGreater(handle.getnframes(), 0)
-
-            export_payload = self._run_json(
-                repo_root,
-                "arwif-export",
-                str(artifact_path),
-                str(exported_spec_path),
-                "--json",
-            )
-            self.assertTrue(export_payload["is_valid"], export_payload)
-
-            exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
-            self.assertEqual(exported_document["channel_layout"], "stereo")
-            self.assertEqual(exported_document["states"][0]["channel_gains"]["R"], 0.25)
-            self.assertEqual(exported_document["states"][1]["channel_gains"]["L"], 0.2)
-
     def test_arwif_spatial_commands_do_not_crash_on_invalid_channel_gains(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -1622,6 +1540,94 @@ states:
             self.assertEqual(persisted_analysis["pairs_compared"], 2)
             self.assertEqual(persisted_analysis["states_changed_in_all_changed_pairs"], ["alpha"])
 
+    def test_arwif_batch_diff_analyze_tracks_object_spatial_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left.arwif"
+            right_path = tmp_dir / "right.arwif"
+            diff_report_path = tmp_dir / "object-batch-diff-report.json"
+
+            save_wave_library(
+                left_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="object",
+                            metadata={
+                                "duration_seconds": 0.25,
+                                "position": {"x": -0.5, "y": 0.0, "z": 0.2},
+                                "spread": 0.1,
+                                "distance_model": "inverse",
+                            },
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "listener_anchor": {"x": 0.0, "y": 0.0, "z": 0.0},
+                        "title": "Object left",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="object",
+                            metadata={
+                                "duration_seconds": 0.25,
+                                "position": {"x": 0.6, "y": 0.1, "z": 1.0},
+                                "orientation": {"x": 0.0, "y": 0.0, "z": 1.0},
+                                "spread": 0.4,
+                                "distance_model": "linear",
+                            },
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "listener_anchor": {"x": 0.0, "y": 1.0, "z": 0.0},
+                        "title": "Object right",
+                    },
+                ),
+            )
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listener_anchor_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_positioned_state_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_orientation_state_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_states_with_orientation_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_spread_state_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["distance_models_changed_pairs"], 1)
+
     def test_arwif_batch_review_artifacts(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -1866,6 +1872,168 @@ states:
                 self.assertTrue(result["exported"], result)
                 self.assertTrue(result["is_valid"], result)
 
+        def test_arwif_object_spatial_round_trip_cli(self) -> None:
+                repo_root = Path(__file__).resolve().parents[1]
+                with tempfile.TemporaryDirectory() as tmp_dir_str:
+                        tmp_dir = Path(tmp_dir_str)
+                        source_spec_path = tmp_dir / "object-spatial.yaml"
+                        artifact_path = tmp_dir / "object-spatial.arwif"
+                        exported_spec_path = tmp_dir / "object-spatial.export.yaml"
+                        roundtrip_artifact_path = tmp_dir / "object-spatial.roundtrip.arwif"
+
+                        source_spec_path.write_text(
+                                """
+title: Object spatial fixture
+listener_anchor:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+sample_rate_hz: 12000
+default_duration_seconds: 0.5
+states:
+    - label: near-left
+        position:
+            x: -0.8
+            y: 0.1
+            z: 0.2
+        orientation:
+            x: 0.0
+            y: 0.0
+            z: 1.0
+        spread: 0.2
+        distance_model: inverse
+        oscillators:
+            - hz: 261
+                amplitude: 0.8
+    - label: far-right
+        position:
+            x: 0.9
+            y: 0.0
+            z: 1.6
+        spread: 0.5
+        distance_model: linear
+        oscillators:
+            - hz: 392
+                amplitude: 0.6
+""".strip()
+                                + "\n",
+                                encoding="utf-8",
+                        )
+
+                        spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(source_spec_path), "--json")
+                        self.assertTrue(spec_payload["is_valid"], spec_payload)
+                        self.assertTrue(spec_payload["stats"]["listener_anchor_present"])
+                        self.assertEqual(spec_payload["stats"]["positioned_state_count"], 2)
+                        self.assertEqual(spec_payload["stats"]["states_with_orientation"], 1)
+                        self.assertEqual(spec_payload["stats"]["states_with_spread"], 2)
+                        self.assertEqual(spec_payload["stats"]["distance_models"], ["inverse", "linear"])
+
+                        build_payload = self._run_json(
+                                repo_root,
+                                "arwif-build",
+                                "--spec",
+                                str(source_spec_path),
+                                "--output",
+                                str(artifact_path),
+                                "--json",
+                        )
+                        self.assertTrue(build_payload["is_valid"], build_payload)
+
+                        inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+                        self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+                        self.assertEqual(inspect_payload["listener_anchor"]["z"], 0.0)
+                        self.assertEqual(inspect_payload["states"][0]["position"]["x"], -0.8)
+                        self.assertEqual(inspect_payload["states"][0]["orientation"]["z"], 1.0)
+                        self.assertEqual(inspect_payload["states"][1]["spread"], 0.5)
+                        self.assertEqual(inspect_payload["states"][1]["distance_model"], "linear")
+                        self.assertEqual(inspect_payload["spatial_summary"]["positioned_states"], 2)
+                        self.assertEqual(inspect_payload["spatial_summary"]["states_with_orientation"], 1)
+                        self.assertEqual(inspect_payload["spatial_summary"]["states_with_spread"], 2)
+                        self.assertEqual(inspect_payload["spatial_summary"]["distance_models"], ["inverse", "linear"])
+
+                        export_payload = self._run_json(
+                                repo_root,
+                                "arwif-export",
+                                str(artifact_path),
+                                str(exported_spec_path),
+                                "--json",
+                        )
+                        self.assertTrue(export_payload["is_valid"], export_payload)
+
+                        exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
+                        self.assertEqual(exported_document["listener_anchor"]["x"], 0.0)
+                        self.assertEqual(exported_document["states"][0]["position"]["y"], 0.1)
+                        self.assertEqual(exported_document["states"][0]["orientation"]["z"], 1.0)
+                        self.assertEqual(exported_document["states"][1]["spread"], 0.5)
+                        self.assertEqual(exported_document["states"][1]["distance_model"], "linear")
+
+                        import_payload = self._run_json(
+                                repo_root,
+                                "arwif-import",
+                                "--spec",
+                                str(exported_spec_path),
+                                "--output",
+                                str(roundtrip_artifact_path),
+                                "--json",
+                        )
+                        self.assertTrue(import_payload["is_valid"], import_payload)
+
+                        diff_payload = self._run_json(
+                                repo_root,
+                                "arwif-diff",
+                                str(artifact_path),
+                                str(roundtrip_artifact_path),
+                                "--json",
+                        )
+                        self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
+                        self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
+                        self.assertFalse(diff_payload["spatial_changes"]["listener_anchor_changed"])
+                        self.assertFalse(diff_payload["spatial_changes"]["distance_models_changed"])
+
+        def test_arwif_validate_spec_rejects_invalid_object_spatial_fields(self) -> None:
+                repo_root = Path(__file__).resolve().parents[1]
+                with tempfile.TemporaryDirectory() as tmp_dir_str:
+                        tmp_dir = Path(tmp_dir_str)
+                        spec_path = tmp_dir / "invalid-object-spatial.yaml"
+                        spec_path.write_text(
+                                """
+title: Invalid object spatial
+listener_anchor:
+    x: 0.0
+    y: nope
+    z: 0.0
+sample_rate_hz: 8000
+default_duration_seconds: 0.25
+states:
+    - label: broken
+        position:
+            x: left
+            y: 0.0
+            z: 0.0
+        orientation:
+            x: 0.0
+            y: 0.0
+        spread: -0.1
+        distance_model: weird
+        oscillators:
+            - hz: 261
+                amplitude: 0.8
+""".strip()
+                                + "\n",
+                                encoding="utf-8",
+                        )
+
+                        spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(spec_path), "--json", allow_failure=True)
+                        self.assertFalse(spec_payload["is_valid"])
+                        self.assertIn("listener_anchor.y must be a finite number", spec_payload["errors"])
+                        self.assertIn("states[0].position.x must be a finite number", spec_payload["errors"])
+                        self.assertIn("states[0].orientation.z must be a finite number", spec_payload["errors"])
+                        self.assertIn("states[0].spread must be non-negative", spec_payload["errors"])
+                        self.assertIn(
+                                "states[0].distance_model must be one of: none, inverse, linear, exponential",
+                                spec_payload["errors"],
+                        )
+
     def _run(self, repo_root: Path, *args: str) -> str:
         result = subprocess.run(
             [sys.executable, "-m", "rwif_builder.cli", *args],
@@ -1891,6 +2059,187 @@ states:
         if result.returncode != 0 and not allow_failure:
             self.fail(result.stderr or result.stdout)
         return json.loads(result.stdout)
+
+
+class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
+        def test_arwif_object_spatial_round_trip_cli(self) -> None:
+                repo_root = Path(__file__).resolve().parents[1]
+                with tempfile.TemporaryDirectory() as tmp_dir_str:
+                        tmp_dir = Path(tmp_dir_str)
+                        source_spec_path = tmp_dir / "object-spatial.yaml"
+                        artifact_path = tmp_dir / "object-spatial.arwif"
+                        exported_spec_path = tmp_dir / "object-spatial.export.yaml"
+                        roundtrip_artifact_path = tmp_dir / "object-spatial.roundtrip.arwif"
+
+                        source_spec_path.write_text(
+                                "\n".join(
+                                        [
+                                                "title: Object spatial fixture",
+                                                "listener_anchor:",
+                                                "  x: 0.0",
+                                                "  y: 0.0",
+                                                "  z: 0.0",
+                                                "sample_rate_hz: 12000",
+                                                "default_duration_seconds: 0.5",
+                                                "states:",
+                                                "  - label: near-left",
+                                                "    position:",
+                                                "      x: -0.8",
+                                                "      y: 0.1",
+                                                "      z: 0.2",
+                                                "    orientation:",
+                                                "      x: 0.0",
+                                                "      y: 0.0",
+                                                "      z: 1.0",
+                                                "    spread: 0.2",
+                                                "    distance_model: inverse",
+                                                "    oscillators:",
+                                                "      - hz: 261",
+                                                "        amplitude: 0.8",
+                                                "  - label: far-right",
+                                                "    position:",
+                                                "      x: 0.9",
+                                                "      y: 0.0",
+                                                "      z: 1.6",
+                                                "    spread: 0.5",
+                                                "    distance_model: linear",
+                                                "    oscillators:",
+                                                "      - hz: 392",
+                                                "        amplitude: 0.6",
+                                        ]
+                                )
+                                + "\n",
+                                encoding="utf-8",
+                        )
+
+                        spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(source_spec_path), "--json")
+                        self.assertTrue(spec_payload["is_valid"], spec_payload)
+                        self.assertTrue(spec_payload["stats"]["listener_anchor_present"])
+                        self.assertEqual(spec_payload["stats"]["positioned_state_count"], 2)
+                        self.assertEqual(spec_payload["stats"]["states_with_orientation"], 1)
+                        self.assertEqual(spec_payload["stats"]["states_with_spread"], 2)
+                        self.assertEqual(spec_payload["stats"]["distance_models"], ["inverse", "linear"])
+
+                        build_payload = self._run_json(
+                                repo_root,
+                                "arwif-build",
+                                "--spec",
+                                str(source_spec_path),
+                                "--output",
+                                str(artifact_path),
+                                "--json",
+                        )
+                        self.assertTrue(build_payload["is_valid"], build_payload)
+
+                        inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+                        self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+                        self.assertEqual(inspect_payload["listener_anchor"]["z"], 0.0)
+                        self.assertEqual(inspect_payload["states"][0]["position"]["x"], -0.8)
+                        self.assertEqual(inspect_payload["states"][0]["orientation"]["z"], 1.0)
+                        self.assertEqual(inspect_payload["states"][1]["spread"], 0.5)
+                        self.assertEqual(inspect_payload["states"][1]["distance_model"], "linear")
+                        self.assertEqual(inspect_payload["spatial_summary"]["positioned_states"], 2)
+                        self.assertEqual(inspect_payload["spatial_summary"]["states_with_orientation"], 1)
+                        self.assertEqual(inspect_payload["spatial_summary"]["states_with_spread"], 2)
+                        self.assertEqual(inspect_payload["spatial_summary"]["distance_models"], ["inverse", "linear"])
+
+                        export_payload = self._run_json(
+                                repo_root,
+                                "arwif-export",
+                                str(artifact_path),
+                                str(exported_spec_path),
+                                "--json",
+                        )
+                        self.assertTrue(export_payload["is_valid"], export_payload)
+
+                        exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
+                        self.assertEqual(exported_document["listener_anchor"]["x"], 0.0)
+                        self.assertEqual(exported_document["states"][0]["position"]["y"], 0.1)
+                        self.assertEqual(exported_document["states"][0]["orientation"]["z"], 1.0)
+                        self.assertEqual(exported_document["states"][1]["spread"], 0.5)
+                        self.assertEqual(exported_document["states"][1]["distance_model"], "linear")
+
+                        import_payload = self._run_json(
+                                repo_root,
+                                "arwif-import",
+                                "--spec",
+                                str(exported_spec_path),
+                                "--output",
+                                str(roundtrip_artifact_path),
+                                "--json",
+                        )
+                        self.assertTrue(import_payload["is_valid"], import_payload)
+
+                        diff_payload = self._run_json(
+                                repo_root,
+                                "arwif-diff",
+                                str(artifact_path),
+                                str(roundtrip_artifact_path),
+                                "--json",
+                        )
+                        self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
+                        self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
+                        self.assertFalse(diff_payload["spatial_changes"]["listener_anchor_changed"])
+                        self.assertFalse(diff_payload["spatial_changes"]["distance_models_changed"])
+
+        def test_arwif_validate_spec_rejects_invalid_object_spatial_fields(self) -> None:
+                repo_root = Path(__file__).resolve().parents[1]
+                with tempfile.TemporaryDirectory() as tmp_dir_str:
+                        tmp_dir = Path(tmp_dir_str)
+                        spec_path = tmp_dir / "invalid-object-spatial.yaml"
+                        spec_path.write_text(
+                                "\n".join(
+                                        [
+                                                "title: Invalid object spatial",
+                                                "listener_anchor:",
+                                                "  x: 0.0",
+                                                "  y: nope",
+                                                "  z: 0.0",
+                                                "sample_rate_hz: 8000",
+                                                "default_duration_seconds: 0.25",
+                                                "states:",
+                                                "  - label: broken",
+                                                "    position:",
+                                                "      x: left",
+                                                "      y: 0.0",
+                                                "      z: 0.0",
+                                                "    orientation:",
+                                                "      x: 0.0",
+                                                "      y: 0.0",
+                                                "    spread: -0.1",
+                                                "    distance_model: weird",
+                                                "    oscillators:",
+                                                "      - hz: 261",
+                                                "        amplitude: 0.8",
+                                        ]
+                                )
+                                + "\n",
+                                encoding="utf-8",
+                        )
+
+                        spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(spec_path), "--json", allow_failure=True)
+                        self.assertFalse(spec_payload["is_valid"])
+                        self.assertIn("listener_anchor.y must be a finite number", spec_payload["errors"])
+                        self.assertIn("states[0].position.x must be a finite number", spec_payload["errors"])
+                        self.assertIn("states[0].orientation.z must be a finite number", spec_payload["errors"])
+                        self.assertIn("states[0].spread must be non-negative", spec_payload["errors"])
+                        self.assertIn(
+                                "states[0].distance_model must be one of: none, inverse, linear, exponential",
+                                spec_payload["errors"],
+                        )
+
+        def _run_json(self, repo_root: Path, *args: str, allow_failure: bool = False) -> dict[str, object]:
+                result = subprocess.run(
+                        [sys.executable, "-m", "rwif_builder.cli", *args],
+                        cwd=repo_root,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        env={"PYTHONPATH": str(repo_root / "src")},
+                )
+                if result.returncode != 0 and not allow_failure:
+                        self.fail(result.stderr or result.stdout)
+                return json.loads(result.stdout)
 
 
 if __name__ == "__main__":

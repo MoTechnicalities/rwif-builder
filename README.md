@@ -187,9 +187,12 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 
 `rwif arwif-batch-inspect` scales ARWIF artifact inspection across multiple `.arwif` files in one command, supports `--legacy`, returns collection-level valid and invalid counts plus aggregate state, oscillator, and maximum-frequency totals alongside the full per-artifact inspection payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
-The current ARWIF toolchain also accepts an initial Level 1 spatial slice: `channel_layout` at the spec level plus per-state `channel_gains`, giving the format a first channel-aware foothold for reasoning and authoring while allowing the reference renderer to emit multichannel WAV for supported layouts.
+The current ARWIF toolchain now spans two early spatial layers:
 
-`rwif arwif-inspect` and `rwif arwif-diff` now also expose compact spatial summaries so channel-aware revisions can be reviewed at a glance instead of only through raw metadata blocks.
+- Level 1 channel-aware metadata via top-level `channel_layout` plus per-state `channel_gains`, which the reference renderer can emit as multichannel WAV for supported layouts
+- an initial Level 2 object-metadata slice via top-level `listener_anchor` plus per-state `position`, `orientation`, `spread`, and `distance_model`, which the current toolchain validates, preserves, inspects, diffs, and summarizes through batch review
+
+`rwif arwif-inspect` and `rwif arwif-diff` now also expose compact spatial summaries so channel-aware and initial object-spatial revisions can be reviewed at a glance instead of only through raw metadata blocks.
 
 Reference example:
 
@@ -198,7 +201,7 @@ rwif arwif-inspect dist/CEG_v0_1.arwif --json
 rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 ```
 
-Those JSON payloads now include the declared channel layout, active channel usage, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
+Those JSON payloads now include declared channel layout, active channel usage, listener anchors, positioned-state counts, spread and distance-model summaries, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
 
 ## On-Disk Contract
 

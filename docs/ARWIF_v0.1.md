@@ -23,7 +23,12 @@ It does not yet describe:
 
 See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking design path toward channel-aware, object-based, room-aware, and field-synthesis spatial ARWIF tiers.
 
-The current toolchain also accepts a minimal Level 1 spatial metadata slice: a top-level `channel_layout` and per-state `channel_gains`. The reference renderer can now emit multichannel PCM WAV for those declared layouts, but this remains a channel-aware authoring contract rather than a full object-based or room-aware spatial renderer.
+The current toolchain also accepts a minimal spatial metadata surface beyond the mono baseline:
+
+- Level 1 channel-aware metadata via top-level `channel_layout` and per-state `channel_gains`
+- an initial Level 2 object-metadata slice via top-level `listener_anchor` and per-state `position`, `orientation`, `spread`, and `distance_model`
+
+The reference renderer can emit multichannel PCM WAV for declared Level 1 layouts. Level 2 metadata is currently preserved for authoring, validation, inspection, diffing, and batch review rather than being rendered as a full object-based spatial mix.
 
 ## Container
 
@@ -50,6 +55,7 @@ Strict ARWIF `v0.1` files should place these fields in `library_metadata`:
 Optional library metadata:
 
 - `title`
+- `listener_anchor` as `{ x, y, z }` finite coordinates describing the reference listening origin
 - `normalize` as boolean, default `true`
 - `default_phase_radians`, default `0.0`
 - `default_attack_ms`, default `5.0`
@@ -67,6 +73,10 @@ State metadata may override library defaults with:
 - `duration_seconds`
 - `phase_radians`
 - `gain`
+- `position` as `{ x, y, z }` finite coordinates for object placement
+- `orientation` as `{ x, y, z }` finite coordinates for object-facing intent
+- `spread` as a non-negative finite scalar for source diffuseness
+- `distance_model` as one of `none`, `inverse`, `linear`, or `exponential`
 - `attack_ms`
 - `release_ms`
 
@@ -130,6 +140,7 @@ Supported top-level fields:
 - `title`
 - `description`
 - `channel_layout` as one of `mono`, `stereo`, `quad`, `5.1`, or `7.1`
+- `listener_anchor` as a mapping with finite `x`, `y`, and `z` coordinates
 - `sample_rate_hz`
 - `default_duration_seconds`
 - `default_phase_radians`
@@ -146,6 +157,10 @@ Supported per-state fields:
 - `phase_radians`
 - `gain`
 - `channel_gains` as a mapping of layout channel labels to finite gain values
+- `position` as a mapping with finite `x`, `y`, and `z` coordinates
+- `orientation` as a mapping with finite `x`, `y`, and `z` coordinates
+- `spread` as a non-negative finite scalar
+- `distance_model` as one of `none`, `inverse`, `linear`, or `exponential`
 - `attack_ms`
 - `release_ms`
 - `vector_length`
@@ -195,9 +210,9 @@ rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 
 For strict ARWIF `v0.1` artifacts produced by the reference builder, the exported spec is intended to round-trip without changing playback metadata, state ordering, or oscillator-bank contents.
 
-The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, and the number of states carrying explicit `channel_gains` metadata.
+The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor when present, how many states carry positioned or oriented object metadata, how many states declare spread, and which distance models appear in the artifact.
 
-The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so channel-aware revisions can be reviewed without reading the entire per-state metadata diff.
+The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so both channel-aware and initial object-metadata revisions can be reviewed without reading the entire per-state metadata diff.
 
 ## Legacy Prototype Files
 

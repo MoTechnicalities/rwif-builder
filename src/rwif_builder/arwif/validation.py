@@ -19,6 +19,8 @@ DEFAULT_SAMPLE_RATE_HZ = 48_000
 DEFAULT_DURATION_SECONDS = 1.0
 DEFAULT_ATTACK_MS = 5.0
 DEFAULT_RELEASE_MS = 5.0
+SPATIAL_VECTOR_AXES = ("x", "y", "z")
+OBJECT_DISTANCE_MODELS = ("none", "inverse", "linear", "exponential")
 
 CHANNEL_LAYOUT_CHANNELS: dict[str, tuple[str, ...]] = {
     "mono": ("C",),
@@ -40,6 +42,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "default_attack_ms",
     "default_release_ms",
     "channel_layout",
+    "listener_anchor",
 }
 
 
@@ -129,11 +132,32 @@ def _load_spec_document(spec_path: Path) -> tuple[dict[str, Any] | None, tuple[s
     return document, ()
 
 
+def _validate_spatial_vector_mapping(
+    value: Any,
+    *,
+    context: str,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    if not isinstance(value, dict):
+        errors.append(f"{context} must be a mapping")
+        return
+
+    unknown_keys = sorted(key for key in value if key not in SPATIAL_VECTOR_AXES)
+    if unknown_keys:
+        warnings.append(f"{context} contains unknown fields ignored by the reference builder: {', '.join(unknown_keys)}")
+
+    for axis in SPATIAL_VECTOR_AXES:
+        if not _is_number(value.get(axis)):
+            errors.append(f"{context}.{axis} must be a finite number")
+
+
 def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
     allowed_keys = {
         "title",
         "description",
         "channel_layout",
+        "listener_anchor",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -158,6 +182,14 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
             errors.append("channel_layout must be a string")
         elif channel_layout not in CHANNEL_LAYOUT_CHANNELS:
             errors.append("channel_layout must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
+
+    if "listener_anchor" in document:
+        _validate_spatial_vector_mapping(
+            document.get("listener_anchor"),
+            context="listener_anchor",
+            errors=errors,
+            warnings=warnings,
+        )
 
     sample_rate_hz = document.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ)
     if not _is_positive_int(sample_rate_hz):
@@ -223,6 +255,10 @@ def _validate_state_document(
         "phase_radians",
         "gain",
         "channel_gains",
+        "position",
+        "orientation",
+        "spread",
+        "distance_model",
         "attack_ms",
         "release_ms",
         "vector_length",
@@ -263,6 +299,30 @@ def _validate_state_document(
                     )
                 if not _is_number(gain_value):
                     errors.append(f"{context}.channel_gains[{channel_name!r}] must be a finite number")
+    if "position" in state_document:
+        _validate_spatial_vector_mapping(
+            state_document.get("position"),
+            context=f"{context}.position",
+            errors=errors,
+            warnings=warnings,
+        )
+    if "orientation" in state_document:
+        _validate_spatial_vector_mapping(
+            state_document.get("orientation"),
+            context=f"{context}.orientation",
+            errors=errors,
+            warnings=warnings,
+        )
+    if "spread" in state_document and not _is_non_negative_number(state_document["spread"]):
+        errors.append(f"{context}.spread must be non-negative")
+    if "distance_model" in state_document:
+        distance_model = state_document["distance_model"]
+        if not isinstance(distance_model, str):
+            errors.append(f"{context}.distance_model must be a string")
+        elif distance_model not in OBJECT_DISTANCE_MODELS:
+            errors.append(
+                f"{context}.distance_model must be one of: " + ", ".join(OBJECT_DISTANCE_MODELS)
+            )
     if "attack_ms" in state_document and not _is_non_negative_number(state_document["attack_ms"]):
         errors.append(f"{context}.attack_ms must be non-negative")
     if "release_ms" in state_document and not _is_non_negative_number(state_document["release_ms"]):
@@ -342,11 +402,25 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     channel_layout = document.get("channel_layout") if isinstance(document.get("channel_layout"), str) else None
     state_count = 0
     oscillator_count = 0
+    positioned_state_count = 0
+    states_with_orientation = 0
+    states_with_spread = 0
+    distance_models: set[str] = set()
     if isinstance(document.get("states"), list):
         states = document["states"]
         state_count = len(states)
         if _is_positive_int(sample_rate_hz):
             for index, state_document in enumerate(states):
+                if isinstance(state_document, dict):
+                    if isinstance(state_document.get("position"), dict):
+                        positioned_state_count += 1
+                    if isinstance(state_document.get("orientation"), dict):
+                        states_with_orientation += 1
+                    if _is_non_negative_number(state_document.get("spread")):
+                        states_with_spread += 1
+                    distance_model = state_document.get("distance_model")
+                    if isinstance(distance_model, str) and distance_model in OBJECT_DISTANCE_MODELS:
+                        distance_models.add(distance_model)
                 oscillator_count += _validate_state_document(
                     state_document,
                     index=index,
@@ -363,6 +437,11 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     if channel_layout in CHANNEL_LAYOUT_CHANNELS:
         stats["channel_layout"] = channel_layout
         stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
+    stats["listener_anchor_present"] = isinstance(document.get("listener_anchor"), dict)
+    stats["positioned_state_count"] = positioned_state_count
+    stats["states_with_orientation"] = states_with_orientation
+    stats["states_with_spread"] = states_with_spread
+    stats["distance_models"] = sorted(distance_models)
     default_duration_seconds = document.get("default_duration_seconds", DEFAULT_DURATION_SECONDS)
     if _is_positive_number(default_duration_seconds):
         stats["default_duration_seconds"] = float(default_duration_seconds)
@@ -478,6 +557,37 @@ def _validate_state(
                 if not _is_finite_number(gain_value):
                     errors.append(f"state {index} channel_gains[{channel_name!r}] must be finite")
 
+    position = state_meta.get("position")
+    if position is not None:
+        _validate_spatial_vector_mapping(
+            position,
+            context=f"state {index} position",
+            errors=errors,
+            warnings=warnings,
+        )
+
+    orientation = state_meta.get("orientation")
+    if orientation is not None:
+        _validate_spatial_vector_mapping(
+            orientation,
+            context=f"state {index} orientation",
+            errors=errors,
+            warnings=warnings,
+        )
+
+    spread = state_meta.get("spread")
+    if spread is not None and (not _is_finite_number(spread) or float(spread) < 0.0):
+        errors.append(f"state {index} spread must be non-negative")
+
+    distance_model = state_meta.get("distance_model")
+    if distance_model is not None:
+        if not isinstance(distance_model, str):
+            errors.append(f"state {index} distance_model must be a string")
+        elif distance_model not in OBJECT_DISTANCE_MODELS:
+            errors.append(
+                f"state {index} distance_model must be one of: " + ", ".join(OBJECT_DISTANCE_MODELS)
+            )
+
     phase_radians = state_meta.get("phase_radians", 0.0)
     if not _is_finite_number(phase_radians):
         errors.append(f"state {index} phase_radians must be finite")
@@ -538,6 +648,14 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
         if not isinstance(channel_layout, str) or channel_layout not in CHANNEL_LAYOUT_CHANNELS:
             errors.append("library metadata 'channel_layout' must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
             channel_layout = None
+    listener_anchor = metadata.get("listener_anchor")
+    if listener_anchor is not None:
+        _validate_spatial_vector_mapping(
+            listener_anchor,
+            context="library metadata 'listener_anchor'",
+            errors=errors,
+            warnings=warnings,
+        )
     default_duration_seconds = _effective_default_duration(metadata, allow_legacy, errors, warnings)
     default_attack_ms = _effective_default_float(metadata, "default_attack_ms", DEFAULT_ATTACK_MS)
     default_release_ms = _effective_default_float(metadata, "default_release_ms", DEFAULT_RELEASE_MS)
@@ -549,12 +667,17 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     if channel_layout is not None:
         stats["channel_layout"] = channel_layout
         stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
+    stats["listener_anchor_present"] = isinstance(listener_anchor, dict)
 
     if len(library.states) == 0:
         errors.append("ARWIF artifact must contain at least one state")
 
     total_duration_seconds = 0.0
     max_frequency_hz = 0
+    positioned_state_count = 0
+    states_with_orientation = 0
+    states_with_spread = 0
+    distance_models: set[str] = set()
     for index, state in enumerate(library.states):
         _validate_state(
             state,
@@ -568,11 +691,24 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             warnings=warnings,
         )
         state_meta = _state_metadata(state)
+        if isinstance(state_meta.get("position"), dict):
+            positioned_state_count += 1
+        if isinstance(state_meta.get("orientation"), dict):
+            states_with_orientation += 1
+        if _is_finite_number(state_meta.get("spread")) and float(state_meta.get("spread")) >= 0.0:
+            states_with_spread += 1
+        distance_model = state_meta.get("distance_model")
+        if isinstance(distance_model, str) and distance_model in OBJECT_DISTANCE_MODELS:
+            distance_models.add(distance_model)
         total_duration_seconds += float(state_meta.get("duration_seconds", default_duration_seconds))
         max_frequency_hz = max(max_frequency_hz, max((unit.frequency_index for unit in state.units), default=0))
 
     stats["total_duration_seconds"] = total_duration_seconds
     stats["max_frequency_hz"] = max_frequency_hz
+    stats["positioned_state_count"] = positioned_state_count
+    stats["states_with_orientation"] = states_with_orientation
+    stats["states_with_spread"] = states_with_spread
+    stats["distance_models"] = sorted(distance_models)
 
     return ARWIFValidationReport(
         artifact=str(artifact_path),

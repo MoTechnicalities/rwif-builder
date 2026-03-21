@@ -17,6 +17,8 @@ from .validation import DEFAULT_ATTACK_MS
 from .validation import DEFAULT_DURATION_SECONDS
 from .validation import DEFAULT_RELEASE_MS
 from .validation import DEFAULT_SAMPLE_RATE_HZ
+from .validation import OBJECT_DISTANCE_MODELS
+from .validation import SPATIAL_VECTOR_AXES
 from .validation import validate_arwif_artifact
 from .validation import validate_arwif_spec
 
@@ -32,6 +34,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "default_attack_ms",
     "default_release_ms",
     "channel_layout",
+    "listener_anchor",
 }
 
 
@@ -70,6 +73,14 @@ def _optional_mapping(value: Any, context: str) -> dict[str, Any]:
     if value is None:
         return {}
     return _require_mapping(value, context)
+
+
+def _require_spatial_vector(value: Any, context: str) -> dict[str, float]:
+    mapping = _require_mapping(value, context)
+    return {
+        axis: _require_finite_number(mapping.get(axis), f"{context}.{axis}")
+        for axis in SPATIAL_VECTOR_AXES
+    }
 
 
 def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
@@ -117,6 +128,9 @@ def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("channel_layout must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
         metadata["channel_layout"] = channel_layout
 
+    if "listener_anchor" in document:
+        metadata["listener_anchor"] = _require_spatial_vector(document["listener_anchor"], "listener_anchor")
+
     metadata.update(
         {
             "format": ARWIF_FORMAT,
@@ -154,6 +168,17 @@ def _state_metadata(state_document: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError("state channel_gains keys must be non-empty strings")
             channel_gains[channel_name] = _require_finite_number(channel_gain, f"state channel_gains[{channel_name!r}]")
         metadata["channel_gains"] = channel_gains
+    if "position" in state_document:
+        metadata["position"] = _require_spatial_vector(state_document["position"], "state position")
+    if "orientation" in state_document:
+        metadata["orientation"] = _require_spatial_vector(state_document["orientation"], "state orientation")
+    if "spread" in state_document:
+        metadata["spread"] = _require_non_negative_number(state_document["spread"], "state spread")
+    if "distance_model" in state_document:
+        distance_model = state_document["distance_model"]
+        if not isinstance(distance_model, str) or distance_model not in OBJECT_DISTANCE_MODELS:
+            raise ValueError("state distance_model must be one of: " + ", ".join(OBJECT_DISTANCE_MODELS))
+        metadata["distance_model"] = distance_model
     if "attack_ms" in state_document:
         metadata["attack_ms"] = _require_non_negative_number(state_document["attack_ms"], "state attack_ms")
     if "release_ms" in state_document:

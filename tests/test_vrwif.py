@@ -441,6 +441,7 @@ class VRWIFValidationTest(unittest.TestCase):
             tmp_dir = Path(tmp_dir_str)
             source_path = tmp_dir / "loose-scene.yaml"
             normalized_path = tmp_dir / "normalized-scene.yaml"
+            report_path = tmp_dir / "normalized-scene.report.json"
 
             source_path.write_text(
                 "\n".join(
@@ -523,6 +524,8 @@ class VRWIFValidationTest(unittest.TestCase):
                 str(source_path),
                 "--output",
                 str(normalized_path),
+                "--report",
+                str(report_path),
                 "--json",
             )
             self.assertTrue(payload["normalized"], payload)
@@ -535,6 +538,17 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["normalization_summary"]["reordered_objects"], 1)
             self.assertEqual(payload["normalization_summary"]["reordered_lights"], 1)
             self.assertTrue(normalized_path.exists())
+            self.assertEqual(payload["report_output"], str(report_path))
+            self.assertEqual(payload["report_format"], "json")
+            self.assertTrue(report_path.exists())
+
+            report_document = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report_document["report_version"], 1)
+            self.assertEqual(report_document["spec"], str(source_path))
+            self.assertEqual(report_document["spec_output"], str(normalized_path))
+            self.assertFalse(report_document["source_validation"]["is_valid"])
+            self.assertTrue(report_document["normalized_validation"]["is_valid"])
+            self.assertEqual(report_document["normalized_document"]["reference_frame"], "world")
 
             inspect_payload = self._run_json(repo_root, "vrwif-inspect", str(normalized_path), "--json")
             self.assertEqual(inspect_payload["reference_frame"], "world")
@@ -552,6 +566,7 @@ class VRWIFValidationTest(unittest.TestCase):
             first_path = tmp_dir / "first.yaml"
             second_path = tmp_dir / "second.yaml"
             output_dir = tmp_dir / "normalized"
+            report_dir = tmp_dir / "reports"
             report_path = tmp_dir / "vrwif-batch-normalize-report.json"
 
             first_path.write_text(
@@ -601,6 +616,8 @@ class VRWIFValidationTest(unittest.TestCase):
                 str(second_path),
                 "--output-dir",
                 str(output_dir),
+                "--report-dir",
+                str(report_dir),
                 "--output",
                 str(report_path),
                 "--json",
@@ -610,8 +627,11 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["normalized_count"], 2)
             self.assertEqual(payload["failed_count"], 0)
             self.assertEqual(payload["total_object_count"], 2)
+            self.assertEqual(payload["report_dir"], str(report_dir))
             self.assertTrue((output_dir / "first.normalized.yaml").exists())
             self.assertTrue((output_dir / "second.normalized.yaml").exists())
+            self.assertTrue((report_dir / "first.normalized.report.json").exists())
+            self.assertTrue((report_dir / "second.normalized.report.json").exists())
             self.assertTrue(report_path.exists())
 
     def test_vrwif_batch_diff_analyze_report(self) -> None:

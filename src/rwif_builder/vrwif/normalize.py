@@ -59,10 +59,12 @@ def normalize_vrwif_spec(
     spec: str | Path,
     output: str | Path,
     *,
+    report: str | Path | None = None,
     format: str | None = None,
 ) -> dict[str, Any]:
     spec_path = Path(spec)
     output_path = Path(output)
+    report_path = Path(report) if report is not None else None
 
     source_document, load_errors = _load_spec_document(spec_path)
     if source_document is None:
@@ -77,7 +79,7 @@ def normalize_vrwif_spec(
     export_format = _resolve_export_format(output_path, format)
     _write_spec_document(output_path, normalized_document, export_format)
 
-    return {
+    payload = {
         "spec": str(spec_path),
         "output": str(output_path),
         "format": export_format,
@@ -94,6 +96,24 @@ def normalize_vrwif_spec(
         "normalization_summary": normalization_summary,
         "normalized": True,
     }
+
+    report_document = _build_normalization_report(
+        spec_path=spec_path,
+        output_path=output_path,
+        export_format=export_format,
+        source_report=source_report,
+        normalized_report=normalized_report,
+        normalization_summary=normalization_summary,
+        normalized_document=normalized_document,
+    )
+
+    if report_path is not None:
+        report_format = _resolve_auxiliary_format(report_path, label="report")
+        _write_auxiliary_document(report_path, report_document, report_format)
+        payload["report_output"] = str(report_path)
+        payload["report_format"] = report_format
+
+    return payload
 
 
 def _load_spec_document(spec_path: Path) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
@@ -124,9 +144,26 @@ def _resolve_export_format(output_path: Path, explicit_format: str | None) -> st
     raise ValueError("could not infer export format from output path; use --format yaml or --format json")
 
 
+def _resolve_auxiliary_format(output_path: Path, *, label: str) -> str:
+    suffix = output_path.suffix.lower()
+    if suffix == ".json":
+        return "json"
+    if suffix in {".yaml", ".yml"}:
+        return "yaml"
+    raise ValueError(f"could not infer {label} format from path; use a .json, .yaml, or .yml suffix")
+
+
 def _write_spec_document(output_path: Path, document: dict[str, Any], export_format: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if export_format == "json":
+        output_path.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+        return
+    output_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+
+
+def _write_auxiliary_document(output_path: Path, document: dict[str, Any], report_format: str) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if report_format == "json":
         output_path.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n", encoding="utf-8")
         return
     output_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
@@ -380,3 +417,35 @@ def _normalize_vrwif_document(document: dict[str, Any]) -> tuple[dict[str, Any],
         normalized["metadata"] = _deep_copy_document(metadata_document)
 
     return normalized, summary
+
+
+def _build_normalization_report(
+    *,
+    spec_path: Path,
+    output_path: Path,
+    export_format: str,
+    source_report: Any,
+    normalized_report: Any,
+    normalization_summary: dict[str, int],
+    normalized_document: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "report_version": 1,
+        "spec": str(spec_path),
+        "spec_output": str(output_path),
+        "format": export_format,
+        "source_validation": {
+            "is_valid": source_report.is_valid,
+            "errors": list(source_report.errors),
+            "warnings": list(source_report.warnings),
+            "stats": dict(source_report.stats),
+        },
+        "normalized_validation": {
+            "is_valid": normalized_report.is_valid,
+            "errors": list(normalized_report.errors),
+            "warnings": list(normalized_report.warnings),
+            "stats": dict(normalized_report.stats),
+        },
+        "normalization_summary": dict(normalization_summary),
+        "normalized_document": _deep_copy_document(normalized_document),
+    }

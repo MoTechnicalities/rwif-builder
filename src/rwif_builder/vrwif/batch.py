@@ -62,6 +62,7 @@ def batch_normalize_vrwif_specs(
     specs: list[str | Path],
     output_dir: str | Path,
     *,
+    report_dir: str | Path | None = None,
     format: str | None = None,
     output: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -69,7 +70,10 @@ def batch_normalize_vrwif_specs(
         raise ValueError("at least one spec must be provided")
 
     output_dir_path = Path(output_dir)
+    report_dir_path = Path(report_dir) if report_dir is not None else None
     output_dir_path.mkdir(parents=True, exist_ok=True)
+    if report_dir_path is not None:
+        report_dir_path.mkdir(parents=True, exist_ok=True)
 
     if format is None:
         output_suffix = ".yaml"
@@ -89,13 +93,15 @@ def batch_normalize_vrwif_specs(
     for spec in specs:
         spec_path = Path(spec)
         output_path = output_dir_path / f"{spec_path.stem}.normalized{output_suffix}"
+        report_path = report_dir_path / f"{spec_path.stem}.normalized.report.json" if report_dir_path is not None else None
         try:
-            payload = normalize_vrwif_spec(spec_path, output_path, format=format)
+            payload = normalize_vrwif_spec(spec_path, output_path, report=report_path, format=format)
         except ValueError as exc:
             source_report = validate_vrwif_spec(spec_path)
             payload = {
                 "spec": str(spec_path),
                 "output": str(output_path),
+                "report_output": str(report_path) if report_path is not None else None,
                 "normalized": False,
                 "is_valid": False,
                 "message": str(exc),
@@ -117,6 +123,7 @@ def batch_normalize_vrwif_specs(
         "failed_count": failed_count,
         "is_valid": failed_count == 0,
         "output_dir": str(output_dir_path),
+        "report_dir": str(report_dir_path) if report_dir_path is not None else None,
         "total_object_count": total_object_count,
         "total_light_count": total_light_count,
         "results": results,

@@ -173,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vrwif_batch_normalize_parser.add_argument("specs", nargs="+", help="Paths to VRWIF source specs")
     vrwif_batch_normalize_parser.add_argument("--output-dir", required=True, help="Destination directory for normalized specs")
+    vrwif_batch_normalize_parser.add_argument("--report-dir", help="Optional destination directory for per-spec normalization reports")
     vrwif_batch_normalize_parser.add_argument(
         "--output",
         help="Optional destination .json, .yaml, or .yml path for the aggregated normalization report",
@@ -265,6 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vrwif_normalize_parser.add_argument("spec", help="Path to a VRWIF source spec")
     vrwif_normalize_parser.add_argument("--output", required=True, help="Destination .yaml, .yml, or .json path")
+    vrwif_normalize_parser.add_argument("--report", help="Optional destination .json, .yaml, or .yml normalization report path")
     vrwif_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
     vrwif_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_normalize_parser.set_defaults(handler=handle_vrwif_normalize)
@@ -617,6 +619,7 @@ def handle_vrwif_batch_normalize(args: argparse.Namespace) -> int:
     payload = batch_normalize_vrwif_specs(
         [Path(spec) for spec in args.specs],
         Path(args.output_dir),
+        report_dir=Path(args.report_dir) if args.report_dir else None,
         format=args.format,
         output=Path(args.output) if args.output else None,
     )
@@ -673,6 +676,7 @@ def handle_vrwif_normalize(args: argparse.Namespace) -> int:
         payload = normalize_vrwif_spec(
             Path(args.spec),
             Path(args.output),
+            report=Path(args.report) if args.report else None,
             format=args.format,
         )
     except ValueError as exc:
@@ -681,6 +685,7 @@ def handle_vrwif_normalize(args: argparse.Namespace) -> int:
             {
                 "spec": str(Path(args.spec)),
                 "output": str(Path(args.output)),
+                "report_output": str(Path(args.report)) if args.report else None,
                 "normalized": False,
                 "is_valid": False,
                 "message": str(exc),

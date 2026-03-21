@@ -6,9 +6,11 @@ from typing import Any
 
 import yaml
 
+from ..writer.rwif_writer import load_wave_library
 from .build import build_arwif_artifact
 from .diff import diff_arwif_artifacts
 from .export import export_arwif_artifact
+from .importing import import_arwif_artifact
 from .normalize import normalize_arwif_artifact
 from .render import render_arwif_to_wav
 from .validation import validate_arwif_artifact
@@ -63,6 +65,136 @@ def batch_build_arwif_artifacts(
         "total_oscillator_count": total_oscillator_count,
         "results": results,
     }
+
+
+def batch_import_arwif_artifacts(
+    specs: list[str | Path],
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    if not specs:
+        raise ValueError("at least one spec must be provided")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    results: list[dict[str, Any]] = []
+    imported_count = 0
+    failed_count = 0
+    total_oscillator_count = 0
+
+    for spec in specs:
+        spec_path = Path(spec)
+        output_path = output_dir_path / f"{spec_path.stem}.arwif"
+        try:
+            payload = import_arwif_artifact(spec_path, output_path)
+        except ValueError as exc:
+            spec_report = validate_arwif_spec(spec_path)
+            payload = {
+                "artifact": str(output_path),
+                "spec": str(spec_path),
+                "imported": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(spec_report.errors) or [str(exc)],
+                "warnings": list(spec_report.warnings),
+                "stats": dict(spec_report.stats),
+            }
+            failed_count += 1
+        else:
+            imported_count += 1
+            total_oscillator_count += int(payload.get("oscillator_count", 0))
+
+        results.append(payload)
+
+    return {
+        "specs_processed": len(specs),
+        "imported_count": imported_count,
+        "failed_count": failed_count,
+        "is_valid": failed_count == 0 and all(result.get("is_valid", False) for result in results),
+        "output_dir": str(output_dir_path),
+        "total_oscillator_count": total_oscillator_count,
+        "results": results,
+    }
+
+
+def batch_validate_arwif_specs(
+    specs: list[str | Path],
+) -> dict[str, Any]:
+    if not specs:
+        raise ValueError("at least one spec must be provided")
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_state_count = 0
+    total_oscillator_count = 0
+
+    for spec in specs:
+        report = validate_arwif_spec(Path(spec))
+        payload = report.to_payload()
+        if report.is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+        total_state_count += int(report.stats.get("state_count", 0))
+        total_oscillator_count += int(report.stats.get("oscillator_count", 0))
+        results.append(payload)
+
+    return {
+        "specs_processed": len(specs),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "total_state_count": total_state_count,
+        "total_oscillator_count": total_oscillator_count,
+        "results": results,
+    }
+
+
+def batch_validate_arwif_artifacts(
+    artifacts: list[str | Path],
+    *,
+    allow_legacy: bool = False,
+) -> dict[str, Any]:
+    if not artifacts:
+        raise ValueError("at least one artifact must be provided")
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_state_count = 0
+    total_oscillator_count = 0
+
+    for artifact in artifacts:
+        artifact_path = Path(artifact)
+        report = validate_arwif_artifact(artifact_path, allow_legacy=allow_legacy)
+        payload = report.to_payload()
+        if report.is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+        total_state_count += int(report.stats.get("state_count", 0))
+        total_oscillator_count += _artifact_oscillator_count(artifact_path)
+        results.append(payload)
+
+    return {
+        "artifacts_processed": len(artifacts),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "allow_legacy": allow_legacy,
+        "total_state_count": total_state_count,
+        "total_oscillator_count": total_oscillator_count,
+        "results": results,
+    }
+
+
+def _artifact_oscillator_count(artifact_path: Path) -> int:
+    try:
+        library = load_wave_library(artifact_path)
+    except Exception:
+        return 0
+    return sum(len(state.units) for state in library.states)
 
 
 def batch_export_arwif_artifacts(

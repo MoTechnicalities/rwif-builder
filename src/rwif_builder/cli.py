@@ -10,8 +10,11 @@ from .arwif.build import build_arwif_artifact
 from .arwif.batch import batch_build_arwif_artifacts
 from .arwif.batch import batch_diff_arwif_artifacts
 from .arwif.batch import batch_export_arwif_artifacts
+from .arwif.batch import batch_import_arwif_artifacts
 from .arwif.batch import batch_normalize_arwif_artifacts
 from .arwif.batch import batch_render_arwif_artifacts
+from .arwif.batch import batch_validate_arwif_artifacts
+from .arwif.batch import batch_validate_arwif_specs
 from .arwif.diff import diff_arwif_artifacts
 from .arwif.export import export_arwif_artifact
 from .arwif.importing import import_arwif_artifact
@@ -83,6 +86,23 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_build_parser.add_argument("--output-dir", required=True, help="Destination directory for .arwif artifacts")
     arwif_batch_build_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_build_parser.set_defaults(handler=handle_arwif_batch_build)
+
+    arwif_batch_import_parser = subparsers.add_parser(
+        "arwif-batch-import",
+        help="Import multiple ARWIF YAML or JSON specs into artifacts",
+    )
+    arwif_batch_import_parser.add_argument("specs", nargs="+", help="Paths to ARWIF source specs")
+    arwif_batch_import_parser.add_argument("--output-dir", required=True, help="Destination directory for .arwif artifacts")
+    arwif_batch_import_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_import_parser.set_defaults(handler=handle_arwif_batch_import)
+
+    arwif_batch_validate_spec_parser = subparsers.add_parser(
+        "arwif-batch-validate-spec",
+        help="Validate multiple ARWIF YAML or JSON source specs",
+    )
+    arwif_batch_validate_spec_parser.add_argument("specs", nargs="+", help="Paths to ARWIF source specs")
+    arwif_batch_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_validate_spec_parser.set_defaults(handler=handle_arwif_batch_validate_spec)
 
     arwif_batch_export_parser = subparsers.add_parser(
         "arwif-batch-export",
@@ -161,6 +181,15 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_render_parser.add_argument("--no-normalize", action="store_true", help="Disable peak normalization")
     arwif_batch_render_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_render_parser.set_defaults(handler=handle_arwif_batch_render)
+
+    arwif_batch_validate_parser = subparsers.add_parser(
+        "arwif-batch-validate",
+        help="Validate multiple ARWIF audio artifacts",
+    )
+    arwif_batch_validate_parser.add_argument("artifacts", nargs="+", help="Paths to .arwif artifacts")
+    arwif_batch_validate_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
+    arwif_batch_validate_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_validate_parser.set_defaults(handler=handle_arwif_batch_validate)
 
     arwif_batch_diff_parser = subparsers.add_parser(
         "arwif-batch-diff",
@@ -298,6 +327,21 @@ def handle_arwif_batch_build(args: argparse.Namespace) -> int:
     return 0 if payload["is_valid"] else 1
 
 
+def handle_arwif_batch_import(args: argparse.Namespace) -> int:
+    payload = batch_import_arwif_artifacts(
+        [Path(spec) for spec in args.specs],
+        Path(args.output_dir),
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_validate_spec(args: argparse.Namespace) -> int:
+    payload = batch_validate_arwif_specs([Path(spec) for spec in args.specs])
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
 def handle_arwif_batch_export(args: argparse.Namespace) -> int:
     payload = batch_export_arwif_artifacts(
         [Path(artifact) for artifact in args.artifacts],
@@ -422,6 +466,15 @@ def handle_arwif_batch_render(args: argparse.Namespace) -> int:
         sample_rate_override=args.sample_rate,
         duration_override=args.duration,
         normalize_override=False if args.no_normalize else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_validate(args: argparse.Namespace) -> int:
+    payload = batch_validate_arwif_artifacts(
+        [Path(artifact) for artifact in args.artifacts],
+        allow_legacy=args.legacy,
     )
     _print_payload(payload, args.json)
     return 0 if payload["is_valid"] else 1

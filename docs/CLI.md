@@ -54,6 +54,18 @@ Builds multiple ARWIF artifacts from YAML or JSON oscillator specs.
 
 Current implementation: accepts one or more strict ARWIF source specs, writes artifacts into `--output-dir`, reuses the same strict build flow as `arwif-build`, and returns an aggregated result payload with per-spec build results plus collection-level counts.
 
+### `rwif arwif-batch-import`
+
+Imports multiple ARWIF YAML or JSON specs into ARWIF artifacts.
+
+Current implementation: accepts one or more strict ARWIF source specs, writes artifacts into `--output-dir`, reuses the same import path as `arwif-import`, and returns an aggregated result payload with per-spec import results plus collection-level counts.
+
+### `rwif arwif-batch-validate-spec`
+
+Validates multiple ARWIF YAML or JSON source specs.
+
+Current implementation: accepts one or more strict ARWIF source specs, reuses the same validation path as `arwif-validate-spec`, and returns an aggregated result payload with per-spec validation details plus collection-level valid and invalid counts.
+
 ### `rwif arwif-batch-diff`
 
 Compares multiple ARWIF artifact pairs.
@@ -72,6 +84,12 @@ Current implementation: accepts one or more `.arwif` artifacts, writes strict so
 Renders multiple ARWIF artifacts to mono 16-bit PCM WAV.
 
 Current implementation: accepts one or more `.arwif` artifacts, writes `.wav` files into `--output-dir`, reuses the same render path as `arwif-render`, and returns an aggregated result payload with per-artifact render details plus collection-level counts and total rendered duration.
+
+### `rwif arwif-batch-validate`
+
+Validates multiple ARWIF audio artifacts.
+
+Current implementation: accepts one or more `.arwif` artifacts, reuses the same validation path as `arwif-validate`, supports `--legacy`, and returns an aggregated result payload with per-artifact validation details plus collection-level valid and invalid counts.
 
 ### `rwif arwif-validate-spec`
 

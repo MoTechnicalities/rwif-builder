@@ -848,6 +848,228 @@ states:
             self.assertTrue(alpha_validate_payload["is_valid"], alpha_validate_payload)
             self.assertTrue(beta_validate_payload["is_valid"], beta_validate_payload)
 
+    def test_arwif_batch_import_specs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_spec_path = tmp_dir / "alpha.yaml"
+            second_spec_path = tmp_dir / "beta.yaml"
+            output_dir = tmp_dir / "imports"
+
+            first_spec_path.write_text(
+                """
+title: Alpha imported chord
+sample_rate_hz: 8000
+default_duration_seconds: 0.25
+states:
+  - label: alpha
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 330
+        amplitude: 0.7
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            second_spec_path.write_text(
+                """
+title: Beta imported chord
+sample_rate_hz: 12000
+default_duration_seconds: 0.5
+states:
+  - label: beta
+    duration_seconds: 0.5
+    oscillators:
+      - hz: 392
+        amplitude: 0.6
+      - hz: 523
+        amplitude: 0.4
+      - hz: 659
+        amplitude: 0.2
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-import",
+                str(first_spec_path),
+                str(second_spec_path),
+                "--output-dir",
+                str(output_dir),
+                "--json",
+            )
+
+            self.assertTrue(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["specs_processed"], 2)
+            self.assertEqual(batch_payload["imported_count"], 2)
+            self.assertEqual(batch_payload["failed_count"], 0)
+            self.assertEqual(batch_payload["output_dir"], str(output_dir))
+            self.assertEqual(batch_payload["total_oscillator_count"], 5)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            expected_artifacts = {
+                output_dir / "alpha.arwif",
+                output_dir / "beta.arwif",
+            }
+            for path in expected_artifacts:
+                self.assertTrue(path.exists(), path)
+
+            imported_artifacts = {result["artifact"] for result in batch_payload["results"]}
+            self.assertEqual(imported_artifacts, {str(path) for path in expected_artifacts})
+
+            for result in batch_payload["results"]:
+                self.assertTrue(result["imported"], result)
+                self.assertTrue(result["is_valid"], result)
+                self.assertTrue(result["spec_is_valid"], result)
+
+            alpha_validate_payload = self._run_json(repo_root, "arwif-validate", str(output_dir / "alpha.arwif"), "--json")
+            beta_validate_payload = self._run_json(repo_root, "arwif-validate", str(output_dir / "beta.arwif"), "--json")
+            self.assertTrue(alpha_validate_payload["is_valid"], alpha_validate_payload)
+            self.assertTrue(beta_validate_payload["is_valid"], beta_validate_payload)
+
+    def test_arwif_batch_validate_specs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            valid_spec_path = tmp_dir / "valid.yaml"
+            invalid_spec_path = tmp_dir / "invalid.yaml"
+
+            valid_spec_path.write_text(
+                """
+title: Valid batch spec
+sample_rate_hz: 8000
+default_duration_seconds: 0.25
+states:
+  - label: valid
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+      - hz: 330
+        amplitude: 0.7
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            invalid_spec_path.write_text(
+                """
+title: Invalid batch spec
+sample_rate_hz: 0
+states:
+  - label: invalid
+    oscillators:
+      - hz: 261
+        amplitude: 2.0
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-validate-spec",
+                str(valid_spec_path),
+                str(invalid_spec_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["specs_processed"], 2)
+            self.assertEqual(batch_payload["valid_count"], 1)
+            self.assertEqual(batch_payload["invalid_count"], 1)
+            self.assertEqual(batch_payload["total_state_count"], 2)
+            self.assertEqual(batch_payload["total_oscillator_count"], 2)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            valid_result = next(result for result in batch_payload["results"] if result["spec"] == str(valid_spec_path))
+            invalid_result = next(result for result in batch_payload["results"] if result["spec"] == str(invalid_spec_path))
+
+            self.assertTrue(valid_result["is_valid"], valid_result)
+            self.assertFalse(invalid_result["is_valid"], invalid_result)
+            self.assertIn("sample_rate_hz must be a positive integer", invalid_result["errors"])
+
+    def test_arwif_batch_validate_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            valid_artifact_path = tmp_dir / "valid.arwif"
+            invalid_artifact_path = tmp_dir / "invalid.arwif"
+
+            save_wave_library(
+                valid_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="valid",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Valid batch artifact",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                invalid_artifact_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=256,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="invalid",
+                            metadata={},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 0,
+                        "default_duration_seconds": 0.25,
+                    },
+                ),
+            )
+
+            batch_payload = self._run_json(
+                repo_root,
+                "arwif-batch-validate",
+                str(valid_artifact_path),
+                str(invalid_artifact_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(batch_payload["is_valid"], batch_payload)
+            self.assertEqual(batch_payload["artifacts_processed"], 2)
+            self.assertEqual(batch_payload["valid_count"], 1)
+            self.assertEqual(batch_payload["invalid_count"], 1)
+            self.assertFalse(batch_payload["allow_legacy"])
+            self.assertEqual(batch_payload["total_state_count"], 2)
+            self.assertEqual(batch_payload["total_oscillator_count"], 3)
+            self.assertEqual(len(batch_payload["results"]), 2)
+
+            valid_result = next(result for result in batch_payload["results"] if result["artifact"] == str(valid_artifact_path))
+            invalid_result = next(result for result in batch_payload["results"] if result["artifact"] == str(invalid_artifact_path))
+
+            self.assertTrue(valid_result["is_valid"], valid_result)
+            self.assertFalse(invalid_result["is_valid"], invalid_result)
+            self.assertIn("library metadata 'sample_rate_hz' must be a positive integer", invalid_result["errors"])
+
     def test_arwif_batch_render_artifacts(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

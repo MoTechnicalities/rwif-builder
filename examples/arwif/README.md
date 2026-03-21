@@ -18,6 +18,7 @@ Build the strict example from source spec:
 rwif arwif-validate-spec examples/arwif/CEG_v0_1.yaml --json
 rwif arwif-build --spec examples/arwif/CEG_v0_1.yaml --output dist/CEG_v0_1.arwif --json
 rwif arwif-batch-build first.yaml second.yaml --output-dir dist/built_arwif --json
+rwif arwif-batch-import first.yaml second.yaml --output-dir dist/imported_arwif --json
 ```
 
 Export it back to a source spec:
@@ -54,10 +55,22 @@ To export multiple ARWIF artifacts into strict source specs in one pass:
 rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --format yaml --json
 ```
 
+To validate multiple strict ARWIF source specs in one pass:
+
+```bash
+rwif arwif-batch-validate-spec first.yaml second.yaml --json
+```
+
 To render multiple ARWIF artifacts into WAV outputs in one pass:
 
 ```bash
 rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --json
+```
+
+To validate multiple ARWIF artifacts in one pass:
+
+```bash
+rwif arwif-batch-validate dist/a.arwif dist/b.arwif --json
 ```
 
 Import the exported spec again:
@@ -99,4 +112,4 @@ rwif arwif-validate examples/arwif/CEG_legacy.arwif --legacy --json
 rwif arwif-render examples/arwif/CEG_v0_1.arwif examples/arwif/CEG_v0_1.wav --json
 ```
 
-The renderer writes mono 16-bit PCM WAV output using the ARWIF reference synthesis path.
+The renderer writes 16-bit PCM WAV output using the ARWIF reference synthesis path, staying mono when no channel layout is declared and emitting multichannel output for supported layouts.

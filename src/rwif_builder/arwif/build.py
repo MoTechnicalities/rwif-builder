@@ -11,6 +11,7 @@ from ..writer.rwif_writer import save_wave_library
 from .validation import ARWIF_FORMAT
 from .validation import ARWIF_FREQUENCY_UNIT
 from .validation import ARWIF_PLAYBACK_MODEL
+from .validation import ARWIF_REFERENCE_FRAMES
 from .validation import ARWIF_VERSION
 from .validation import CHANNEL_LAYOUT_CHANNELS
 from .validation import DEFAULT_ATTACK_MS
@@ -35,6 +36,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "default_release_ms",
     "channel_layout",
     "listener_anchor",
+    "reference_frame",
 }
 
 
@@ -158,6 +160,12 @@ def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
     if "listener_anchor" in document:
         metadata["listener_anchor"] = _require_spatial_vector(document["listener_anchor"], "listener_anchor")
 
+    if "reference_frame" in document:
+        reference_frame = document["reference_frame"]
+        if not isinstance(reference_frame, str) or reference_frame not in ARWIF_REFERENCE_FRAMES:
+            raise ValueError("reference_frame must be one of: " + ", ".join(ARWIF_REFERENCE_FRAMES))
+        metadata["reference_frame"] = reference_frame
+
     metadata.update(
         {
             "format": ARWIF_FORMAT,
@@ -187,6 +195,19 @@ def _state_metadata(state_document: dict[str, Any]) -> dict[str, Any]:
         metadata["phase_radians"] = _require_finite_number(state_document["phase_radians"], "state phase_radians")
     if "gain" in state_document:
         metadata["gain"] = _require_finite_number(state_document["gain"], "state gain")
+    if "source_id" in state_document:
+        source_id = state_document["source_id"]
+        if not isinstance(source_id, str) or not source_id:
+            raise ValueError("state source_id must be a non-empty string")
+        metadata["source_id"] = source_id
+    if "source_groups" in state_document:
+        source_groups_document = _require_sequence(state_document["source_groups"], "state source_groups")
+        source_groups: list[str] = []
+        for group_index, group_name in enumerate(source_groups_document):
+            if not isinstance(group_name, str) or not group_name:
+                raise ValueError(f"state source_groups[{group_index}] must be a non-empty string")
+            source_groups.append(group_name)
+        metadata["source_groups"] = source_groups
     if "channel_gains" in state_document:
         channel_gains_document = _require_mapping(state_document["channel_gains"], "state channel_gains")
         channel_gains: dict[str, float] = {}

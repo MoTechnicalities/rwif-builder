@@ -15,6 +15,7 @@ _LIBRARY_SPEC_KEYS = {
     "description",
     "channel_layout",
     "listener_anchor",
+    "reference_frame",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_phase_radians",
@@ -34,6 +35,8 @@ _STATE_SPEC_KEYS = {
     "duration_seconds",
     "phase_radians",
     "gain",
+    "source_id",
+    "source_groups",
     "channel_gains",
     "position",
     "trajectory",
@@ -152,6 +155,7 @@ def _artifact_to_spec(library_metadata: dict[str, Any], states: tuple[Any, ...])
         "description",
         "channel_layout",
         "listener_anchor",
+        "reference_frame",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -178,6 +182,10 @@ def _state_to_spec(state: Any) -> dict[str, Any]:
     for key in ("duration_seconds", "phase_radians", "gain", "attack_ms", "release_ms"):
         if key in state_metadata:
             entry[key] = state_metadata[key]
+    if "source_id" in state_metadata:
+        entry["source_id"] = state_metadata["source_id"]
+    if "source_groups" in state_metadata and isinstance(state_metadata["source_groups"], list):
+        entry["source_groups"] = list(state_metadata["source_groups"])
     if "channel_gains" in state_metadata:
         entry["channel_gains"] = _channel_gains_mapping(state_metadata.get("channel_gains"))
     if "position" in state_metadata:

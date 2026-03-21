@@ -17,6 +17,7 @@ _METADATA_KEYS = (
     "playback_model",
     "channel_layout",
     "listener_anchor",
+    "reference_frame",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_attack_ms",
@@ -74,6 +75,12 @@ def _spread_value(value: Any) -> float | None:
 
 def _distance_model_value(value: Any) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _source_groups_value(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [group_name for group_name in value if isinstance(group_name, str) and group_name]
 
 
 def _trajectory_sequences(states: tuple[WaveState, ...]) -> list[list[dict[str, Any]]]:
@@ -218,6 +225,18 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         1 for state in states if _spatial_vector_mapping(dict(state.metadata or {}).get("orientation"))
     )
     states_with_spread = sum(1 for state in states if _spread_value(dict(state.metadata or {}).get("spread")) is not None)
+    states_with_source_id = sum(
+        1
+        for state in states
+        if isinstance(dict(state.metadata or {}).get("source_id"), str) and dict(state.metadata or {}).get("source_id")
+    )
+    source_groups = sorted(
+        {
+            group_name
+            for state in states
+            for group_name in _source_groups_value(dict(state.metadata or {}).get("source_groups"))
+        }
+    )
     distance_models = sorted(
         {
             str(distance_model)
@@ -230,6 +249,7 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "channel_layout": channel_layout,
         "declared_channels": declared_channels,
         "listener_anchor": listener_anchor,
+        "reference_frame": metadata.get("reference_frame"),
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
         "positioned_states": positioned_states,
@@ -237,6 +257,8 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "trajectory_point_count": trajectory_point_count,
         "states_with_orientation": states_with_orientation,
         "states_with_spread": states_with_spread,
+        "states_with_source_id": states_with_source_id,
+        "source_groups": source_groups,
         "distance_models": distance_models,
     }
 
@@ -251,6 +273,7 @@ def _spatial_changes(
     right_summary = _spatial_summary(right_metadata, right_states)
     return {
         "listener_anchor_changed": left_summary["listener_anchor"] != right_summary["listener_anchor"],
+        "reference_frame_changed": left_summary["reference_frame"] != right_summary["reference_frame"],
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
         "states_with_channel_gains_delta": (
@@ -268,5 +291,9 @@ def _spatial_changes(
             right_summary["states_with_orientation"] - left_summary["states_with_orientation"]
         ),
         "states_with_spread_delta": right_summary["states_with_spread"] - left_summary["states_with_spread"],
+        "states_with_source_id_delta": (
+            right_summary["states_with_source_id"] - left_summary["states_with_source_id"]
+        ),
+        "source_groups_changed": left_summary["source_groups"] != right_summary["source_groups"],
         "distance_models_changed": left_summary["distance_models"] != right_summary["distance_models"],
     }

@@ -21,6 +21,7 @@ DEFAULT_ATTACK_MS = 5.0
 DEFAULT_RELEASE_MS = 5.0
 SPATIAL_VECTOR_AXES = ("x", "y", "z")
 OBJECT_DISTANCE_MODELS = ("none", "inverse", "linear", "exponential")
+ARWIF_REFERENCE_FRAMES = ("listener", "scene", "world")
 
 CHANNEL_LAYOUT_CHANNELS: dict[str, tuple[str, ...]] = {
     "mono": ("C",),
@@ -43,6 +44,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "default_release_ms",
     "channel_layout",
     "listener_anchor",
+    "reference_frame",
 }
 
 
@@ -207,6 +209,7 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
         "description",
         "channel_layout",
         "listener_anchor",
+        "reference_frame",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -239,6 +242,12 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
             errors=errors,
             warnings=warnings,
         )
+    if "reference_frame" in document:
+        reference_frame = document.get("reference_frame")
+        if not isinstance(reference_frame, str):
+            errors.append("reference_frame must be a string")
+        elif reference_frame not in ARWIF_REFERENCE_FRAMES:
+            errors.append("reference_frame must be one of: " + ", ".join(ARWIF_REFERENCE_FRAMES))
 
     sample_rate_hz = document.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ)
     if not _is_positive_int(sample_rate_hz):
@@ -303,6 +312,8 @@ def _validate_state_document(
         "duration_seconds",
         "phase_radians",
         "gain",
+        "source_id",
+        "source_groups",
         "channel_gains",
         "position",
         "trajectory",
@@ -324,6 +335,16 @@ def _validate_state_document(
 
     if "label" in state_document and state_document["label"] is not None and not isinstance(state_document["label"], str):
         errors.append(f"{context}.label must be a string")
+    if "source_id" in state_document and state_document["source_id"] is not None and not isinstance(state_document["source_id"], str):
+        errors.append(f"{context}.source_id must be a string")
+    if "source_groups" in state_document:
+        source_groups = state_document["source_groups"]
+        if not isinstance(source_groups, list):
+            errors.append(f"{context}.source_groups must be a list")
+        else:
+            for group_index, group_name in enumerate(source_groups):
+                if not isinstance(group_name, str) or not group_name:
+                    errors.append(f"{context}.source_groups[{group_index}] must be a non-empty string")
 
     if "duration_seconds" in state_document and not _is_positive_number(state_document["duration_seconds"]):
         errors.append(f"{context}.duration_seconds must be a positive number")
@@ -462,6 +483,8 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     channel_layout = document.get("channel_layout") if isinstance(document.get("channel_layout"), str) else None
     state_count = 0
     oscillator_count = 0
+    states_with_source_id = 0
+    source_groups: set[str] = set()
     positioned_state_count = 0
     states_with_trajectory = 0
     trajectory_point_count = 0
@@ -474,6 +497,14 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
         if _is_positive_int(sample_rate_hz):
             for index, state_document in enumerate(states):
                 if isinstance(state_document, dict):
+                    if isinstance(state_document.get("source_id"), str) and state_document.get("source_id"):
+                        states_with_source_id += 1
+                    if isinstance(state_document.get("source_groups"), list):
+                        source_groups.update(
+                            group_name
+                            for group_name in state_document["source_groups"]
+                            if isinstance(group_name, str) and group_name
+                        )
                     if isinstance(state_document.get("position"), dict):
                         positioned_state_count += 1
                     if isinstance(state_document.get("trajectory"), list) and state_document.get("trajectory"):
@@ -502,7 +533,11 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     if channel_layout in CHANNEL_LAYOUT_CHANNELS:
         stats["channel_layout"] = channel_layout
         stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
+    if document.get("reference_frame") in ARWIF_REFERENCE_FRAMES:
+        stats["reference_frame"] = document["reference_frame"]
     stats["listener_anchor_present"] = isinstance(document.get("listener_anchor"), dict)
+    stats["states_with_source_id"] = states_with_source_id
+    stats["source_groups"] = sorted(source_groups)
     stats["positioned_state_count"] = positioned_state_count
     stats["states_with_trajectory"] = states_with_trajectory
     stats["trajectory_point_count"] = trajectory_point_count
@@ -665,6 +700,19 @@ def _validate_state(
                 f"state {index} distance_model must be one of: " + ", ".join(OBJECT_DISTANCE_MODELS)
             )
 
+    source_id = state_meta.get("source_id")
+    if source_id is not None and (not isinstance(source_id, str) or not source_id):
+        errors.append(f"state {index} source_id must be a non-empty string")
+
+    source_groups = state_meta.get("source_groups")
+    if source_groups is not None:
+        if not isinstance(source_groups, list):
+            errors.append(f"state {index} source_groups must be a list")
+        else:
+            for group_index, group_name in enumerate(source_groups):
+                if not isinstance(group_name, str) or not group_name:
+                    errors.append(f"state {index} source_groups[{group_index}] must be a non-empty string")
+
     phase_radians = state_meta.get("phase_radians", 0.0)
     if not _is_finite_number(phase_radians):
         errors.append(f"state {index} phase_radians must be finite")
@@ -725,6 +773,14 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
         if not isinstance(channel_layout, str) or channel_layout not in CHANNEL_LAYOUT_CHANNELS:
             errors.append("library metadata 'channel_layout' must be one of: " + ", ".join(sorted(CHANNEL_LAYOUT_CHANNELS)))
             channel_layout = None
+    reference_frame = metadata.get("reference_frame")
+    if reference_frame is not None:
+        if not isinstance(reference_frame, str):
+            errors.append("library metadata 'reference_frame' must be a string")
+        elif reference_frame not in ARWIF_REFERENCE_FRAMES:
+            errors.append(
+                "library metadata 'reference_frame' must be one of: " + ", ".join(ARWIF_REFERENCE_FRAMES)
+            )
     listener_anchor = metadata.get("listener_anchor")
     if listener_anchor is not None:
         _validate_spatial_vector_mapping(
@@ -744,6 +800,8 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     if channel_layout is not None:
         stats["channel_layout"] = channel_layout
         stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
+    if reference_frame in ARWIF_REFERENCE_FRAMES:
+        stats["reference_frame"] = reference_frame
     stats["listener_anchor_present"] = isinstance(listener_anchor, dict)
 
     if len(library.states) == 0:
@@ -756,6 +814,8 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     trajectory_point_count = 0
     states_with_orientation = 0
     states_with_spread = 0
+    states_with_source_id = 0
+    source_groups: set[str] = set()
     distance_models: set[str] = set()
     for index, state in enumerate(library.states):
         _validate_state(
@@ -779,6 +839,14 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             states_with_orientation += 1
         if _is_finite_number(state_meta.get("spread")) and float(state_meta.get("spread")) >= 0.0:
             states_with_spread += 1
+        if isinstance(state_meta.get("source_id"), str) and state_meta.get("source_id"):
+            states_with_source_id += 1
+        if isinstance(state_meta.get("source_groups"), list):
+            source_groups.update(
+                group_name
+                for group_name in state_meta["source_groups"]
+                if isinstance(group_name, str) and group_name
+            )
         distance_model = state_meta.get("distance_model")
         if isinstance(distance_model, str) and distance_model in OBJECT_DISTANCE_MODELS:
             distance_models.add(distance_model)
@@ -792,6 +860,8 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["trajectory_point_count"] = trajectory_point_count
     stats["states_with_orientation"] = states_with_orientation
     stats["states_with_spread"] = states_with_spread
+    stats["states_with_source_id"] = states_with_source_id
+    stats["source_groups"] = sorted(source_groups)
     stats["distance_models"] = sorted(distance_models)
 
     return ARWIFValidationReport(

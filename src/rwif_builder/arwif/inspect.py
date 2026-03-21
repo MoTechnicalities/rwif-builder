@@ -57,6 +57,12 @@ def _distance_model_value(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _source_groups_value(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [group_name for group_name in value if isinstance(group_name, str) and group_name]
+
+
 def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> dict[str, Any]:
     artifact_path = Path(path)
     library = load_wave_library(artifact_path)
@@ -87,6 +93,8 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
                 "release_ms": state_metadata.get("release_ms", metadata.get("default_release_ms")),
                 "phase_radians": state_metadata.get("phase_radians", metadata.get("default_phase_radians", 0.0)),
                 "gain": state_metadata.get("gain", 1.0),
+                "source_id": state_metadata.get("source_id"),
+                "source_groups": _source_groups_value(state_metadata.get("source_groups")),
                 "channel_gains": _channel_gains_mapping(state_metadata.get("channel_gains")),
                 "position": _spatial_vector_mapping(state_metadata.get("position")),
                 "trajectory": _trajectory_mapping(state_metadata.get("trajectory")),
@@ -110,6 +118,7 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
         "description": metadata.get("description"),
         "channel_layout": metadata.get("channel_layout"),
         "listener_anchor": _spatial_vector_mapping(metadata.get("listener_anchor")),
+        "reference_frame": metadata.get("reference_frame"),
         "playback_model": metadata.get("playback_model"),
         "frequency_unit": metadata.get("frequency_unit"),
         "sample_rate_hz": metadata.get("sample_rate_hz"),
@@ -149,6 +158,15 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
     trajectory_point_count = sum(len(state.get("trajectory", [])) for state in state_summaries)
     states_with_orientation = sum(1 for state in state_summaries if state.get("orientation"))
     states_with_spread = sum(1 for state in state_summaries if state.get("spread") is not None)
+    states_with_source_id = sum(1 for state in state_summaries if isinstance(state.get("source_id"), str) and state.get("source_id"))
+    source_groups = sorted(
+        {
+            group_name
+            for state in state_summaries
+            for group_name in state.get("source_groups", [])
+            if isinstance(group_name, str) and group_name
+        }
+    )
     distance_models = sorted(
         {
             str(state.get("distance_model"))
@@ -160,6 +178,7 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
         "channel_layout": channel_layout,
         "declared_channels": declared_channels,
         "listener_anchor": listener_anchor,
+        "reference_frame": metadata.get("reference_frame"),
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
         "positioned_states": positioned_states,
@@ -167,5 +186,7 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
         "trajectory_point_count": trajectory_point_count,
         "states_with_orientation": states_with_orientation,
         "states_with_spread": states_with_spread,
+        "states_with_source_id": states_with_source_id,
+        "source_groups": source_groups,
         "distance_models": distance_models,
     }

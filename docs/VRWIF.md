@@ -93,6 +93,60 @@ A practical `VRWIF` draft would likely need:
 - transition metadata
 - render policy or target metadata
 
+## Smallest Viable v0.1 Surface
+
+The healthiest first `VRWIF` slice should stay narrow and align with the identity bridge now present in `ARWIF`.
+
+Top-level scene fields:
+
+- `vrwif_version`
+- `scene_id`
+- `reference_frame` as one of `scene` or `world`
+- `title`
+- `description`
+- `objects`
+- `camera`
+- `lighting`
+- `metadata`
+
+Minimum object fields:
+
+- `object_id` as a stable non-empty identifier
+- `object_groups` as a list of non-empty grouping labels
+- `class` or `appearance_class`
+- `position`
+- `orientation` or `transform`
+- optional `trajectory`
+- optional `state` or `visibility`
+
+Minimum camera fields:
+
+- `camera_id`
+- `position`
+- `orientation`
+- optional `trajectory`
+- optional `framing_intent`
+
+Minimum lighting fields:
+
+- one or more light records with stable ids
+- position or directional intent
+- intensity
+- color or temperature
+
+This keeps `VRWIF` inspectable and diffable without trying to encode full render-engine behavior.
+
+## ARWIF Alignment
+
+The current `ARWIF` bridge work suggests a clean cross-realm contract:
+
+- `ARWIF.source_id` should map naturally to `VRWIF.object_id` when a sound source belongs to a visible scene object
+- `ARWIF.source_groups` should map naturally to `VRWIF.object_groups` for coarse scene membership
+- `ARWIF.reference_frame` and `VRWIF.reference_frame` should use compatible semantics so audio and visual coordinates can be compared without ad hoc reinterpretation
+
+That does not mean `VRWIF` extends `ARWIF`.
+It means both realms can share a stable identity and coordinate contract while remaining separate reasoning surfaces.
+
 ## Design Principles
 
 1. Preserve visual causality, not only visual output.

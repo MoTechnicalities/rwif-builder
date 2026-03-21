@@ -2075,6 +2075,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "\n".join(
                     [
                         "title: Object spatial fixture",
+                        "reference_frame: scene",
                         "listener_anchor:",
                         "  x: 0.0",
                         "  y: 0.0",
@@ -2083,6 +2084,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "default_duration_seconds: 0.5",
                         "states:",
                         "  - label: near-left",
+                        "    source_id: bell.near-left",
+                        "    source_groups:",
+                        "      - percussion",
+                        "      - foreground",
                         "    position:",
                         "      x: -0.8",
                         "      y: 0.1",
@@ -2097,6 +2102,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "      - hz: 261",
                         "        amplitude: 0.8",
                         "  - label: far-right",
+                        "    source_id: synth.far-right",
+                        "    source_groups:",
+                        "      - pads",
+                        "      - background",
                         "    position:",
                         "      x: 0.9",
                         "      y: 0.0",
@@ -2114,10 +2123,13 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
 
             spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(source_spec_path), "--json")
             self.assertTrue(spec_payload["is_valid"], spec_payload)
+            self.assertEqual(spec_payload["stats"]["reference_frame"], "scene")
             self.assertTrue(spec_payload["stats"]["listener_anchor_present"])
             self.assertEqual(spec_payload["stats"]["positioned_state_count"], 2)
             self.assertEqual(spec_payload["stats"]["states_with_orientation"], 1)
             self.assertEqual(spec_payload["stats"]["states_with_spread"], 2)
+            self.assertEqual(spec_payload["stats"]["states_with_source_id"], 2)
+            self.assertEqual(spec_payload["stats"]["source_groups"], ["background", "foreground", "pads", "percussion"])
             self.assertEqual(spec_payload["stats"]["distance_models"], ["inverse", "linear"])
 
             build_payload = self._run_json(
@@ -2133,14 +2145,23 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
 
             inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
             self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+            self.assertEqual(inspect_payload["reference_frame"], "scene")
             self.assertEqual(inspect_payload["listener_anchor"]["z"], 0.0)
+            self.assertEqual(inspect_payload["states"][0]["source_id"], "bell.near-left")
+            self.assertEqual(inspect_payload["states"][0]["source_groups"], ["percussion", "foreground"])
             self.assertEqual(inspect_payload["states"][0]["position"]["x"], -0.8)
             self.assertEqual(inspect_payload["states"][0]["orientation"]["z"], 1.0)
             self.assertEqual(inspect_payload["states"][1]["spread"], 0.5)
             self.assertEqual(inspect_payload["states"][1]["distance_model"], "linear")
+            self.assertEqual(inspect_payload["spatial_summary"]["reference_frame"], "scene")
             self.assertEqual(inspect_payload["spatial_summary"]["positioned_states"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["states_with_orientation"], 1)
             self.assertEqual(inspect_payload["spatial_summary"]["states_with_spread"], 2)
+            self.assertEqual(inspect_payload["spatial_summary"]["states_with_source_id"], 2)
+            self.assertEqual(
+                inspect_payload["spatial_summary"]["source_groups"],
+                ["background", "foreground", "pads", "percussion"],
+            )
             self.assertEqual(inspect_payload["spatial_summary"]["distance_models"], ["inverse", "linear"])
 
             export_payload = self._run_json(
@@ -2153,7 +2174,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertTrue(export_payload["is_valid"], export_payload)
 
             exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
+            self.assertEqual(exported_document["reference_frame"], "scene")
             self.assertEqual(exported_document["listener_anchor"]["x"], 0.0)
+            self.assertEqual(exported_document["states"][0]["source_id"], "bell.near-left")
+            self.assertEqual(exported_document["states"][1]["source_groups"], ["pads", "background"])
             self.assertEqual(exported_document["states"][0]["position"]["y"], 0.1)
             self.assertEqual(exported_document["states"][0]["orientation"]["z"], 1.0)
             self.assertEqual(exported_document["states"][1]["spread"], 0.5)
@@ -2180,6 +2204,8 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
             self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["listener_anchor_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["reference_frame_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["source_groups_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["distance_models_changed"])
 
     def test_arwif_trajectory_round_trip_cli(self) -> None:
@@ -2469,6 +2495,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "\n".join(
                     [
                         "title: Invalid object spatial",
+                        "reference_frame: galaxy",
                         "listener_anchor:",
                         "  x: 0.0",
                         "  y: nope",
@@ -2477,6 +2504,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "default_duration_seconds: 0.25",
                         "states:",
                         "  - label: broken",
+                        "    source_id: 12",
+                        "    source_groups:",
+                        "      - ok",
+                        "      - ''",
                         "    position:",
                         "      x: left",
                         "      y: 0.0",
@@ -2497,7 +2528,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
 
             spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(spec_path), "--json", allow_failure=True)
             self.assertFalse(spec_payload["is_valid"])
+            self.assertIn("reference_frame must be one of: listener, scene, world", spec_payload["errors"])
             self.assertIn("listener_anchor.y must be a finite number", spec_payload["errors"])
+            self.assertIn("states[0].source_id must be a string", spec_payload["errors"])
+            self.assertIn("states[0].source_groups[1] must be a non-empty string", spec_payload["errors"])
             self.assertIn("states[0].position.x must be a finite number", spec_payload["errors"])
             self.assertIn("states[0].orientation.z must be a finite number", spec_payload["errors"])
             self.assertIn("states[0].spread must be non-negative", spec_payload["errors"])
@@ -2505,6 +2539,89 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "states[0].distance_model must be one of: none, inverse, linear, exponential",
                 spec_payload["errors"],
             )
+
+    def test_arwif_batch_diff_analyze_tracks_identity_bridge_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-identity.arwif"
+            right_path = tmp_dir / "right-identity.arwif"
+            diff_report_path = tmp_dir / "identity-batch-diff-report.json"
+
+            save_wave_library(
+                left_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="moving-object",
+                            metadata={
+                                "duration_seconds": 0.25,
+                                "source_id": "object.alpha",
+                                "source_groups": ["foreground"],
+                            },
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "reference_frame": "listener",
+                        "title": "Identity left",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="moving-object",
+                            metadata={
+                                "duration_seconds": 0.25,
+                                "source_id": "object.alpha.v2",
+                                "source_groups": ["foreground", "harmonics"],
+                            },
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "reference_frame": "scene",
+                        "title": "Identity right",
+                    },
+                ),
+            )
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["reference_frame_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_source_id_state_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_states_with_source_id_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["source_groups_changed_pairs"], 1)
 
     def _run_json(self, repo_root: Path, *args: str, allow_failure: bool = False) -> dict[str, object]:
         result = subprocess.run(

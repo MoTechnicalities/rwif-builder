@@ -26,7 +26,7 @@ See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forwa
 The current toolchain also accepts a minimal spatial metadata surface beyond the mono baseline:
 
 - Level 1 channel-aware metadata via top-level `channel_layout` and per-state `channel_gains`
-- an initial Level 2 object-metadata slice via top-level `listener_anchor` and per-state `position`, `trajectory`, `orientation`, `spread`, and `distance_model`
+- an initial Level 2 object-metadata slice via top-level `listener_anchor` and `reference_frame`, plus per-state `source_id`, `source_groups`, `position`, `trajectory`, `orientation`, `spread`, and `distance_model`
 
 The reference renderer can emit multichannel PCM WAV for declared Level 1 layouts. Level 2 metadata is currently preserved for authoring, validation, inspection, diffing, and batch review rather than being rendered as a full object-based spatial mix.
 
@@ -56,6 +56,7 @@ Optional library metadata:
 
 - `title`
 - `listener_anchor` as `{ x, y, z }` finite coordinates describing the reference listening origin
+- `reference_frame` as one of `listener`, `scene`, or `world` to declare how spatial coordinates should be interpreted
 - `normalize` as boolean, default `true`
 - `default_phase_radians`, default `0.0`
 - `default_attack_ms`, default `5.0`
@@ -73,6 +74,8 @@ State metadata may override library defaults with:
 - `duration_seconds`
 - `phase_radians`
 - `gain`
+- `source_id` as a stable non-empty identifier for a sound object across revisions or downstream realms
+- `source_groups` as a list of non-empty grouping labels for coarse scene membership
 - `position` as `{ x, y, z }` finite coordinates for object placement
 - `trajectory` as a non-empty list of `{ offset_seconds, position }` keyframes with non-negative, non-decreasing offsets inside the state duration
 - `orientation` as `{ x, y, z }` finite coordinates for object-facing intent
@@ -142,6 +145,7 @@ Supported top-level fields:
 - `description`
 - `channel_layout` as one of `mono`, `stereo`, `quad`, `5.1`, or `7.1`
 - `listener_anchor` as a mapping with finite `x`, `y`, and `z` coordinates
+- `reference_frame` as one of `listener`, `scene`, or `world`
 - `sample_rate_hz`
 - `default_duration_seconds`
 - `default_phase_radians`
@@ -157,6 +161,8 @@ Supported per-state fields:
 - `duration_seconds`
 - `phase_radians`
 - `gain`
+- `source_id` as a non-empty string
+- `source_groups` as a list of non-empty strings
 - `channel_gains` as a mapping of layout channel labels to finite gain values
 - `position` as a mapping with finite `x`, `y`, and `z` coordinates
 - `trajectory` as a non-empty list of `{ offset_seconds, position }` keyframes with non-negative, non-decreasing offsets that do not exceed the effective state duration
@@ -212,7 +218,7 @@ rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 
 For strict ARWIF `v0.1` artifacts produced by the reference builder, the exported spec is intended to round-trip without changing playback metadata, state ordering, or oscillator-bank contents.
 
-The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor when present, how many states carry positioned, trajectory, or oriented object metadata, how many trajectory keyframes are present overall, how many states declare spread, and which distance models appear in the artifact.
+The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor and reference frame when present, how many states carry stable source identity, which source groups appear overall, how many states carry positioned, trajectory, or oriented object metadata, how many trajectory keyframes are present overall, how many states declare spread, and which distance models appear in the artifact.
 
 The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so both channel-aware and initial object-metadata revisions can be reviewed without reading the entire per-state metadata diff.
 

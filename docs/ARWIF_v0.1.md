@@ -26,7 +26,7 @@ See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forwa
 The current toolchain also accepts a minimal spatial metadata surface beyond the mono baseline:
 
 - Level 1 channel-aware metadata via top-level `channel_layout` and per-state `channel_gains`
-- an initial Level 2 object-metadata slice via top-level `listener_anchor` and per-state `position`, `orientation`, `spread`, and `distance_model`
+- an initial Level 2 object-metadata slice via top-level `listener_anchor` and per-state `position`, `trajectory`, `orientation`, `spread`, and `distance_model`
 
 The reference renderer can emit multichannel PCM WAV for declared Level 1 layouts. Level 2 metadata is currently preserved for authoring, validation, inspection, diffing, and batch review rather than being rendered as a full object-based spatial mix.
 
@@ -74,6 +74,7 @@ State metadata may override library defaults with:
 - `phase_radians`
 - `gain`
 - `position` as `{ x, y, z }` finite coordinates for object placement
+- `trajectory` as a non-empty list of `{ offset_seconds, position }` keyframes with non-negative, non-decreasing offsets inside the state duration
 - `orientation` as `{ x, y, z }` finite coordinates for object-facing intent
 - `spread` as a non-negative finite scalar for source diffuseness
 - `distance_model` as one of `none`, `inverse`, `linear`, or `exponential`
@@ -158,6 +159,7 @@ Supported per-state fields:
 - `gain`
 - `channel_gains` as a mapping of layout channel labels to finite gain values
 - `position` as a mapping with finite `x`, `y`, and `z` coordinates
+- `trajectory` as a non-empty list of `{ offset_seconds, position }` keyframes with non-negative, non-decreasing offsets that do not exceed the effective state duration
 - `orientation` as a mapping with finite `x`, `y`, and `z` coordinates
 - `spread` as a non-negative finite scalar
 - `distance_model` as one of `none`, `inverse`, `linear`, or `exponential`
@@ -210,7 +212,7 @@ rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 
 For strict ARWIF `v0.1` artifacts produced by the reference builder, the exported spec is intended to round-trip without changing playback metadata, state ordering, or oscillator-bank contents.
 
-The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor when present, how many states carry positioned or oriented object metadata, how many states declare spread, and which distance models appear in the artifact.
+The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor when present, how many states carry positioned, trajectory, or oriented object metadata, how many trajectory keyframes are present overall, how many states declare spread, and which distance models appear in the artifact.
 
 The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so both channel-aware and initial object-metadata revisions can be reviewed without reading the entire per-state metadata diff.
 

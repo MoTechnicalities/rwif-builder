@@ -36,6 +36,7 @@ _STATE_SPEC_KEYS = {
     "gain",
     "channel_gains",
     "position",
+    "trajectory",
     "orientation",
     "spread",
     "distance_model",
@@ -58,6 +59,28 @@ def _spatial_vector_mapping(value: Any) -> dict[str, float]:
             return {}
         result[axis] = float(component)
     return result
+
+
+def _trajectory_mapping(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    trajectory: list[dict[str, Any]] = []
+    for keyframe in value:
+        if not isinstance(keyframe, dict):
+            return []
+        position = _spatial_vector_mapping(keyframe.get("position"))
+        offset_seconds = keyframe.get("offset_seconds")
+        if not position:
+            return []
+        if not isinstance(offset_seconds, (int, float)) or not math.isfinite(float(offset_seconds)) or float(offset_seconds) < 0.0:
+            return []
+        trajectory.append(
+            {
+                "offset_seconds": float(offset_seconds),
+                "position": position,
+            }
+        )
+    return trajectory
 
 
 def _spread_value(value: Any) -> float | None:
@@ -159,6 +182,8 @@ def _state_to_spec(state: Any) -> dict[str, Any]:
         entry["channel_gains"] = _channel_gains_mapping(state_metadata.get("channel_gains"))
     if "position" in state_metadata:
         entry["position"] = _spatial_vector_mapping(state_metadata.get("position"))
+    if "trajectory" in state_metadata:
+        entry["trajectory"] = _trajectory_mapping(state_metadata.get("trajectory"))
     if "orientation" in state_metadata:
         entry["orientation"] = _spatial_vector_mapping(state_metadata.get("orientation"))
     spread = _spread_value(state_metadata.get("spread"))

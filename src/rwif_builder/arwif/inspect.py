@@ -25,6 +25,28 @@ def _spatial_vector_mapping(value: Any) -> dict[str, float]:
     return result
 
 
+def _trajectory_mapping(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    trajectory: list[dict[str, Any]] = []
+    for keyframe in value:
+        if not isinstance(keyframe, dict):
+            return []
+        position = _spatial_vector_mapping(keyframe.get("position"))
+        offset_seconds = keyframe.get("offset_seconds")
+        if not position:
+            return []
+        if not isinstance(offset_seconds, (int, float)) or not math.isfinite(float(offset_seconds)) or float(offset_seconds) < 0.0:
+            return []
+        trajectory.append(
+            {
+                "offset_seconds": float(offset_seconds),
+                "position": position,
+            }
+        )
+    return trajectory
+
+
 def _spread_value(value: Any) -> float | None:
     if isinstance(value, (int, float)) and math.isfinite(float(value)) and float(value) >= 0.0:
         return float(value)
@@ -67,6 +89,7 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
                 "gain": state_metadata.get("gain", 1.0),
                 "channel_gains": _channel_gains_mapping(state_metadata.get("channel_gains")),
                 "position": _spatial_vector_mapping(state_metadata.get("position")),
+                "trajectory": _trajectory_mapping(state_metadata.get("trajectory")),
                 "orientation": _spatial_vector_mapping(state_metadata.get("orientation")),
                 "spread": _spread_value(state_metadata.get("spread")),
                 "distance_model": _distance_model_value(state_metadata.get("distance_model")),
@@ -122,6 +145,8 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
     )
     states_with_channel_gains = sum(1 for state in state_summaries if state.get("channel_gains"))
     positioned_states = sum(1 for state in state_summaries if state.get("position"))
+    states_with_trajectory = sum(1 for state in state_summaries if state.get("trajectory"))
+    trajectory_point_count = sum(len(state.get("trajectory", [])) for state in state_summaries)
     states_with_orientation = sum(1 for state in state_summaries if state.get("orientation"))
     states_with_spread = sum(1 for state in state_summaries if state.get("spread") is not None)
     distance_models = sorted(
@@ -138,6 +163,8 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
         "positioned_states": positioned_states,
+        "states_with_trajectory": states_with_trajectory,
+        "trajectory_point_count": trajectory_point_count,
         "states_with_orientation": states_with_orientation,
         "states_with_spread": states_with_spread,
         "distance_models": distance_models,

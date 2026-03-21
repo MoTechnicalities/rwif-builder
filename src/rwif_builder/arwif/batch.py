@@ -714,6 +714,11 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     total_states_with_channel_gains_delta = 0
     positioned_state_delta_pairs = 0
     total_positioned_states_delta = 0
+    trajectory_changed_pairs = 0
+    trajectory_state_delta_pairs = 0
+    total_states_with_trajectory_delta = 0
+    trajectory_point_delta_pairs = 0
+    total_trajectory_point_delta = 0
     orientation_state_delta_pairs = 0
     total_states_with_orientation_delta = 0
     spread_state_delta_pairs = 0
@@ -774,6 +779,16 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             total_positioned_states_delta += positioned_states_delta
             if positioned_states_delta != 0:
                 positioned_state_delta_pairs += 1
+            if bool(spatial_changes.get("trajectories_changed", False)):
+                trajectory_changed_pairs += 1
+            trajectory_states_delta = int(spatial_changes.get("states_with_trajectory_delta", 0) or 0)
+            total_states_with_trajectory_delta += trajectory_states_delta
+            if trajectory_states_delta != 0:
+                trajectory_state_delta_pairs += 1
+            trajectory_points_delta = int(spatial_changes.get("trajectory_point_count_delta", 0) or 0)
+            total_trajectory_point_delta += trajectory_points_delta
+            if trajectory_points_delta != 0:
+                trajectory_point_delta_pairs += 1
             orientation_states_delta = int(spatial_changes.get("states_with_orientation_delta", 0) or 0)
             total_states_with_orientation_delta += orientation_states_delta
             if orientation_states_delta != 0:
@@ -809,6 +824,11 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "total_states_with_channel_gains_delta": total_states_with_channel_gains_delta,
             "pairs_with_positioned_state_delta": positioned_state_delta_pairs,
             "total_positioned_states_delta": total_positioned_states_delta,
+            "trajectory_changed_pairs": trajectory_changed_pairs,
+            "pairs_with_trajectory_state_delta": trajectory_state_delta_pairs,
+            "total_states_with_trajectory_delta": total_states_with_trajectory_delta,
+            "pairs_with_trajectory_point_delta": trajectory_point_delta_pairs,
+            "total_trajectory_point_delta": total_trajectory_point_delta,
             "pairs_with_orientation_state_delta": orientation_state_delta_pairs,
             "total_states_with_orientation_delta": total_states_with_orientation_delta,
             "pairs_with_spread_state_delta": spread_state_delta_pairs,

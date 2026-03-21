@@ -83,6 +83,33 @@ def _require_spatial_vector(value: Any, context: str) -> dict[str, float]:
     }
 
 
+def _require_trajectory(value: Any, context: str, *, max_offset_seconds: float | None = None) -> list[dict[str, Any]]:
+    keyframes = _require_sequence(value, context)
+    if not keyframes:
+        raise ValueError(f"{context} must contain at least one keyframe")
+
+    trajectory: list[dict[str, Any]] = []
+    previous_offset: float | None = None
+    for index, keyframe in enumerate(keyframes):
+        keyframe_mapping = _require_mapping(keyframe, f"{context}[{index}]")
+        offset_seconds = _require_non_negative_number(
+            keyframe_mapping.get("offset_seconds"),
+            f"{context}[{index}].offset_seconds",
+        )
+        if max_offset_seconds is not None and offset_seconds > max_offset_seconds:
+            raise ValueError(f"{context}[{index}].offset_seconds must not exceed state duration {max_offset_seconds}")
+        if previous_offset is not None and offset_seconds < previous_offset:
+            raise ValueError(f"{context} must be sorted by non-decreasing offset_seconds")
+        previous_offset = offset_seconds
+        trajectory.append(
+            {
+                "offset_seconds": offset_seconds,
+                "position": _require_spatial_vector(keyframe_mapping.get("position"), f"{context}[{index}].position"),
+            }
+        )
+    return trajectory
+
+
 def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
     metadata = {
         key: value
@@ -170,6 +197,17 @@ def _state_metadata(state_document: dict[str, Any]) -> dict[str, Any]:
         metadata["channel_gains"] = channel_gains
     if "position" in state_document:
         metadata["position"] = _require_spatial_vector(state_document["position"], "state position")
+    if "trajectory" in state_document:
+        state_duration_seconds = None
+        if "duration_seconds" in state_document:
+            state_duration_seconds = _require_finite_number(state_document["duration_seconds"], "state duration_seconds")
+            if state_duration_seconds <= 0.0:
+                raise ValueError("state duration_seconds must be positive")
+        metadata["trajectory"] = _require_trajectory(
+            state_document["trajectory"],
+            "state trajectory",
+            max_offset_seconds=state_duration_seconds,
+        )
     if "orientation" in state_document:
         metadata["orientation"] = _require_spatial_vector(state_document["orientation"], "state orientation")
     if "spread" in state_document:

@@ -152,6 +152,55 @@ def _validate_spatial_vector_mapping(
             errors.append(f"{context}.{axis} must be a finite number")
 
 
+def _validate_trajectory_mapping(
+    value: Any,
+    *,
+    context: str,
+    max_offset_seconds: float | None,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    if not isinstance(value, list):
+        errors.append(f"{context} must be a list")
+        return
+    if not value:
+        errors.append(f"{context} must contain at least one keyframe")
+        return
+
+    previous_offset: float | None = None
+    for index, keyframe in enumerate(value):
+        keyframe_context = f"{context}[{index}]"
+        if not isinstance(keyframe, dict):
+            errors.append(f"{keyframe_context} must be a mapping")
+            continue
+
+        unknown_keys = sorted(key for key in keyframe if key not in {"offset_seconds", "position"})
+        if unknown_keys:
+            warnings.append(
+                f"{keyframe_context} contains unknown fields ignored by the reference builder: {', '.join(unknown_keys)}"
+            )
+
+        offset_seconds = keyframe.get("offset_seconds")
+        if not _is_non_negative_number(offset_seconds):
+            errors.append(f"{keyframe_context}.offset_seconds must be a non-negative finite number")
+        else:
+            offset_value = float(offset_seconds)
+            if max_offset_seconds is not None and offset_value > max_offset_seconds:
+                errors.append(
+                    f"{keyframe_context}.offset_seconds must not exceed state duration {max_offset_seconds}"
+                )
+            if previous_offset is not None and offset_value < previous_offset:
+                errors.append(f"{context} must be sorted by non-decreasing offset_seconds")
+            previous_offset = offset_value
+
+        _validate_spatial_vector_mapping(
+            keyframe.get("position"),
+            context=f"{keyframe_context}.position",
+            errors=errors,
+            warnings=warnings,
+        )
+
+
 def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
     allowed_keys = {
         "title",
@@ -256,6 +305,7 @@ def _validate_state_document(
         "gain",
         "channel_gains",
         "position",
+        "trajectory",
         "orientation",
         "spread",
         "distance_model",
@@ -303,6 +353,16 @@ def _validate_state_document(
         _validate_spatial_vector_mapping(
             state_document.get("position"),
             context=f"{context}.position",
+            errors=errors,
+            warnings=warnings,
+        )
+    duration_seconds = state_document.get("duration_seconds", DEFAULT_DURATION_SECONDS)
+    max_offset_seconds = float(duration_seconds) if _is_positive_number(duration_seconds) else None
+    if "trajectory" in state_document:
+        _validate_trajectory_mapping(
+            state_document.get("trajectory"),
+            context=f"{context}.trajectory",
+            max_offset_seconds=max_offset_seconds,
             errors=errors,
             warnings=warnings,
         )
@@ -403,6 +463,8 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     state_count = 0
     oscillator_count = 0
     positioned_state_count = 0
+    states_with_trajectory = 0
+    trajectory_point_count = 0
     states_with_orientation = 0
     states_with_spread = 0
     distance_models: set[str] = set()
@@ -414,6 +476,9 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
                 if isinstance(state_document, dict):
                     if isinstance(state_document.get("position"), dict):
                         positioned_state_count += 1
+                    if isinstance(state_document.get("trajectory"), list) and state_document.get("trajectory"):
+                        states_with_trajectory += 1
+                        trajectory_point_count += len(state_document["trajectory"])
                     if isinstance(state_document.get("orientation"), dict):
                         states_with_orientation += 1
                     if _is_non_negative_number(state_document.get("spread")):
@@ -439,6 +504,8 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
         stats["channel_count"] = len(CHANNEL_LAYOUT_CHANNELS[channel_layout])
     stats["listener_anchor_present"] = isinstance(document.get("listener_anchor"), dict)
     stats["positioned_state_count"] = positioned_state_count
+    stats["states_with_trajectory"] = states_with_trajectory
+    stats["trajectory_point_count"] = trajectory_point_count
     stats["states_with_orientation"] = states_with_orientation
     stats["states_with_spread"] = states_with_spread
     stats["distance_models"] = sorted(distance_models)
@@ -566,6 +633,16 @@ def _validate_state(
             warnings=warnings,
         )
 
+    if "trajectory" in state_meta:
+        max_offset_seconds = float(duration_seconds) if _is_finite_number(duration_seconds) and float(duration_seconds) > 0.0 else None
+        _validate_trajectory_mapping(
+            state_meta.get("trajectory"),
+            context=f"state {index} trajectory",
+            max_offset_seconds=max_offset_seconds,
+            errors=errors,
+            warnings=warnings,
+        )
+
     orientation = state_meta.get("orientation")
     if orientation is not None:
         _validate_spatial_vector_mapping(
@@ -675,6 +752,8 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     total_duration_seconds = 0.0
     max_frequency_hz = 0
     positioned_state_count = 0
+    states_with_trajectory = 0
+    trajectory_point_count = 0
     states_with_orientation = 0
     states_with_spread = 0
     distance_models: set[str] = set()
@@ -693,6 +772,9 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
         state_meta = _state_metadata(state)
         if isinstance(state_meta.get("position"), dict):
             positioned_state_count += 1
+        if isinstance(state_meta.get("trajectory"), list) and state_meta.get("trajectory"):
+            states_with_trajectory += 1
+            trajectory_point_count += len(state_meta["trajectory"])
         if isinstance(state_meta.get("orientation"), dict):
             states_with_orientation += 1
         if _is_finite_number(state_meta.get("spread")) and float(state_meta.get("spread")) >= 0.0:
@@ -706,6 +788,8 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["total_duration_seconds"] = total_duration_seconds
     stats["max_frequency_hz"] = max_frequency_hz
     stats["positioned_state_count"] = positioned_state_count
+    stats["states_with_trajectory"] = states_with_trajectory
+    stats["trajectory_point_count"] = trajectory_point_count
     stats["states_with_orientation"] = states_with_orientation
     stats["states_with_spread"] = states_with_spread
     stats["distance_models"] = sorted(distance_models)

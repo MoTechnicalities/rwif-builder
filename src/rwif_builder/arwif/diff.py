@@ -44,6 +44,28 @@ def _spatial_vector_mapping(value: Any) -> dict[str, float]:
     return result
 
 
+def _trajectory_mapping(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    trajectory: list[dict[str, Any]] = []
+    for keyframe in value:
+        if not isinstance(keyframe, dict):
+            return []
+        position = _spatial_vector_mapping(keyframe.get("position"))
+        offset_seconds = keyframe.get("offset_seconds")
+        if not position:
+            return []
+        if not isinstance(offset_seconds, (int, float)) or not math.isfinite(float(offset_seconds)) or float(offset_seconds) < 0.0:
+            return []
+        trajectory.append(
+            {
+                "offset_seconds": float(offset_seconds),
+                "position": position,
+            }
+        )
+    return trajectory
+
+
 def _spread_value(value: Any) -> float | None:
     if isinstance(value, (int, float)) and math.isfinite(float(value)) and float(value) >= 0.0:
         return float(value)
@@ -52,6 +74,10 @@ def _spread_value(value: Any) -> float | None:
 
 def _distance_model_value(value: Any) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _trajectory_sequences(states: tuple[WaveState, ...]) -> list[list[dict[str, Any]]]:
+    return [_trajectory_mapping(dict(state.metadata or {}).get("trajectory")) for state in states]
 
 
 def diff_arwif_artifacts(left: str | Path, right: str | Path, *, allow_legacy: bool = False) -> dict[str, Any]:
@@ -184,6 +210,10 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         1 for state in states if _channel_gains_mapping(dict(state.metadata or {}).get("channel_gains"))
     )
     positioned_states = sum(1 for state in states if _spatial_vector_mapping(dict(state.metadata or {}).get("position")))
+    states_with_trajectory = sum(1 for state in states if _trajectory_mapping(dict(state.metadata or {}).get("trajectory")))
+    trajectory_point_count = sum(
+        len(_trajectory_mapping(dict(state.metadata or {}).get("trajectory"))) for state in states
+    )
     states_with_orientation = sum(
         1 for state in states if _spatial_vector_mapping(dict(state.metadata or {}).get("orientation"))
     )
@@ -203,6 +233,8 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
         "positioned_states": positioned_states,
+        "states_with_trajectory": states_with_trajectory,
+        "trajectory_point_count": trajectory_point_count,
         "states_with_orientation": states_with_orientation,
         "states_with_spread": states_with_spread,
         "distance_models": distance_models,
@@ -225,6 +257,13 @@ def _spatial_changes(
             right_summary["states_with_channel_gains"] - left_summary["states_with_channel_gains"]
         ),
         "positioned_states_delta": right_summary["positioned_states"] - left_summary["positioned_states"],
+        "trajectories_changed": _trajectory_sequences(left_states) != _trajectory_sequences(right_states),
+        "states_with_trajectory_delta": (
+            right_summary["states_with_trajectory"] - left_summary["states_with_trajectory"]
+        ),
+        "trajectory_point_count_delta": (
+            right_summary["trajectory_point_count"] - left_summary["trajectory_point_count"]
+        ),
         "states_with_orientation_delta": (
             right_summary["states_with_orientation"] - left_summary["states_with_orientation"]
         ),

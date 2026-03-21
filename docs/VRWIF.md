@@ -138,11 +138,13 @@ This keeps `VRWIF` inspectable and diffable without trying to encode full render
 
 ## Current Repo Surface
 
-This repo now implements an initial `VRWIF` source-spec validation path only.
+This repo now implements an initial `VRWIF` source-spec validation, inspection, and diff path.
 
 Supported commands:
 
 - `rwif vrwif-validate-spec <spec> --json`
+- `rwif vrwif-inspect <spec> --json`
+- `rwif vrwif-diff <left> <right> --json`
 - `rwif vrwif-batch-validate-spec <spec...> --output <report.json|yaml> --json`
 
 The current validator checks:
@@ -156,7 +158,11 @@ The current validator checks:
 - camera identity and placement
 - lighting identity plus directional or positional intent
 
-It does not yet build artifacts, inspect them, diff them, or render them.
+The current inspection path reports compact scene summaries including object ids, object groups, appearance classes, positioned-object counts, trajectory counts, camera presence, and lighting presence.
+
+The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting id changes.
+
+It does not yet build artifacts or render them.
 
 ## ARWIF Alignment
 

@@ -27,6 +27,8 @@ from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
 from .vrwif.batch import batch_validate_vrwif_specs
+from .vrwif.diff import diff_vrwif_specs
+from .vrwif.inspect import inspect_vrwif_spec
 from .vrwif.validation import validate_vrwif_spec
 from . import __version__
 from .config.loader import load_config
@@ -163,6 +165,17 @@ def build_parser() -> argparse.ArgumentParser:
     vrwif_validate_spec_parser.add_argument("spec", help="Path to a VRWIF source spec")
     vrwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_validate_spec_parser.set_defaults(handler=handle_vrwif_validate_spec)
+
+    vrwif_inspect_parser = subparsers.add_parser("vrwif-inspect", help="Inspect a VRWIF YAML or JSON source spec")
+    vrwif_inspect_parser.add_argument("spec", help="Path to a VRWIF source spec")
+    vrwif_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_inspect_parser.set_defaults(handler=handle_vrwif_inspect)
+
+    vrwif_diff_parser = subparsers.add_parser("vrwif-diff", help="Compare two VRWIF YAML or JSON source specs")
+    vrwif_diff_parser.add_argument("left", help="First VRWIF source spec path")
+    vrwif_diff_parser.add_argument("right", help="Second VRWIF source spec path")
+    vrwif_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_diff_parser.set_defaults(handler=handle_vrwif_diff)
 
     arwif_import_parser = subparsers.add_parser("arwif-import", help="Import an ARWIF YAML or JSON spec into an artifact")
     arwif_import_parser.add_argument("--spec", required=True, help="Path to an ARWIF import spec")
@@ -501,6 +514,18 @@ def handle_vrwif_validate_spec(args: argparse.Namespace) -> int:
     report = validate_vrwif_spec(Path(args.spec))
     _print_payload(report.to_payload(), args.json)
     return 0 if report.is_valid else 1
+
+
+def handle_vrwif_inspect(args: argparse.Namespace) -> int:
+    payload = inspect_vrwif_spec(Path(args.spec))
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_vrwif_diff(args: argparse.Namespace) -> int:
+    payload = diff_vrwif_specs(Path(args.left), Path(args.right))
+    _print_payload(payload, args.json)
+    return 0 if payload["left_valid"] and payload["right_valid"] else 1
 
 
 def handle_arwif_import(args: argparse.Namespace) -> int:

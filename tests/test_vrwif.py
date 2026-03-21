@@ -83,6 +83,194 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["stats"]["object_groups"], ["foreground", "percussion"])
             self.assertEqual(payload["stats"]["appearance_classes"], ["bell"])
 
+    def test_vrwif_inspect_reports_scene_summary(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            spec_path = tmp_dir / "inspect-scene.yaml"
+            spec_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: hall.scene-02",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.left",
+                        "    object_groups:",
+                        "      - foreground",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: -1.0",
+                        "      y: 0.0",
+                        "      z: 2.0",
+                        "    orientation:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 1.0",
+                        "  - object_id: object.right",
+                        "    object_groups:",
+                        "      - background",
+                        "    appearance_class: pillar",
+                        "    position:",
+                        "      x: 1.5",
+                        "      y: 0.0",
+                        "      z: 3.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 1.5",
+                        "          y: 0.0",
+                        "          z: 3.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.8",
+                        "          y: 0.0",
+                        "          z: 3.2",
+                        "camera:",
+                        "  camera_id: cam.inspect",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.6",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "lighting:",
+                        "  - light_id: fill.01",
+                        "    direction:",
+                        "      x: 0.2",
+                        "      y: -0.8",
+                        "      z: 0.5",
+                        "    intensity: 1.25",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-inspect", str(spec_path), "--json")
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["scene_id"], "hall.scene-02")
+            self.assertEqual(payload["reference_frame"], "world")
+            self.assertEqual(payload["object_count"], 2)
+            self.assertEqual(payload["objects"][0]["object_id"], "object.left")
+            self.assertEqual(payload["objects"][1]["trajectory"][1]["position"]["x"], 1.8)
+            self.assertEqual(payload["camera"]["camera_id"], "cam.inspect")
+            self.assertEqual(payload["lighting"][0]["light_id"], "fill.01")
+            self.assertEqual(payload["scene_summary"]["positioned_objects"], 2)
+            self.assertEqual(payload["scene_summary"]["objects_with_orientation"], 1)
+            self.assertEqual(payload["scene_summary"]["objects_with_trajectory"], 1)
+            self.assertEqual(payload["scene_summary"]["object_trajectory_point_count"], 2)
+            self.assertEqual(payload["scene_summary"]["light_count"], 1)
+            self.assertEqual(payload["scene_summary"]["object_groups"], ["background", "foreground"])
+
+    def test_vrwif_diff_reports_scene_and_object_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-scene.yaml"
+            right_path = tmp_dir / "right-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: courtyard.scene",
+                        "reference_frame: scene",
+                        "title: Courtyard left",
+                        "objects:",
+                        "  - object_id: object.tree",
+                        "    object_groups:",
+                        "      - nature",
+                        "    appearance_class: tree",
+                        "    position:",
+                        "      x: -1.0",
+                        "      y: 0.0",
+                        "      z: 4.0",
+                        "camera:",
+                        "  camera_id: cam.main",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.6",
+                        "    z: -5.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "lighting:",
+                        "  - light_id: key.left",
+                        "    position:",
+                        "      x: -2.0",
+                        "      y: 3.0",
+                        "      z: -1.0",
+                        "    intensity: 2.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: courtyard.scene",
+                        "reference_frame: world",
+                        "title: Courtyard right",
+                        "objects:",
+                        "  - object_id: object.tree",
+                        "    object_groups:",
+                        "      - nature",
+                        "      - focal",
+                        "    appearance_class: tree",
+                        "    position:",
+                        "      x: -0.5",
+                        "      y: 0.0",
+                        "      z: 3.5",
+                        "  - object_id: object.bench",
+                        "    object_groups:",
+                        "      - prop",
+                        "    appearance_class: bench",
+                        "    position:",
+                        "      x: 0.8",
+                        "      y: 0.0",
+                        "      z: 2.2",
+                        "camera:",
+                        "  camera_id: cam.main",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.8",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "lighting:",
+                        "  - light_id: key.right",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 3.0",
+                        "      z: -1.0",
+                        "    intensity: 2.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(payload["left_valid"], payload)
+            self.assertTrue(payload["right_valid"], payload)
+            self.assertIn("reference_frame", payload["metadata_changes"])
+            self.assertIn("title", payload["metadata_changes"])
+            self.assertEqual(payload["change_summary"]["added_objects"], 1)
+            self.assertEqual(payload["change_summary"]["changed_objects"], 1)
+            self.assertIn("object.bench", payload["added_objects"])
+            self.assertIn("object.tree", payload["changed_objects"])
+            self.assertTrue(payload["scene_changes"]["reference_frame_changed"])
+            self.assertTrue(payload["scene_changes"]["object_groups_changed"])
+            self.assertTrue(payload["scene_changes"]["camera_changed"])
+            self.assertEqual(payload["scene_changes"]["light_count_delta"], 0)
+            self.assertTrue(payload["scene_changes"]["light_ids_changed"])
+            self.assertIn("position", payload["object_changes"]["object.tree"]["field_changes"])
+
     def test_vrwif_validate_spec_rejects_invalid_scene_shape(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 dist/
+analysis/
 *.rwif
 !examples/arwif/*.arwif
 *.egg-info/

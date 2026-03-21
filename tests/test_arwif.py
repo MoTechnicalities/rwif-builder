@@ -1468,6 +1468,160 @@ states:
             self.assertEqual(report_document["unchanged_pairs"], batch_payload["unchanged_pairs"])
             self.assertEqual(len(report_document["results"]), 2)
 
+    def test_arwif_batch_diff_analyze_report(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_alpha_path = tmp_dir / "left-alpha.arwif"
+            right_alpha_path = tmp_dir / "right-alpha.arwif"
+            left_beta_path = tmp_dir / "left-beta.arwif"
+            right_beta_path = tmp_dir / "right-beta.arwif"
+            diff_report_path = tmp_dir / "batch-diff-report.json"
+            analysis_report_path = tmp_dir / "batch-diff-analysis.yaml"
+
+            save_wave_library(
+                left_alpha_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(330, 0.7)),
+                            label="alpha",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Alpha left",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_alpha_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8), AtomicWaveUnit(392, 0.6)),
+                            label="alpha",
+                            metadata={"duration_seconds": 0.5},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 12000,
+                        "default_duration_seconds": 0.5,
+                        "title": "Alpha right",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                left_beta_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Beta pair",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_beta_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(523, 0.4),),
+                            label="beta",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Beta pair",
+                    },
+                ),
+            )
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_alpha_path),
+                str(left_beta_path),
+                "--right",
+                str(right_alpha_path),
+                str(right_beta_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["analysis_input"], str(diff_report_path))
+            self.assertEqual(analysis_payload["pairs_compared"], 2)
+            self.assertEqual(analysis_payload["changed_pairs"], 1)
+            self.assertEqual(analysis_payload["unchanged_pairs"], 1)
+            self.assertEqual(analysis_payload["invalid_pairs"], 0)
+            self.assertEqual(analysis_payload["incompatible_pairs"], 0)
+            self.assertEqual(analysis_payload["states_changed_in_all_changed_pairs"], ["alpha"])
+            self.assertEqual(
+                analysis_payload["metadata_fields_changed_in_all_changed_pairs"],
+                ["default_duration_seconds", "sample_rate_hz", "title"],
+            )
+            self.assertEqual(analysis_payload["report_output"], str(analysis_report_path))
+            self.assertEqual(analysis_payload["report_format"], "yaml")
+
+            changed_states = analysis_payload["changed_state_frequencies"]
+            self.assertEqual(changed_states[0]["state"], "alpha")
+            self.assertEqual(changed_states[0]["pairs_changed"], 1)
+            self.assertEqual(changed_states[0]["pair_indexes"], [0])
+
+            metadata_fields = {entry["field"] for entry in analysis_payload["metadata_field_frequencies"]}
+            self.assertEqual(metadata_fields, {"default_duration_seconds", "sample_rate_hz", "title"})
+            self.assertEqual(analysis_payload["spatial_change_summary"]["channel_layout_changed_pairs"], 0)
+
+            persisted_analysis = yaml.safe_load(analysis_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_analysis["pairs_compared"], 2)
+            self.assertEqual(persisted_analysis["states_changed_in_all_changed_pairs"], ["alpha"])
+
     def test_arwif_batch_export_artifacts(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

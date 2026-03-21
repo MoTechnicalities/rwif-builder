@@ -49,6 +49,12 @@ To diff multiple ARWIF baseline and candidate pairs in one pass:
 rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-diff-report.json --json
 ```
 
+To analyze recurring change patterns from that saved batch diff report:
+
+```bash
+rwif arwif-batch-diff-analyze dist/batch-diff-report.json --output dist/batch-diff-analysis.yaml --json
+```
+
 To export multiple ARWIF artifacts into strict source specs in one pass:
 
 ```bash

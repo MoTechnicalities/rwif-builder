@@ -73,6 +73,7 @@ rwif patch
 rwif arwif-batch-build
 rwif arwif-batch-import
 rwif arwif-batch-diff
+rwif arwif-batch-diff-analyze
 rwif arwif-batch-export
 rwif arwif-batch-render
 rwif arwif-batch-normalize
@@ -90,7 +91,7 @@ rwif arwif-validate
 rwif arwif-render
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, and `arwif-render`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, and `arwif-render`.
 
 ## Configuration
 
@@ -142,6 +143,7 @@ rwif arwif-batch-build first.yaml second.yaml --output-dir dist/built_arwif --ou
 rwif arwif-batch-import first.yaml second.yaml --output-dir dist/imported_arwif --output dist/batch-import-report.yaml --json
 rwif arwif-batch-normalize old-a.arwif old-b.arwif --spec-dir dist/normalized_specs --output-dir dist/normalized_artifacts --report-dir dist/normalization_reports --assumptions-dir dist/assumptions --output dist/batch-normalize-report.yaml --json
 rwif arwif-batch-diff --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-diff-report.json --json
+rwif arwif-batch-diff-analyze dist/batch-diff-report.json --output dist/batch-diff-analysis.yaml --json
 rwif arwif-batch-validate-spec first.yaml second.yaml --output dist/batch-validate-spec-report.json --json
 rwif arwif-batch-export dist/a.arwif dist/b.arwif --output-dir dist/exported_specs --output dist/batch-export-report.json --format yaml --json
 rwif arwif-batch-render dist/a.arwif dist/b.arwif --output-dir dist/rendered_wav --output dist/batch-render-report.yaml --json
@@ -168,6 +170,8 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 `rwif arwif-batch-normalize` scales that same migration flow across multiple artifacts in one command, writing normalized specs into a target directory and optionally collecting rebuilt artifacts, per-artifact reports, and assumptions manifests into sibling directories, and can also persist the top-level aggregate report as `.json`, `.yaml`, or `.yml`.
 
 `rwif arwif-batch-diff` scales ARWIF artifact comparison across multiple explicit left and right pairs in one command, returns per-pair diff payloads plus collection-level counts for changed, unchanged, invalid, and incompatible comparisons, and can optionally persist the aggregated report as `.json`, `.yaml`, or `.yml` based on the output filename.
+
+`rwif arwif-batch-diff-analyze` builds on a saved `arwif-batch-diff` report, aggregates recurring metadata and state changes across all compared pairs, highlights change patterns that appear in every changed pair, summarizes spatial drift counts, and can optionally persist that higher-level analysis as `.json`, `.yaml`, or `.yml`.
 
 `rwif arwif-batch-validate-spec` scales strict ARWIF source-spec validation across multiple YAML or JSON specs in one command, returns collection-level valid and invalid counts plus the full per-spec validation payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 

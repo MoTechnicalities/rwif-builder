@@ -76,6 +76,12 @@ Compares multiple ARWIF artifact pairs.
 Current implementation: accepts explicit pairwise `--left` and `--right` artifact collections of equal length, reuses the same comparison path as `arwif-diff`, and returns an aggregated result payload with per-pair diffs plus collection-level counts for changed, unchanged, invalid, incompatible, and changed-state totals.
 An optional `--output` path can persist that aggregated report as `.json`, `.yaml`, or `.yml` based on the destination suffix.
 
+### `rwif arwif-batch-diff-analyze`
+
+Analyzes an aggregated ARWIF batch diff report.
+
+Current implementation: accepts a previously saved `arwif-batch-diff` report in `.json`, `.yaml`, or `.yml` format, aggregates recurring metadata and state changes across pairs, summarizes spatial drift counts, and can optionally persist the analysis result as `.json`, `.yaml`, or `.yml` based on the output suffix.
+
 ### `rwif arwif-batch-export`
 
 Exports multiple ARWIF artifacts to YAML or JSON specs.

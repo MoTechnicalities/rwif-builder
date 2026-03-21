@@ -8,6 +8,7 @@ from typing import Any
 
 from .arwif.build import build_arwif_artifact
 from .arwif.batch import batch_build_arwif_artifacts
+from .arwif.batch import analyze_batch_diff_report
 from .arwif.batch import batch_diff_arwif_artifacts
 from .arwif.batch import batch_export_arwif_artifacts
 from .arwif.batch import batch_import_arwif_artifacts
@@ -256,6 +257,21 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_batch_diff_parser.add_argument("--legacy", action="store_true", help="Allow pre-spec prototype files")
     arwif_batch_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_batch_diff_parser.set_defaults(handler=handle_arwif_batch_diff)
+
+    arwif_batch_diff_analyze_parser = subparsers.add_parser(
+        "arwif-batch-diff-analyze",
+        help="Analyze an aggregated ARWIF batch diff report",
+    )
+    arwif_batch_diff_analyze_parser.add_argument(
+        "input",
+        help="Path to a batch diff report in .json, .yaml, or .yml format",
+    )
+    arwif_batch_diff_analyze_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated analysis report",
+    )
+    arwif_batch_diff_analyze_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_diff_analyze_parser.set_defaults(handler=handle_arwif_batch_diff_analyze)
 
     arwif_inspect_parser = subparsers.add_parser("arwif-inspect", help="Inspect an ARWIF audio artifact")
     arwif_inspect_parser.add_argument("artifact", help="Path to .arwif artifact")
@@ -546,6 +562,15 @@ def handle_arwif_batch_diff(args: argparse.Namespace) -> int:
         [Path(artifact) for artifact in args.left],
         [Path(artifact) for artifact in args.right],
         allow_legacy=args.legacy,
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_diff_analyze(args: argparse.Namespace) -> int:
+    payload = analyze_batch_diff_report(
+        Path(args.input),
         output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)

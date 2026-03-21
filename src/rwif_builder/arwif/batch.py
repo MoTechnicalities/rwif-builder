@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import json
 from pathlib import Path
 from typing import Any
@@ -637,6 +638,161 @@ def batch_diff_arwif_artifacts(
     return payload
 
 
+def analyze_batch_diff_report(
+    input_path: str | Path,
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    report_path = Path(input_path)
+    report_document = _load_auxiliary_document(report_path, label="batch diff analysis input")
+    results = report_document.get("results")
+    if not isinstance(results, list):
+        raise ValueError("batch diff analysis input must contain a 'results' list")
+
+    metadata_counter: Counter[str] = Counter()
+    changed_state_counter: Counter[str] = Counter()
+    added_state_counter: Counter[str] = Counter()
+    removed_state_counter: Counter[str] = Counter()
+    metadata_pair_indexes: dict[str, list[int]] = {}
+    changed_state_pair_indexes: dict[str, list[int]] = {}
+    added_state_pair_indexes: dict[str, list[int]] = {}
+    removed_state_pair_indexes: dict[str, list[int]] = {}
+
+    channel_layout_changed_pairs = 0
+    active_channels_changed_pairs = 0
+    channel_gains_delta_pairs = 0
+    total_states_with_channel_gains_delta = 0
+
+    changed_pairs = 0
+    unchanged_pairs = 0
+    invalid_pairs = 0
+    incompatible_pairs = 0
+
+    for index, raw_result in enumerate(results):
+        if not isinstance(raw_result, dict):
+            continue
+        pair_index = int(raw_result.get("pair_index", index))
+        pair_changed = bool(raw_result.get("pair_changed", _infer_pair_changed(raw_result)))
+        if pair_changed:
+            changed_pairs += 1
+        else:
+            unchanged_pairs += 1
+
+        if not raw_result.get("left_valid", False) or not raw_result.get("right_valid", False):
+            invalid_pairs += 1
+        if not raw_result.get("compatible_format", False):
+            incompatible_pairs += 1
+
+        metadata_changes = raw_result.get("metadata_changes")
+        if isinstance(metadata_changes, dict):
+            for field in metadata_changes:
+                metadata_counter[str(field)] += 1
+                metadata_pair_indexes.setdefault(str(field), []).append(pair_index)
+
+        for state_name in _string_list(raw_result.get("changed_states")):
+            changed_state_counter[state_name] += 1
+            changed_state_pair_indexes.setdefault(state_name, []).append(pair_index)
+
+        for state_name in _string_list(raw_result.get("added_states")):
+            added_state_counter[state_name] += 1
+            added_state_pair_indexes.setdefault(state_name, []).append(pair_index)
+
+        for state_name in _string_list(raw_result.get("removed_states")):
+            removed_state_counter[state_name] += 1
+            removed_state_pair_indexes.setdefault(state_name, []).append(pair_index)
+
+        spatial_changes = raw_result.get("spatial_changes")
+        if isinstance(spatial_changes, dict):
+            if bool(spatial_changes.get("channel_layout_changed", False)):
+                channel_layout_changed_pairs += 1
+            if bool(spatial_changes.get("active_channels_changed", False)):
+                active_channels_changed_pairs += 1
+            channel_gains_delta = int(spatial_changes.get("states_with_channel_gains_delta", 0) or 0)
+            total_states_with_channel_gains_delta += channel_gains_delta
+            if channel_gains_delta != 0:
+                channel_gains_delta_pairs += 1
+
+    pairs_compared = int(report_document.get("pairs_compared", len(results)))
+    analysis_payload = {
+        "analysis_input": str(report_path),
+        "pairs_compared": pairs_compared,
+        "changed_pairs": changed_pairs,
+        "unchanged_pairs": unchanged_pairs,
+        "invalid_pairs": invalid_pairs,
+        "incompatible_pairs": incompatible_pairs,
+        "is_valid": invalid_pairs == 0,
+        "metadata_field_frequencies": _rank_frequency_items(metadata_counter, metadata_pair_indexes, "field", changed_pairs),
+        "changed_state_frequencies": _rank_frequency_items(changed_state_counter, changed_state_pair_indexes, "state", changed_pairs),
+        "added_state_frequencies": _rank_frequency_items(added_state_counter, added_state_pair_indexes, "state", changed_pairs),
+        "removed_state_frequencies": _rank_frequency_items(removed_state_counter, removed_state_pair_indexes, "state", changed_pairs),
+        "states_changed_in_all_changed_pairs": _universal_items(changed_state_counter, changed_pairs),
+        "metadata_fields_changed_in_all_changed_pairs": _universal_items(metadata_counter, changed_pairs),
+        "states_added_in_all_changed_pairs": _universal_items(added_state_counter, changed_pairs),
+        "states_removed_in_all_changed_pairs": _universal_items(removed_state_counter, changed_pairs),
+        "spatial_change_summary": {
+            "channel_layout_changed_pairs": channel_layout_changed_pairs,
+            "active_channels_changed_pairs": active_channels_changed_pairs,
+            "pairs_with_channel_gain_count_delta": channel_gains_delta_pairs,
+            "total_states_with_channel_gains_delta": total_states_with_channel_gains_delta,
+        },
+    }
+
+    if output is not None:
+        analysis_output_path = Path(output)
+        report_format = _resolve_auxiliary_format(analysis_output_path, label="batch diff analysis output")
+        _write_auxiliary_document(analysis_output_path, analysis_payload, report_format)
+        analysis_payload["report_output"] = str(analysis_output_path)
+        analysis_payload["report_format"] = report_format
+
+    return analysis_payload
+
+
+def _infer_pair_changed(result: dict[str, Any]) -> bool:
+    summary = result.get("change_summary")
+    if isinstance(summary, dict):
+        if any(
+            int(summary.get(key, 0) or 0)
+            for key in ("metadata_fields_changed", "added_states", "removed_states", "changed_states")
+        ):
+            return True
+    return any(
+        int(result.get(key, 0) or 0)
+        for key in ("state_count_delta", "oscillator_count_delta")
+    )
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _rank_frequency_items(
+    counter: Counter[str],
+    pair_indexes: dict[str, list[int]],
+    label: str,
+    changed_pairs: int,
+) -> list[dict[str, Any]]:
+    denominator = changed_pairs if changed_pairs > 0 else 1
+    ranked: list[dict[str, Any]] = []
+    for name, count in sorted(counter.items(), key=lambda item: (-item[1], item[0])):
+        ranked.append(
+            {
+                label: name,
+                "pairs_changed": count,
+                "pair_indexes": pair_indexes.get(name, []),
+                "frequency": count / denominator,
+            }
+        )
+    return ranked
+
+
+def _universal_items(counter: Counter[str], changed_pairs: int) -> list[str]:
+    if changed_pairs == 0:
+        return []
+    return sorted(name for name, count in counter.items() if count == changed_pairs)
+
+
 def _resolve_auxiliary_format(output_path: Path, *, label: str) -> str:
     suffix = output_path.suffix.lower()
     if suffix == ".json":
@@ -644,6 +800,18 @@ def _resolve_auxiliary_format(output_path: Path, *, label: str) -> str:
     if suffix in {".yaml", ".yml"}:
         return "yaml"
     raise ValueError(f"could not infer {label} format from path; use a .json, .yaml, or .yml suffix")
+
+
+def _load_auxiliary_document(input_path: Path, *, label: str) -> dict[str, Any]:
+    document_format = _resolve_auxiliary_format(input_path, label=label)
+    raw_text = input_path.read_text(encoding="utf-8")
+    if document_format == "json":
+        document = json.loads(raw_text)
+    else:
+        document = yaml.safe_load(raw_text)
+    if not isinstance(document, dict):
+        raise ValueError(f"{label} must decode to a top-level mapping")
+    return document
 
 
 def _write_auxiliary_document(output_path: Path, document: dict[str, Any], report_format: str) -> None:

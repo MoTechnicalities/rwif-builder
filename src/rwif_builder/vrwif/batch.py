@@ -8,6 +8,7 @@ import yaml
 
 from .diff import diff_vrwif_specs
 from .inspect import inspect_vrwif_spec
+from .normalize import normalize_vrwif_spec
 from .validation import validate_vrwif_spec
 
 
@@ -49,6 +50,80 @@ def batch_validate_vrwif_specs(
     if output is not None:
         output_path = Path(output)
         report_format = _resolve_auxiliary_format(output_path, label="batch validate spec output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def batch_normalize_vrwif_specs(
+    specs: list[str | Path],
+    output_dir: str | Path,
+    *,
+    format: str | None = None,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not specs:
+        raise ValueError("at least one spec must be provided")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    if format is None:
+        output_suffix = ".yaml"
+    elif format == "json":
+        output_suffix = ".json"
+    elif format == "yaml":
+        output_suffix = ".yaml"
+    else:
+        raise ValueError("format must be yaml or json")
+
+    results: list[dict[str, Any]] = []
+    normalized_count = 0
+    failed_count = 0
+    total_object_count = 0
+    total_light_count = 0
+
+    for spec in specs:
+        spec_path = Path(spec)
+        output_path = output_dir_path / f"{spec_path.stem}.normalized{output_suffix}"
+        try:
+            payload = normalize_vrwif_spec(spec_path, output_path, format=format)
+        except ValueError as exc:
+            source_report = validate_vrwif_spec(spec_path)
+            payload = {
+                "spec": str(spec_path),
+                "output": str(output_path),
+                "normalized": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(source_report.errors) or [str(exc)],
+                "warnings": list(source_report.warnings),
+                "stats": dict(source_report.stats),
+            }
+            failed_count += 1
+        else:
+            normalized_count += 1
+            total_object_count += int(payload.get("normalized_object_count", 0))
+            total_light_count += int(payload.get("normalized_light_count", 0))
+
+        results.append(payload)
+
+    payload = {
+        "specs_processed": len(specs),
+        "normalized_count": normalized_count,
+        "failed_count": failed_count,
+        "is_valid": failed_count == 0,
+        "output_dir": str(output_dir_path),
+        "total_object_count": total_object_count,
+        "total_light_count": total_light_count,
+        "results": results,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch normalize output")
         _write_auxiliary_document(output_path, payload, report_format)
         payload["report_output"] = str(output_path)
         payload["report_format"] = report_format

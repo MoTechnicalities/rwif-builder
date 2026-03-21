@@ -28,9 +28,11 @@ from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
 from .vrwif.batch import batch_diff_vrwif_specs
 from .vrwif.batch import batch_inspect_vrwif_specs
+from .vrwif.batch import batch_normalize_vrwif_specs
 from .vrwif.batch import batch_validate_vrwif_specs
 from .vrwif.diff import diff_vrwif_specs
 from .vrwif.inspect import inspect_vrwif_spec
+from .vrwif.normalize import normalize_vrwif_spec
 from .vrwif.validation import validate_vrwif_spec
 from . import __version__
 from .config.loader import load_config
@@ -163,6 +165,20 @@ def build_parser() -> argparse.ArgumentParser:
     vrwif_batch_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_batch_validate_spec_parser.set_defaults(handler=handle_vrwif_batch_validate_spec)
 
+    vrwif_batch_normalize_parser = subparsers.add_parser(
+        "vrwif-batch-normalize",
+        help="Normalize multiple VRWIF YAML or JSON source specs into canonical strict source specs",
+    )
+    vrwif_batch_normalize_parser.add_argument("specs", nargs="+", help="Paths to VRWIF source specs")
+    vrwif_batch_normalize_parser.add_argument("--output-dir", required=True, help="Destination directory for normalized specs")
+    vrwif_batch_normalize_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated normalization report",
+    )
+    vrwif_batch_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
+    vrwif_batch_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_batch_normalize_parser.set_defaults(handler=handle_vrwif_batch_normalize)
+
     vrwif_batch_inspect_parser = subparsers.add_parser(
         "vrwif-batch-inspect",
         help="Inspect multiple VRWIF YAML or JSON source specs",
@@ -202,6 +218,16 @@ def build_parser() -> argparse.ArgumentParser:
     vrwif_validate_spec_parser.add_argument("spec", help="Path to a VRWIF source spec")
     vrwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_validate_spec_parser.set_defaults(handler=handle_vrwif_validate_spec)
+
+    vrwif_normalize_parser = subparsers.add_parser(
+        "vrwif-normalize",
+        help="Normalize a VRWIF YAML or JSON source spec into a canonical strict source spec",
+    )
+    vrwif_normalize_parser.add_argument("spec", help="Path to a VRWIF source spec")
+    vrwif_normalize_parser.add_argument("--output", required=True, help="Destination .yaml, .yml, or .json path")
+    vrwif_normalize_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
+    vrwif_normalize_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_normalize_parser.set_defaults(handler=handle_vrwif_normalize)
 
     vrwif_inspect_parser = subparsers.add_parser("vrwif-inspect", help="Inspect a VRWIF YAML or JSON source spec")
     vrwif_inspect_parser.add_argument("spec", help="Path to a VRWIF source spec")
@@ -547,6 +573,17 @@ def handle_vrwif_batch_validate_spec(args: argparse.Namespace) -> int:
     return 0 if payload["is_valid"] else 1
 
 
+def handle_vrwif_batch_normalize(args: argparse.Namespace) -> int:
+    payload = batch_normalize_vrwif_specs(
+        [Path(spec) for spec in args.specs],
+        Path(args.output_dir),
+        format=args.format,
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
 def handle_vrwif_batch_inspect(args: argparse.Namespace) -> int:
     payload = batch_inspect_vrwif_specs(
         [Path(spec) for spec in args.specs],
@@ -570,6 +607,32 @@ def handle_vrwif_validate_spec(args: argparse.Namespace) -> int:
     report = validate_vrwif_spec(Path(args.spec))
     _print_payload(report.to_payload(), args.json)
     return 0 if report.is_valid else 1
+
+
+def handle_vrwif_normalize(args: argparse.Namespace) -> int:
+    try:
+        payload = normalize_vrwif_spec(
+            Path(args.spec),
+            Path(args.output),
+            format=args.format,
+        )
+    except ValueError as exc:
+        source_report = validate_vrwif_spec(Path(args.spec))
+        return _print_error_payload(
+            {
+                "spec": str(Path(args.spec)),
+                "output": str(Path(args.output)),
+                "normalized": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": list(source_report.errors) or [str(exc)],
+                "warnings": list(source_report.warnings),
+                "stats": dict(source_report.stats),
+            },
+            args.json,
+        )
+    _print_payload(payload, args.json)
+    return 0 if payload["normalized_spec_is_valid"] else 1
 
 
 def handle_vrwif_inspect(args: argparse.Namespace) -> int:

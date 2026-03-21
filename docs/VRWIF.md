@@ -143,8 +143,10 @@ This repo now implements an initial `VRWIF` source-spec validation, inspection, 
 Supported commands:
 
 - `rwif vrwif-validate-spec <spec> --json`
+- `rwif vrwif-normalize <spec> --output <normalized.{yaml|json}> --json`
 - `rwif vrwif-inspect <spec> --json`
 - `rwif vrwif-diff <left> <right> --json`
+- `rwif vrwif-batch-normalize <spec...> --output-dir <dir> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-inspect <spec...> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-diff --left <spec...> --right <spec...> --output <report.json|yaml> --json`
 - `rwif vrwif-batch-validate-spec <spec...> --output <report.json|yaml> --json`
@@ -160,11 +162,20 @@ The current validator checks:
 - camera identity and placement
 - lighting identity plus directional or positional intent
 
+The current normalization path also:
+
+- inserts the strict `vrwif_version`
+- canonicalizes `class` into `appearance_class`
+- normalizes reference-frame casing
+- sorts object groups for stable review output
+- sorts trajectories by `offset_seconds`
+- reorders objects and lights by stable ids for cleaner diff baselines
+
 The current inspection path reports compact scene summaries including object ids, object groups, appearance classes, positioned-object counts, trajectory counts, camera presence, and lighting presence.
 
 The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting id changes.
 
-The current batch inspection and batch diff paths scale those same review surfaces across collections of VRWIF scene specs, returning aggregated counts plus the full per-spec or per-pair payloads.
+The current batch normalization, batch inspection, and batch diff paths scale those same source-authoring and review surfaces across collections of VRWIF scene specs, returning aggregated counts plus the full per-spec or per-pair payloads.
 
 It does not yet build artifacts or render them.
 
@@ -189,6 +200,6 @@ It means both realms can share a stable identity and coordinate contract while r
 
 ## Relationship To This Repo
 
-This repo does not implement `VRWIF` today.
+This repo now implements a narrow `VRWIF` source-spec surface.
 
-It appears in the wider format-family vision because structured vision is the natural companion to `ARWIF` structured sound and `RWIF` semantic memory.
+It appears in the wider format-family vision because structured vision is the natural companion to `ARWIF` structured sound and `RWIF` semantic memory, but the shipped implementation remains intentionally limited to validation, normalization, inspection, diff, and batch review.

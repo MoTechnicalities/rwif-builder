@@ -435,6 +435,185 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["total_changed_objects"], 1)
             self.assertTrue(report_path.exists())
 
+    def test_vrwif_normalize_spec_canonicalizes_aliases_order_and_trajectories(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            source_path = tmp_dir / "loose-scene.yaml"
+            normalized_path = tmp_dir / "normalized-scene.yaml"
+
+            source_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: '  courtyard.scene  '",
+                        "reference_frame: WORLD",
+                        "objects:",
+                        "  - object_id: object.b",
+                        "    object_groups:",
+                        "      - beta",
+                        "      - alpha",
+                        "      - beta",
+                        "    class: statue",
+                        "    position:",
+                        "      z: 1",
+                        "      y: 0",
+                        "      x: 2",
+                        "    trajectory:",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 2.5",
+                        "          y: 0.0",
+                        "          z: 1.0",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 2.0",
+                        "          y: 0.0",
+                        "          z: 1.0",
+                        "  - object_id: object.a",
+                        "    object_groups:",
+                        "      - alpha",
+                        "    appearance_class: bell",
+                        "    position:",
+                        "      x: 0",
+                        "      y: 1",
+                        "      z: 2",
+                        "camera:",
+                        "  camera_id: ' cam.main '",
+                        "  position:",
+                        "    x: 0",
+                        "    y: 1.6",
+                        "    z: -3",
+                        "  orientation:",
+                        "    x: 0",
+                        "    y: 0",
+                        "    z: 1",
+                        "  trajectory:",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.6",
+                        "        z: -2.0",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.6",
+                        "        z: -3.0",
+                        "lighting:",
+                        "  - light_id: light.b",
+                        "    intensity: 1",
+                        "    direction:",
+                        "      x: 0",
+                        "      y: -1",
+                        "      z: 0.5",
+                        "  - light_id: light.a",
+                        "    intensity: 2",
+                        "    position:",
+                        "      x: 1",
+                        "      y: 2",
+                        "      z: -1",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "vrwif-normalize",
+                str(source_path),
+                "--output",
+                str(normalized_path),
+                "--json",
+            )
+            self.assertTrue(payload["normalized"], payload)
+            self.assertFalse(payload["source_is_valid"])
+            self.assertTrue(payload["normalized_spec_is_valid"])
+            self.assertEqual(payload["normalization_summary"]["resolved_class_aliases"], 1)
+            self.assertEqual(payload["normalization_summary"]["deduplicated_object_groups"], 1)
+            self.assertEqual(payload["normalization_summary"]["sorted_object_trajectories"], 1)
+            self.assertEqual(payload["normalization_summary"]["sorted_camera_trajectory"], 1)
+            self.assertEqual(payload["normalization_summary"]["reordered_objects"], 1)
+            self.assertEqual(payload["normalization_summary"]["reordered_lights"], 1)
+            self.assertTrue(normalized_path.exists())
+
+            inspect_payload = self._run_json(repo_root, "vrwif-inspect", str(normalized_path), "--json")
+            self.assertEqual(inspect_payload["reference_frame"], "world")
+            self.assertEqual(inspect_payload["objects"][0]["object_id"], "object.a")
+            self.assertEqual(inspect_payload["objects"][1]["appearance_class"], "statue")
+            self.assertEqual(inspect_payload["objects"][1]["object_groups"], ["alpha", "beta"])
+            self.assertEqual(inspect_payload["objects"][1]["trajectory"][0]["offset_seconds"], 0.0)
+            self.assertEqual(inspect_payload["camera"]["camera_id"], "cam.main")
+            self.assertEqual(inspect_payload["lighting"][0]["light_id"], "light.a")
+
+    def test_vrwif_batch_normalize_specs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_path = tmp_dir / "first.yaml"
+            second_path = tmp_dir / "second.yaml"
+            output_dir = tmp_dir / "normalized"
+            report_path = tmp_dir / "vrwif-batch-normalize-report.json"
+
+            first_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: first.scene",
+                        "reference_frame: SCENE",
+                        "objects:",
+                        "  - object_id: object.first",
+                        "    object_groups:",
+                        "      - zeta",
+                        "      - alpha",
+                        "    class: prop",
+                        "    position:",
+                        "      x: 0",
+                        "      y: 0",
+                        "      z: 0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            second_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: second.scene",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.second",
+                        "    object_groups:",
+                        "      - beta",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 1",
+                        "      y: 0",
+                        "      z: 2",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "vrwif-batch-normalize",
+                str(first_path),
+                str(second_path),
+                "--output-dir",
+                str(output_dir),
+                "--output",
+                str(report_path),
+                "--json",
+            )
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["specs_processed"], 2)
+            self.assertEqual(payload["normalized_count"], 2)
+            self.assertEqual(payload["failed_count"], 0)
+            self.assertEqual(payload["total_object_count"], 2)
+            self.assertTrue((output_dir / "first.normalized.yaml").exists())
+            self.assertTrue((output_dir / "second.normalized.yaml").exists())
+            self.assertTrue(report_path.exists())
+
     def test_vrwif_validate_spec_rejects_invalid_scene_shape(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

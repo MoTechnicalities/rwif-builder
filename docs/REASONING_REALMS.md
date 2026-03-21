@@ -76,7 +76,7 @@ Why it matters:
 
 Implemented here today:
 
-- partial: source-spec validation only
+- partial: source-spec validation, normalization, inspection, and diff
 
 Reference:
 
@@ -181,9 +181,10 @@ This flow is not mandatory in every system, but it provides a disciplined model 
 
 ## Current Repo Position
 
-This repo currently proves the first two operational legs of that stack:
+This repo currently proves two operational legs of that stack and a narrow third:
 
 - `RWIF` for semantic-memory authoring
 - `ARWIF` for structured sound authoring
+- `VRWIF` for review-oriented visual source-spec authoring
 
 The remaining realms are documented as design targets so the broader reasoning architecture remains coherent as the project evolves.

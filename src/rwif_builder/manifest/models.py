@@ -36,6 +36,7 @@ class BuilderManifest:
     vector_length: int
     embedding: dict[str, Any]
     chunking: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
     sources: list[SourceManifestEntry] = field(default_factory=list)
 
     def to_payload(self) -> dict[str, Any]:
@@ -49,5 +50,6 @@ class BuilderManifest:
             "vector_length": self.vector_length,
             "embedding": dict(self.embedding),
             "chunking": dict(self.chunking),
+            "metadata": dict(self.metadata),
             "sources": [entry.to_payload() for entry in self.sources],
         }

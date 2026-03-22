@@ -95,6 +95,7 @@ rwif vrwif-batch-diff-analyze
 rwif vrwif-batch-inspect
 rwif vrwif-batch-normalize
 rwif vrwif-batch-normalize-analyze
+rwif vrwif-batch-normalize-review
 rwif vrwif-batch-review
 rwif vrwif-diff
 rwif vrwif-inspect
@@ -135,6 +136,13 @@ output:
 metadata:
   domain: support
   language: en
+  related_realms:
+    - realm: arwif
+      role: soundtrack
+      artifact: motifs/customer-theme.arwif
+    - realm: vrwif
+      role: scene
+      spec: scenes/customer-lobby.yaml
 ```
 
 See [docs/MVP.md](docs/MVP.md) for the scope contract and [docs/RWIF_DEEP_DIVE.md](docs/RWIF_DEEP_DIVE.md) for the storage-model documentation.
@@ -158,6 +166,7 @@ rwif vrwif-inspect examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-diff examples/vrwif/scene_v0_1.yaml examples/vrwif/scene_v0_1.yaml --json
 rwif vrwif-batch-normalize first-scene.yaml second-scene.yaml --output-dir dist/normalized_vrwif --report-dir dist/vrwif_normalization_reports --assumptions-dir dist/vrwif_assumptions --output dist/vrwif-batch-normalize-report.json --json
 rwif vrwif-batch-normalize-analyze dist/vrwif-batch-normalize-report.json --output dist/vrwif-batch-normalize-analysis.json --json
+rwif vrwif-batch-normalize-review first-scene.yaml second-scene.yaml --output-dir dist/normalized_vrwif --output dist/vrwif-batch-normalize-review.json --json
 rwif vrwif-batch-inspect first-scene.yaml second-scene.yaml --output dist/vrwif-batch-inspect-report.json --json
 rwif vrwif-batch-diff --left first-left.yaml second-left.yaml --right first-right.yaml second-right.yaml --output dist/vrwif-batch-diff-report.json --json
 rwif vrwif-batch-diff-analyze dist/vrwif-batch-diff-report.json --output dist/vrwif-batch-diff-analysis.json --json

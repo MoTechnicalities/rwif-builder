@@ -111,6 +111,8 @@ The JSON header carries:
 
 - library metadata
 - per-state metadata
+
+The builder manifest stored in library metadata can also preserve top-level project metadata from `rwif.yaml`, including clean cross-realm pointers such as related `ARWIF` or `VRWIF` artifacts or specs. That keeps `RWIF` focused on semantic memory while still giving inspection and bridge layers a stable place to find semantic-to-media references.
 - vector length
 - top-k setting
 - offsets and counts for wave units

@@ -307,6 +307,43 @@ def analyze_batch_normalize_report(
     return analysis_payload
 
 
+def batch_normalize_review_vrwif_specs(
+    specs: list[str | Path],
+    output_dir: str | Path,
+    *,
+    report_dir: str | Path | None = None,
+    assumptions_dir: str | Path | None = None,
+    format: str | None = None,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    normalize_payload = batch_normalize_vrwif_specs(
+        specs,
+        output_dir,
+        report_dir=report_dir,
+        assumptions_dir=assumptions_dir,
+        format=format,
+    )
+    analysis_payload = _analyze_batch_normalize_payload(normalize_payload)
+
+    review_payload = {
+        "specs_processed": normalize_payload["specs_processed"],
+        "normalized_count": normalize_payload["normalized_count"],
+        "failed_count": normalize_payload["failed_count"],
+        "is_valid": normalize_payload["is_valid"] and analysis_payload["is_valid"],
+        "normalize_report": normalize_payload,
+        "analysis": analysis_payload,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch normalize review output")
+        _write_auxiliary_document(output_path, review_payload, report_format)
+        review_payload["report_output"] = str(output_path)
+        review_payload["report_format"] = report_format
+
+    return review_payload
+
+
 def batch_review_vrwif_specs(
     left_specs: list[str | Path],
     right_specs: list[str | Path],

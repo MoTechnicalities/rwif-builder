@@ -31,6 +31,7 @@ from .vrwif.batch import analyze_batch_diff_report as analyze_vrwif_batch_diff_r
 from .vrwif.batch import analyze_batch_normalize_report as analyze_vrwif_batch_normalize_report
 from .vrwif.batch import batch_inspect_vrwif_specs
 from .vrwif.batch import batch_normalize_vrwif_specs
+from .vrwif.batch import batch_normalize_review_vrwif_specs
 from .vrwif.batch import batch_review_vrwif_specs
 from .vrwif.batch import batch_validate_vrwif_specs
 from .vrwif.diff import diff_vrwif_specs
@@ -198,6 +199,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vrwif_batch_normalize_analyze_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_batch_normalize_analyze_parser.set_defaults(handler=handle_vrwif_batch_normalize_analyze)
+
+    vrwif_batch_normalize_review_parser = subparsers.add_parser(
+        "vrwif-batch-normalize-review",
+        help="Run VRWIF batch normalize and normalization analysis in one command",
+    )
+    vrwif_batch_normalize_review_parser.add_argument("specs", nargs="+", help="Paths to VRWIF source specs")
+    vrwif_batch_normalize_review_parser.add_argument("--output-dir", required=True, help="Destination directory for normalized specs")
+    vrwif_batch_normalize_review_parser.add_argument("--report-dir", help="Optional destination directory for per-spec normalization reports")
+    vrwif_batch_normalize_review_parser.add_argument("--assumptions-dir", help="Optional destination directory for per-spec assumptions manifests")
+    vrwif_batch_normalize_review_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated normalize-review report",
+    )
+    vrwif_batch_normalize_review_parser.add_argument("--format", choices=("yaml", "json"), help="Override normalized spec format")
+    vrwif_batch_normalize_review_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    vrwif_batch_normalize_review_parser.set_defaults(handler=handle_vrwif_batch_normalize_review)
 
     vrwif_batch_inspect_parser = subparsers.add_parser(
         "vrwif-batch-inspect",
@@ -649,6 +666,19 @@ def handle_vrwif_batch_normalize(args: argparse.Namespace) -> int:
 def handle_vrwif_batch_normalize_analyze(args: argparse.Namespace) -> int:
     payload = analyze_vrwif_batch_normalize_report(
         Path(args.input),
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_vrwif_batch_normalize_review(args: argparse.Namespace) -> int:
+    payload = batch_normalize_review_vrwif_specs(
+        [Path(spec) for spec in args.specs],
+        Path(args.output_dir),
+        report_dir=Path(args.report_dir) if args.report_dir else None,
+        assumptions_dir=Path(args.assumptions_dir) if args.assumptions_dir else None,
+        format=args.format,
         output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)

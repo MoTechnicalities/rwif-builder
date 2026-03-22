@@ -25,3 +25,10 @@ output:
 metadata:
   domain: documentation
   language: en
+  related_realms:
+    - realm: arwif
+      role: soundtrack
+      artifact: motifs/example-theme.arwif
+    - realm: vrwif
+      role: scene
+      spec: scenes/example.scene.yaml

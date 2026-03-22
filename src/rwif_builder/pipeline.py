@@ -59,6 +59,7 @@ def build_artifact(config: BuilderConfig, *, output_override: str | None = None)
             "max_tokens": config.chunking.max_tokens,
             "overlap_tokens": config.chunking.overlap_tokens,
         },
+        metadata=dict(config.metadata),
         sources=[
             SourceManifestEntry(
                 relative_path=document.relative_path,

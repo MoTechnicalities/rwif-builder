@@ -753,6 +753,75 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["top_specs_by_assumption_count"][0]["spec"], str(first_path))
             self.assertTrue(analysis_path.exists())
 
+    def test_vrwif_batch_normalize_review_specs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_path = tmp_dir / "first.yaml"
+            second_path = tmp_dir / "second.yaml"
+            output_dir = tmp_dir / "normalized"
+            review_path = tmp_dir / "vrwif-batch-normalize-review.json"
+
+            first_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: first.scene",
+                        "reference_frame: SCENE",
+                        "objects:",
+                        "  - object_id: object.first",
+                        "    class: prop",
+                        "    object_groups:",
+                        "      - beta",
+                        "      - alpha",
+                        "    position:",
+                        "      x: 0",
+                        "      y: 0",
+                        "      z: 0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            second_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: second.scene",
+                        "reference_frame: world",
+                        "objects:",
+                        "  - object_id: object.second",
+                        "    object_groups:",
+                        "      - beta",
+                        "    appearance_class: statue",
+                        "    position:",
+                        "      x: 1",
+                        "      y: 0",
+                        "      z: 2",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "vrwif-batch-normalize-review",
+                str(first_path),
+                str(second_path),
+                "--output-dir",
+                str(output_dir),
+                "--output",
+                str(review_path),
+                "--json",
+            )
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["specs_processed"], 2)
+            self.assertEqual(payload["normalized_count"], 2)
+            self.assertIn("normalize_report", payload)
+            self.assertIn("analysis", payload)
+            self.assertEqual(payload["analysis"]["specs_processed"], 2)
+            self.assertTrue((output_dir / "first.normalized.yaml").exists())
+            self.assertTrue(review_path.exists())
+
     def test_vrwif_batch_diff_analyze_report(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

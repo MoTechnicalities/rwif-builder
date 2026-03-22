@@ -30,6 +30,8 @@ def inspect_artifact(path: str | Path) -> dict[str, Any]:
         "semantic_memory_version": library.metadata.get("semantic_memory_version"),
         "project": manifest.get("project"),
         "project_version": manifest.get("project_version"),
+        "metadata": _manifest_metadata(manifest),
+        "realm_references": _realm_references(manifest),
         "record_count": len(library.states),
         "source_count": manifest.get("source_count"),
         "vector_length": manifest.get("vector_length"),
@@ -39,3 +41,27 @@ def inspect_artifact(path: str | Path) -> dict[str, Any]:
         "sample_titles": sample_titles,
         "sample_sources": sample_sources,
     }
+
+
+def _manifest_metadata(manifest: dict[str, Any]) -> dict[str, Any]:
+    metadata = manifest.get("metadata", {})
+    return dict(metadata) if isinstance(metadata, dict) else {}
+
+
+def _realm_references(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    metadata = _manifest_metadata(manifest)
+    raw_references = metadata.get("related_realms")
+    if raw_references is None:
+        raw_references = metadata.get("realm_references")
+    if not isinstance(raw_references, list):
+        return []
+
+    references: list[dict[str, Any]] = []
+    for entry in raw_references:
+        if not isinstance(entry, dict):
+            continue
+        realm = entry.get("realm")
+        if not isinstance(realm, str) or not realm:
+            continue
+        references.append(dict(entry))
+    return references

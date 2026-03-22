@@ -23,6 +23,8 @@ SPATIAL_VECTOR_AXES = ("x", "y", "z")
 OBJECT_DISTANCE_MODELS = ("none", "inverse", "linear", "exponential")
 ARWIF_REFERENCE_FRAMES = ("listener", "scene", "world")
 ROOM_SURFACE_PROFILES = ("dry", "damped", "neutral", "reflective", "diffuse")
+ROOM_ABSORPTION_CLASSES = ("low", "balanced", "high")
+ROOM_DIFFUSION_CLASSES = ("focused", "balanced", "scattered")
 ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
 ROOM_REFLECTION_STYLES = ("direct", "balanced", "enveloping")
 ROOM_EARLY_REFLECTION_CLASSES = ("reduced", "natural", "emphasized")
@@ -227,6 +229,7 @@ def _validate_room_document(
     allowed_keys = {
         "dimensions",
         "surface_profile",
+        "surface_treatment",
         "reflection_policy",
         "renderer_adaptation_hints",
         "listening_zones",
@@ -256,6 +259,34 @@ def _validate_room_document(
             errors.append(f"{context}.surface_profile must be a string")
         elif surface_profile not in ROOM_SURFACE_PROFILES:
             errors.append(f"{context}.surface_profile must be one of: " + ", ".join(ROOM_SURFACE_PROFILES))
+
+    surface_treatment = value.get("surface_treatment")
+    if surface_treatment is not None:
+        if not isinstance(surface_treatment, dict):
+            errors.append(f"{context}.surface_treatment must be a mapping")
+        else:
+            allowed_treatment_keys = {"absorption", "diffusion"}
+            unknown_treatment_keys = sorted(key for key in surface_treatment if key not in allowed_treatment_keys)
+            if unknown_treatment_keys:
+                warnings.append(
+                    f"{context}.surface_treatment contains unknown fields ignored by the reference builder: {', '.join(unknown_treatment_keys)}"
+                )
+            absorption = surface_treatment.get("absorption")
+            if absorption is not None:
+                if not isinstance(absorption, str):
+                    errors.append(f"{context}.surface_treatment.absorption must be a string")
+                elif absorption not in ROOM_ABSORPTION_CLASSES:
+                    errors.append(
+                        f"{context}.surface_treatment.absorption must be one of: " + ", ".join(ROOM_ABSORPTION_CLASSES)
+                    )
+            diffusion = surface_treatment.get("diffusion")
+            if diffusion is not None:
+                if not isinstance(diffusion, str):
+                    errors.append(f"{context}.surface_treatment.diffusion must be a string")
+                elif diffusion not in ROOM_DIFFUSION_CLASSES:
+                    errors.append(
+                        f"{context}.surface_treatment.diffusion must be one of: " + ", ".join(ROOM_DIFFUSION_CLASSES)
+                    )
 
     reflection_policy = value.get("reflection_policy")
     if reflection_policy is not None:
@@ -756,6 +787,13 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     stats["room_dimensions_present"] = isinstance(room_document.get("dimensions"), dict) if room_document else False
     if room_document and room_document.get("surface_profile") in ROOM_SURFACE_PROFILES:
         stats["room_surface_profile"] = room_document["surface_profile"]
+    surface_treatment = room_document.get("surface_treatment") if room_document else None
+    stats["surface_treatment_present"] = isinstance(surface_treatment, dict)
+    if isinstance(surface_treatment, dict):
+        if surface_treatment.get("absorption") in ROOM_ABSORPTION_CLASSES:
+            stats["room_surface_absorption"] = surface_treatment["absorption"]
+        if surface_treatment.get("diffusion") in ROOM_DIFFUSION_CLASSES:
+            stats["room_surface_diffusion"] = surface_treatment["diffusion"]
     reflection_policy = room_document.get("reflection_policy") if room_document else None
     stats["reflection_policy_present"] = isinstance(reflection_policy, dict)
     if isinstance(reflection_policy, dict):
@@ -1085,6 +1123,13 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["room_dimensions_present"] = isinstance(room.get("dimensions"), dict) if isinstance(room, dict) else False
     if isinstance(room, dict) and room.get("surface_profile") in ROOM_SURFACE_PROFILES:
         stats["room_surface_profile"] = room["surface_profile"]
+    surface_treatment = room.get("surface_treatment") if isinstance(room, dict) else None
+    stats["surface_treatment_present"] = isinstance(surface_treatment, dict)
+    if isinstance(surface_treatment, dict):
+        if surface_treatment.get("absorption") in ROOM_ABSORPTION_CLASSES:
+            stats["room_surface_absorption"] = surface_treatment["absorption"]
+        if surface_treatment.get("diffusion") in ROOM_DIFFUSION_CLASSES:
+            stats["room_surface_diffusion"] = surface_treatment["diffusion"]
     reflection_policy = room.get("reflection_policy") if isinstance(room, dict) else None
     stats["reflection_policy_present"] = isinstance(reflection_policy, dict)
     if isinstance(reflection_policy, dict):

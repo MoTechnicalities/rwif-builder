@@ -158,6 +158,15 @@ def _room_mapping(value: Any) -> dict[str, Any]:
     surface_profile = value.get("surface_profile")
     if isinstance(surface_profile, str) and surface_profile:
         room["surface_profile"] = surface_profile
+    surface_treatment = value.get("surface_treatment")
+    if isinstance(surface_treatment, dict):
+        surface_treatment_mapping = {
+            key: surface_treatment[key]
+            for key in ("absorption", "diffusion")
+            if isinstance(surface_treatment.get(key), str) and surface_treatment.get(key)
+        }
+        if surface_treatment_mapping:
+            room["surface_treatment"] = surface_treatment_mapping
     reflection_policy = value.get("reflection_policy")
     if isinstance(reflection_policy, dict):
         reflection_policy_mapping = {
@@ -356,6 +365,9 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "room_present": bool(room),
         "room_dimensions": dict(room.get("dimensions", {})) if isinstance(room.get("dimensions"), dict) else {},
         "room_surface_profile": room.get("surface_profile"),
+        "surface_treatment_present": isinstance(room.get("surface_treatment"), dict),
+        "room_surface_absorption": room.get("surface_treatment", {}).get("absorption") if isinstance(room.get("surface_treatment"), dict) else None,
+        "room_surface_diffusion": room.get("surface_treatment", {}).get("diffusion") if isinstance(room.get("surface_treatment"), dict) else None,
         "reflection_policy_present": isinstance(room.get("reflection_policy"), dict),
         "room_reflection_style": room.get("reflection_policy", {}).get("style") if isinstance(room.get("reflection_policy"), dict) else None,
         "room_early_reflections": room.get("reflection_policy", {}).get("early_reflections") if isinstance(room.get("reflection_policy"), dict) else None,
@@ -408,6 +420,11 @@ def _spatial_changes(
         "room_changed": _room_mapping(left_metadata.get("room")) != _room_mapping(right_metadata.get("room")),
         "room_dimensions_changed": left_summary["room_dimensions"] != right_summary["room_dimensions"],
         "room_surface_profile_changed": left_summary["room_surface_profile"] != right_summary["room_surface_profile"],
+        "surface_treatment_changed": left_summary["surface_treatment_present"] != right_summary["surface_treatment_present"]
+        or left_summary["room_surface_absorption"] != right_summary["room_surface_absorption"]
+        or left_summary["room_surface_diffusion"] != right_summary["room_surface_diffusion"],
+        "room_surface_absorption_changed": left_summary["room_surface_absorption"] != right_summary["room_surface_absorption"],
+        "room_surface_diffusion_changed": left_summary["room_surface_diffusion"] != right_summary["room_surface_diffusion"],
         "reflection_policy_changed": left_summary["reflection_policy_present"] != right_summary["reflection_policy_present"]
         or left_summary["room_reflection_style"] != right_summary["room_reflection_style"]
         or left_summary["room_early_reflections"] != right_summary["room_early_reflections"]

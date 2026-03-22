@@ -12,6 +12,9 @@ room:
     depth_m: 14.0
     height_m: 4.5
   surface_profile: damped
+  surface_treatment:
+    absorption: high
+    diffusion: focused
   reflection_policy:
     style: enveloping
     early_reflections: emphasized

@@ -151,7 +151,7 @@ See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and
 
 See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile draft and [docs/ARWIF_CONTAINER_DECISION.md](docs/ARWIF_CONTAINER_DECISION.md) for the container-strategy analysis.
 
-See [examples/arwif/README.md](examples/arwif/README.md) for the shipped ARWIF examples, including a Level 3 room-aware baseline/candidate pair designed for `arwif-batch-review` workflows.
+See [examples/arwif/README.md](examples/arwif/README.md) for the shipped ARWIF examples, including a Level 3 room-aware baseline/candidate pair designed for `arwif-batch-review` workflows and surface-treatment review.
 
 See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking spatial ARWIF roadmap centered on AI comprehension, reasoning, and production.
 
@@ -219,7 +219,7 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 
 `rwif arwif-batch-review` collapses those two review steps into one command by running pairwise ARWIF batch diff and the recurring-change analysis together, returning both the detailed diff report and the higher-level pattern summary in a single payload that can also be persisted as `.json`, `.yaml`, or `.yml`.
 
-The shipped room-aware example pair in `examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml` and `examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml` provides a concrete batch-review fixture for the current Level 3 room surface, including dimensions, reflection policy, renderer adaptation hints, listening zones, and speaker placement drift.
+The shipped room-aware example pair in `examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml` and `examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml` provides a concrete batch-review fixture for the current Level 3 room surface, including dimensions, surface treatment, reflection policy, renderer adaptation hints, listening zones, and speaker placement drift.
 
 `rwif arwif-batch-validate-spec` scales strict ARWIF source-spec validation across multiple YAML or JSON specs in one command, returns collection-level valid and invalid counts plus the full per-spec validation payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
@@ -235,9 +235,9 @@ The current ARWIF toolchain now spans three early spatial layers:
 
 - Level 1 channel-aware metadata via top-level `channel_layout` plus per-state `channel_gains`, which the reference renderer can emit as multichannel WAV for supported layouts
 - an initial Level 2 object-metadata slice via top-level `listener_anchor` and `reference_frame` plus per-state `source_id`, `source_groups`, `position`, `trajectory`, `orientation`, `spread`, and `distance_model`, which the current toolchain validates, preserves, inspects, diffs, and summarizes through batch review
-- an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, surface profile, reflection policy, renderer adaptation hints, listening zones, and speaker placement, which the current toolchain validates, preserves, inspects, diffs, exports, and summarizes through batch review
+- an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, surface profile, surface treatment, reflection policy, renderer adaptation hints, listening zones, and speaker placement, which the current toolchain validates, preserves, inspects, diffs, exports, and summarizes through batch review
 
-`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware, object-spatial, and initial room-aware revisions including reflection policy, renderer adaptation hints, listening zones, and speaker placement can be reviewed at a glance instead of only through raw metadata blocks.
+`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware, object-spatial, and initial room-aware revisions including surface treatment, reflection policy, renderer adaptation hints, listening zones, and speaker placement can be reviewed at a glance instead of only through raw metadata blocks.
 
 Reference example:
 

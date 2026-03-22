@@ -72,6 +72,9 @@ class ARWIFIntegrationTest(unittest.TestCase):
             self.assertTrue(review_report_path.exists())
             analysis_payload = review_payload["analysis"]
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["surface_treatment_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_absorption_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_diffusion_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
@@ -2465,6 +2468,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "    depth_m: 14.0",
                         "    height_m: 4.5",
                         "  surface_profile: reflective",
+                        "  surface_treatment:",
+                        "    absorption: low",
+                        "    diffusion: balanced",
                         "  reflection_policy:",
                         "    style: balanced",
                         "    early_reflections: natural",
@@ -2528,6 +2534,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertTrue(spec_payload["stats"]["room_present"])
             self.assertTrue(spec_payload["stats"]["room_dimensions_present"])
             self.assertEqual(spec_payload["stats"]["room_surface_profile"], "reflective")
+            self.assertTrue(spec_payload["stats"]["surface_treatment_present"])
+            self.assertEqual(spec_payload["stats"]["room_surface_absorption"], "low")
+            self.assertEqual(spec_payload["stats"]["room_surface_diffusion"], "balanced")
             self.assertTrue(spec_payload["stats"]["reflection_policy_present"])
             self.assertEqual(spec_payload["stats"]["room_reflection_style"], "balanced")
             self.assertEqual(spec_payload["stats"]["room_early_reflections"], "natural")
@@ -2556,6 +2565,8 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
             self.assertTrue(inspect_payload["is_valid"], inspect_payload)
             self.assertEqual(inspect_payload["room"]["surface_profile"], "reflective")
+            self.assertEqual(inspect_payload["room"]["surface_treatment"]["absorption"], "low")
+            self.assertEqual(inspect_payload["room"]["surface_treatment"]["diffusion"], "balanced")
             self.assertEqual(inspect_payload["room"]["reflection_policy"]["style"], "balanced")
             self.assertEqual(inspect_payload["room"]["renderer_adaptation_hints"]["target_playback"], "multichannel_room")
             self.assertEqual(inspect_payload["room"]["dimensions"]["height_m"], 4.5)
@@ -2564,6 +2575,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(inspect_payload["room"]["speakers"][1]["channel"], "R")
             self.assertTrue(inspect_payload["spatial_summary"]["room_present"])
             self.assertEqual(inspect_payload["spatial_summary"]["room_surface_profile"], "reflective")
+            self.assertTrue(inspect_payload["spatial_summary"]["surface_treatment_present"])
+            self.assertEqual(inspect_payload["spatial_summary"]["room_surface_absorption"], "low")
+            self.assertEqual(inspect_payload["spatial_summary"]["room_surface_diffusion"], "balanced")
             self.assertTrue(inspect_payload["spatial_summary"]["reflection_policy_present"])
             self.assertEqual(inspect_payload["spatial_summary"]["room_reflection_style"], "balanced")
             self.assertEqual(inspect_payload["spatial_summary"]["room_early_reflections"], "natural")
@@ -2590,6 +2604,8 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
             self.assertEqual(exported_document["room"]["dimensions"]["width_m"], 10.0)
             self.assertEqual(exported_document["room"]["surface_profile"], "reflective")
+            self.assertEqual(exported_document["room"]["surface_treatment"]["absorption"], "low")
+            self.assertEqual(exported_document["room"]["surface_treatment"]["diffusion"], "balanced")
             self.assertEqual(exported_document["room"]["reflection_policy"]["late_reverb"], "controlled")
             self.assertEqual(exported_document["room"]["renderer_adaptation_hints"]["downmix_policy"], "preserve_positions")
             self.assertEqual(exported_document["room"]["listening_zones"][1]["zone_id"], "rear-fill")
@@ -2618,6 +2634,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(diff_payload["spatial_changes"]["room_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_dimensions_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_surface_profile_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["surface_treatment_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_surface_absorption_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_surface_diffusion_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["reflection_policy_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_reflection_style_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_early_reflections_changed"])
@@ -2702,6 +2721,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "    depth_m: nope",
                         "    height_m: 0.0",
                         "  surface_profile: cathedral",
+                        "  surface_treatment:",
+                        "    absorption: extreme",
+                        "    diffusion: chaotic",
                         "  reflection_policy:",
                         "    style: huge",
                         "    early_reflections: metallic",
@@ -2745,6 +2767,14 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertIn("room.dimensions.height_m must be a positive finite number", spec_payload["errors"])
             self.assertIn(
                 "room.surface_profile must be one of: dry, damped, neutral, reflective, diffuse",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.surface_treatment.absorption must be one of: low, balanced, high",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.surface_treatment.diffusion must be one of: focused, balanced, scattered",
                 spec_payload["errors"],
             )
             self.assertIn(
@@ -2911,6 +2941,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "room": {
                             "dimensions": {"width_m": 8.0, "depth_m": 10.0, "height_m": 3.5},
                             "surface_profile": "dry",
+                            "surface_treatment": {
+                                "absorption": "high",
+                                "diffusion": "focused",
+                            },
                             "reflection_policy": {
                                 "style": "direct",
                                 "early_reflections": "reduced",
@@ -2965,6 +2999,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "room": {
                             "dimensions": {"width_m": 12.0, "depth_m": 15.0, "height_m": 5.0},
                             "surface_profile": "reflective",
+                            "surface_treatment": {
+                                "absorption": "low",
+                                "diffusion": "scattered",
+                            },
                             "reflection_policy": {
                                 "style": "enveloping",
                                 "early_reflections": "emphasized",
@@ -3025,6 +3063,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_dimensions_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_profile_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["surface_treatment_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_absorption_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_diffusion_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_reflection_style_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_early_reflections_changed_pairs"], 1)

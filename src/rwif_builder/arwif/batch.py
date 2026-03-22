@@ -713,6 +713,9 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     room_changed_pairs = 0
     room_dimensions_changed_pairs = 0
     room_surface_profile_changed_pairs = 0
+    surface_treatment_changed_pairs = 0
+    room_surface_absorption_changed_pairs = 0
+    room_surface_diffusion_changed_pairs = 0
     reflection_policy_changed_pairs = 0
     room_reflection_style_changed_pairs = 0
     room_early_reflections_changed_pairs = 0
@@ -797,6 +800,12 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 room_dimensions_changed_pairs += 1
             if bool(spatial_changes.get("room_surface_profile_changed", False)):
                 room_surface_profile_changed_pairs += 1
+            if bool(spatial_changes.get("surface_treatment_changed", False)):
+                surface_treatment_changed_pairs += 1
+            if bool(spatial_changes.get("room_surface_absorption_changed", False)):
+                room_surface_absorption_changed_pairs += 1
+            if bool(spatial_changes.get("room_surface_diffusion_changed", False)):
+                room_surface_diffusion_changed_pairs += 1
             if bool(spatial_changes.get("reflection_policy_changed", False)):
                 reflection_policy_changed_pairs += 1
             if bool(spatial_changes.get("room_reflection_style_changed", False)):
@@ -888,6 +897,9 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "room_changed_pairs": room_changed_pairs,
             "room_dimensions_changed_pairs": room_dimensions_changed_pairs,
             "room_surface_profile_changed_pairs": room_surface_profile_changed_pairs,
+            "surface_treatment_changed_pairs": surface_treatment_changed_pairs,
+            "room_surface_absorption_changed_pairs": room_surface_absorption_changed_pairs,
+            "room_surface_diffusion_changed_pairs": room_surface_diffusion_changed_pairs,
             "reflection_policy_changed_pairs": reflection_policy_changed_pairs,
             "room_reflection_style_changed_pairs": room_reflection_style_changed_pairs,
             "room_early_reflections_changed_pairs": room_early_reflections_changed_pairs,

@@ -20,7 +20,9 @@ from .validation import DEFAULT_RELEASE_MS
 from .validation import DEFAULT_SAMPLE_RATE_HZ
 from .validation import OBJECT_DISTANCE_MODELS
 from .validation import ROOM_DIMENSION_KEYS
+from .validation import ROOM_ABSORPTION_CLASSES
 from .validation import ROOM_DOWNMIX_POLICIES
+from .validation import ROOM_DIFFUSION_CLASSES
 from .validation import ROOM_EARLY_REFLECTION_CLASSES
 from .validation import ROOM_LATE_REVERB_CLASSES
 from .validation import ROOM_RENDER_TARGETS
@@ -145,6 +147,25 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
         if not isinstance(surface_profile, str) or surface_profile not in ROOM_SURFACE_PROFILES:
             raise ValueError(f"{context}.surface_profile must be one of: " + ", ".join(ROOM_SURFACE_PROFILES))
         room["surface_profile"] = surface_profile
+
+    if "surface_treatment" in room_mapping:
+        surface_treatment_mapping = _require_mapping(room_mapping.get("surface_treatment"), f"{context}.surface_treatment")
+        surface_treatment: dict[str, Any] = {}
+        if "absorption" in surface_treatment_mapping:
+            absorption = surface_treatment_mapping.get("absorption")
+            if not isinstance(absorption, str) or absorption not in ROOM_ABSORPTION_CLASSES:
+                raise ValueError(
+                    f"{context}.surface_treatment.absorption must be one of: " + ", ".join(ROOM_ABSORPTION_CLASSES)
+                )
+            surface_treatment["absorption"] = absorption
+        if "diffusion" in surface_treatment_mapping:
+            diffusion = surface_treatment_mapping.get("diffusion")
+            if not isinstance(diffusion, str) or diffusion not in ROOM_DIFFUSION_CLASSES:
+                raise ValueError(
+                    f"{context}.surface_treatment.diffusion must be one of: " + ", ".join(ROOM_DIFFUSION_CLASSES)
+                )
+            surface_treatment["diffusion"] = diffusion
+        room["surface_treatment"] = surface_treatment
 
     if "reflection_policy" in room_mapping:
         reflection_policy_mapping = _require_mapping(room_mapping.get("reflection_policy"), f"{context}.reflection_policy")

@@ -8,6 +8,27 @@ from ..writer.rwif_writer import load_wave_library
 from .validation import CHANNEL_LAYOUT_CHANNELS
 from .validation import validate_arwif_artifact
 
+_LIBRARY_SPEC_KEYS = {
+    "title",
+    "description",
+    "channel_layout",
+    "listener_anchor",
+    "reference_frame",
+    "sample_rate_hz",
+    "default_duration_seconds",
+    "default_phase_radians",
+    "default_attack_ms",
+    "default_release_ms",
+    "normalize",
+}
+
+_LIBRARY_INTERNAL_KEYS = {
+    "format",
+    "arwif_version",
+    "frequency_unit",
+    "playback_model",
+}
+
 
 def _channel_gains_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
@@ -116,6 +137,8 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
         "arwif_version": metadata.get("arwif_version"),
         "title": metadata.get("title"),
         "description": metadata.get("description"),
+        "metadata": _library_metadata_extras(metadata),
+        "realm_references": _realm_references(metadata),
         "channel_layout": metadata.get("channel_layout"),
         "listener_anchor": _spatial_vector_mapping(metadata.get("listener_anchor")),
         "reference_frame": metadata.get("reference_frame"),
@@ -138,6 +161,32 @@ def inspect_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> d
         "spatial_summary": _spatial_summary(metadata, state_summaries),
         "states": state_summaries,
     }
+
+
+def _library_metadata_extras(metadata: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in metadata.items()
+        if key not in _LIBRARY_SPEC_KEYS and key not in _LIBRARY_INTERNAL_KEYS
+    }
+
+
+def _realm_references(metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_references = _library_metadata_extras(metadata).get("related_realms")
+    if raw_references is None:
+        raw_references = _library_metadata_extras(metadata).get("realm_references")
+    if not isinstance(raw_references, list):
+        return []
+
+    references: list[dict[str, Any]] = []
+    for entry in raw_references:
+        if not isinstance(entry, dict):
+            continue
+        realm = entry.get("realm")
+        if not isinstance(realm, str) or not realm:
+            continue
+        references.append(dict(entry))
+    return references
 
 
 def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, Any]]) -> dict[str, Any]:

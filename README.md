@@ -230,7 +230,7 @@ The current ARWIF toolchain now spans two early spatial layers:
 - Level 1 channel-aware metadata via top-level `channel_layout` plus per-state `channel_gains`, which the reference renderer can emit as multichannel WAV for supported layouts
 - an initial Level 2 object-metadata slice via top-level `listener_anchor` and `reference_frame` plus per-state `source_id`, `source_groups`, `position`, `trajectory`, `orientation`, `spread`, and `distance_model`, which the current toolchain validates, preserves, inspects, diffs, and summarizes through batch review
 
-`rwif arwif-inspect` and `rwif arwif-diff` now also expose compact spatial summaries so channel-aware and initial object-spatial revisions can be reviewed at a glance instead of only through raw metadata blocks.
+`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware and initial object-spatial revisions can be reviewed at a glance instead of only through raw metadata blocks.
 
 Reference example:
 
@@ -239,7 +239,7 @@ rwif arwif-inspect dist/CEG_v0_1.arwif --json
 rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 ```
 
-Those JSON payloads now include declared channel layout, active channel usage, listener anchors, reference-frame semantics, stable source ids, source-group summaries, positioned-state and trajectory counts, trajectory keyframe totals, spread and distance-model summaries, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
+Those JSON payloads now include preserved non-reserved library metadata, derived `realm_references`, declared channel layout, active channel usage, listener anchors, reference-frame semantics, stable source ids, source-group summaries, positioned-state and trajectory counts, trajectory keyframe totals, spread and distance-model summaries, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
 
 ## On-Disk Contract
 

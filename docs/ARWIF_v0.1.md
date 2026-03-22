@@ -218,6 +218,8 @@ rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 
 For strict ARWIF `v0.1` artifacts produced by the reference builder, the exported spec is intended to round-trip without changing playback metadata, state ordering, or oscillator-bank contents.
 
+The current inspection path also reports preserved non-reserved top-level `metadata` plus a normalized `realm_references` view derived from `metadata.related_realms` or `metadata.realm_references`, so ARWIF artifacts can expose clean outward pointers to neighboring `RWIF`, `VRWIF`, or future realms without treating those bridges as first-class playback fields.
+
 The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor and reference frame when present, how many states carry stable source identity, which source groups appear overall, how many states carry positioned, trajectory, or oriented object metadata, how many trajectory keyframes are present overall, how many states declare spread, and which distance models appear in the artifact.
 
 The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so both channel-aware and initial object-metadata revisions can be reviewed without reading the entire per-state metadata diff.

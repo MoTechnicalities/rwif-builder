@@ -396,6 +396,56 @@ states:
             self.assertEqual(diff_payload["change_summary"]["removed_states"], 0)
             self.assertEqual(diff_payload["change_summary"]["changed_states"], 0)
 
+    def test_arwif_inspect_exposes_metadata_and_realm_references(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            spec_path = tmp_dir / "realm-links.yaml"
+            artifact_path = tmp_dir / "realm-links.arwif"
+
+            spec_path.write_text(
+                """
+title: Realm-linked motif
+sample_rate_hz: 8000
+default_duration_seconds: 0.25
+metadata:
+  motif_family: ambient
+  related_realms:
+    - realm: rwif
+      role: semantic_memory
+      artifact: memory/demo.rwif
+    - realm: vrwif
+      role: scene
+      spec: scenes/demo.yaml
+states:
+  - label: intro
+    oscillators:
+      - hz: 261
+        amplitude: 0.8
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(spec_path),
+                "--output",
+                str(artifact_path),
+                "--json",
+            )
+            self.assertTrue(build_payload["is_valid"], build_payload)
+
+            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+            self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+            self.assertEqual(inspect_payload["metadata"]["motif_family"], "ambient")
+            self.assertEqual(len(inspect_payload["realm_references"]), 2)
+            self.assertEqual(inspect_payload["realm_references"][0]["realm"], "rwif")
+            self.assertEqual(inspect_payload["realm_references"][1]["realm"], "vrwif")
+            self.assertEqual(inspect_payload["realm_references"][0]["artifact"], "memory/demo.rwif")
+
     def test_arwif_spatial_commands_do_not_crash_on_invalid_channel_gains(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

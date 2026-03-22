@@ -151,7 +151,7 @@ An optional `--output` path can persist that aggregated report as `.json`, `.yam
 
 Summarizes an ARWIF artifact in ARWIF-native terms.
 
-Current implementation: reports playback metadata, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering the declared layout, active channels, and how many states carry explicit channel gains.
+Current implementation: reports playback metadata, preserved non-reserved library `metadata`, derived `realm_references`, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering the declared layout, active channels, and how many states carry explicit channel gains.
 
 ### `rwif arwif-diff`
 

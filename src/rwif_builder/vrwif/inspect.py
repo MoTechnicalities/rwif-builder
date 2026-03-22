@@ -110,6 +110,30 @@ def _lighting_summaries(lighting_document: Any) -> list[dict[str, Any]]:
     return summaries
 
 
+def _document_metadata(document: dict[str, Any]) -> dict[str, Any]:
+    metadata = document.get("metadata")
+    return dict(metadata) if isinstance(metadata, dict) else {}
+
+
+def _realm_references(document: dict[str, Any]) -> list[dict[str, Any]]:
+    metadata = _document_metadata(document)
+    raw_references = metadata.get("related_realms")
+    if raw_references is None:
+        raw_references = metadata.get("realm_references")
+    if not isinstance(raw_references, list):
+        return []
+
+    references: list[dict[str, Any]] = []
+    for entry in raw_references:
+        if not isinstance(entry, dict):
+            continue
+        realm = entry.get("realm")
+        if not isinstance(realm, str) or not realm:
+            continue
+        references.append(dict(entry))
+    return references
+
+
 def _scene_summary(
     document: dict[str, Any],
     object_summaries: list[dict[str, Any]],
@@ -170,6 +194,8 @@ def inspect_vrwif_spec(path: str | Path) -> dict[str, Any]:
         "reference_frame": document.get("reference_frame"),
         "title": document.get("title"),
         "description": document.get("description"),
+        "metadata": _document_metadata(document),
+        "realm_references": _realm_references(document),
         "object_count": len(object_summaries),
         "scene_summary": _scene_summary(document, object_summaries, camera_summary, lighting_summaries),
         "objects": object_summaries,

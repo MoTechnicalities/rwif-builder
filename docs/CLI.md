@@ -171,6 +171,72 @@ Renders an ARWIF artifact to 16-bit PCM WAV.
 
 Current implementation: interprets each state as a sequential oscillator-bank segment, applies a simple attack/release envelope, projects states across channels when `channel_layout` and `channel_gains` are present, and optionally normalizes the rendered waveform.
 
+### `rwif vrwif-validate-spec`
+
+Validates a VRWIF source spec.
+
+Current implementation: checks scene identity, reference-frame semantics, object, camera, and lighting structures, top-level and per-entity metadata mappings, and trajectory ordering without writing any artifacts.
+
+### `rwif vrwif-normalize`
+
+Normalizes a VRWIF source spec into a canonical strict source document.
+
+Current implementation: rewrites a source spec into a deterministic ordering, can emit a normalization report and an assumptions manifest, and validates the normalized document before writing it.
+
+### `rwif vrwif-batch-normalize`
+
+Normalizes multiple VRWIF source specs.
+
+Current implementation: accepts one or more source specs, writes normalized specs into `--output-dir`, can optionally emit per-spec normalization reports and assumptions manifests, and returns an aggregated result payload with collection-level counts.
+
+### `rwif vrwif-batch-normalize-analyze`
+
+Analyzes a saved VRWIF batch normalization report.
+
+Current implementation: aggregates recurring normalization actions and warning patterns from a previously saved batch-normalization payload, and can optionally persist the analysis as `.json`, `.yaml`, or `.yml`.
+
+### `rwif vrwif-batch-normalize-review`
+
+Runs VRWIF batch normalization and normalization analysis in one command.
+
+Current implementation: combines the `vrwif-batch-normalize` and `vrwif-batch-normalize-analyze` workflows into one persisted review payload.
+
+### `rwif vrwif-inspect`
+
+Summarizes a VRWIF source spec in VRWIF-native terms.
+
+Current implementation: reports scene identity, preserved top-level `metadata`, derived `realm_references`, object, camera, and lighting summaries, and a compact `scene_summary` covering grouping, trajectory, camera, and lighting presence.
+
+### `rwif vrwif-batch-inspect`
+
+Inspects multiple VRWIF source specs.
+
+Current implementation: reuses the same inspection path as `vrwif-inspect`, returning per-spec inspection payloads plus collection-level counts for valid specs, total objects, total lights, and scenes carrying cameras.
+
+### `rwif vrwif-diff`
+
+Compares two VRWIF source specs.
+
+Current implementation: reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting identity churn.
+
+### `rwif vrwif-batch-diff`
+
+Compares multiple VRWIF source spec pairs.
+
+Current implementation: accepts explicit pairwise `--left` and `--right` collections of equal length, reuses the same comparison path as `vrwif-diff`, and returns an aggregated diff payload with collection-level change counts.
+
+### `rwif vrwif-batch-diff-analyze`
+
+Analyzes a saved VRWIF batch diff report.
+
+Current implementation: aggregates recurring metadata, object, and scene-level changes across all compared pairs, and can optionally persist the analysis result as `.json`, `.yaml`, or `.yml`.
+
+### `rwif vrwif-batch-review`
+
+Runs VRWIF batch diff and recurring-change analysis together.
+
+Current implementation: combines the `vrwif-batch-diff` and `vrwif-batch-diff-analyze` workflows into one persisted review payload.
+
 ## Output Rules
 
 - human-readable by default

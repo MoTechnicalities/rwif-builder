@@ -177,6 +177,8 @@ The current normalization path also:
 - can emit a persisted normalization report containing source validation, normalized validation, the change summary, and the canonicalized document
 - can emit a smaller assumptions manifest focused on the authoring decisions and warnings produced during canonicalization
 
+The current inspection path reports preserved top-level `metadata` plus a normalized `realm_references` view derived from `metadata.related_realms` or `metadata.realm_references`, so VRWIF source specs can expose clean outward pointers to neighboring `RWIF`, `ARWIF`, or future realms without collapsing those bridge links into scene geometry itself.
+
 The current inspection path reports compact scene summaries including object ids, object groups, appearance classes, positioned-object counts, trajectory counts, camera presence, and lighting presence.
 
 The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting id changes.

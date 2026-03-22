@@ -157,6 +157,8 @@ See [docs/VISION.md](docs/VISION.md) for the longer-term thesis connecting RWIF 
 
 The first concrete VRWIF surface now covers source-spec validation, normalization, inspection, diff, and higher-level batch review. That keeps the realm narrow while establishing a real schema contract for scene identity, object identity, grouping, camera intent, and lighting intent before build or render tooling exists.
 
+`rwif vrwif-inspect` now also exposes preserved top-level metadata and derived `realm_references`, so VRWIF scene specs can point cleanly to related RWIF or ARWIF artifacts without turning those cross-realm links into first-class scene fields.
+
 Reference example:
 
 ```bash

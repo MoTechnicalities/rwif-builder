@@ -164,6 +164,48 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["scene_summary"]["light_count"], 1)
             self.assertEqual(payload["scene_summary"]["object_groups"], ["background", "foreground"])
 
+    def test_vrwif_inspect_exposes_metadata_and_realm_references(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            spec_path = tmp_dir / "inspect-bridge-scene.yaml"
+            spec_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: bridge.scene",
+                        "reference_frame: scene",
+                        "metadata:",
+                        "  sequence_family: atrium-demo",
+                        "  related_realms:",
+                        "    - realm: rwif",
+                        "      role: semantic_memory",
+                        "      artifact: memory/bridge.rwif",
+                        "    - realm: arwif",
+                        "      role: soundscape",
+                        "      artifact: audio/bridge.arwif",
+                        "objects:",
+                        "  - object_id: bell.source",
+                        "    object_groups:",
+                        "      - foreground",
+                        "    appearance_class: bell",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 1.2",
+                        "      z: 2.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-inspect", str(spec_path), "--json")
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["metadata"]["sequence_family"], "atrium-demo")
+            self.assertEqual(len(payload["realm_references"]), 2)
+            self.assertEqual(payload["realm_references"][0]["realm"], "rwif")
+            self.assertEqual(payload["realm_references"][1]["realm"], "arwif")
+            self.assertEqual(payload["realm_references"][0]["artifact"], "memory/bridge.rwif")
+
     def test_vrwif_diff_reports_scene_and_object_changes(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

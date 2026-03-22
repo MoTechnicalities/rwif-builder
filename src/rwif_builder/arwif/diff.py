@@ -123,6 +123,31 @@ def _listening_zones_mapping(value: Any) -> list[dict[str, Any]]:
     return zones
 
 
+def _speakers_mapping(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    speakers: list[dict[str, Any]] = []
+    for speaker_document in value:
+        if not isinstance(speaker_document, dict):
+            return []
+        speaker_id = speaker_document.get("speaker_id")
+        anchor = _spatial_vector_mapping(speaker_document.get("anchor"))
+        if not isinstance(speaker_id, str) or not speaker_id or not anchor:
+            return []
+        speaker_entry = {
+            "speaker_id": speaker_id,
+            "anchor": anchor,
+        }
+        channel = speaker_document.get("channel")
+        if isinstance(channel, str) and channel:
+            speaker_entry["channel"] = channel
+        role = speaker_document.get("role")
+        if isinstance(role, str) and role:
+            speaker_entry["role"] = role
+        speakers.append(speaker_entry)
+    return speakers
+
+
 def _room_mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
@@ -136,6 +161,9 @@ def _room_mapping(value: Any) -> dict[str, Any]:
     listening_zones = _listening_zones_mapping(value.get("listening_zones"))
     if listening_zones:
         room["listening_zones"] = listening_zones
+    speakers = _speakers_mapping(value.get("speakers"))
+    if speakers:
+        room["speakers"] = speakers
     return room
 
 
@@ -316,6 +344,17 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
             for zone in room.get("listening_zones", [])
             if isinstance(zone, dict) and isinstance(zone.get("zone_id"), str)
         ] if isinstance(room.get("listening_zones"), list) else [],
+        "speaker_count": len(room.get("speakers", [])) if isinstance(room.get("speakers"), list) else 0,
+        "speaker_ids": [
+            speaker.get("speaker_id")
+            for speaker in room.get("speakers", [])
+            if isinstance(speaker, dict) and isinstance(speaker.get("speaker_id"), str)
+        ] if isinstance(room.get("speakers"), list) else [],
+        "speaker_channels": sorted(
+            speaker.get("channel")
+            for speaker in room.get("speakers", [])
+            if isinstance(speaker, dict) and isinstance(speaker.get("channel"), str)
+        ) if isinstance(room.get("speakers"), list) else [],
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
         "positioned_states": positioned_states,
@@ -345,6 +384,9 @@ def _spatial_changes(
         "room_surface_profile_changed": left_summary["room_surface_profile"] != right_summary["room_surface_profile"],
         "listening_zones_changed": left_summary["listening_zone_ids"] != right_summary["listening_zone_ids"],
         "listening_zone_count_delta": right_summary["listening_zone_count"] - left_summary["listening_zone_count"],
+        "speakers_changed": left_summary["speaker_ids"] != right_summary["speaker_ids"],
+        "speaker_count_delta": right_summary["speaker_count"] - left_summary["speaker_count"],
+        "speaker_channels_changed": left_summary["speaker_channels"] != right_summary["speaker_channels"],
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
         "states_with_channel_gains_delta": (

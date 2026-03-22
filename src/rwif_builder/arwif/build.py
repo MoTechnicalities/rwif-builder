@@ -125,6 +125,7 @@ def _require_trajectory(value: Any, context: str, *, max_offset_seconds: float |
 def _require_room(value: Any, context: str) -> dict[str, Any]:
     room_mapping = _require_mapping(value, context)
     room: dict[str, Any] = {}
+    channel_layout = room_mapping.get("channel_layout")
 
     if "dimensions" in room_mapping:
         dimensions_mapping = _require_mapping(room_mapping.get("dimensions"), f"{context}.dimensions")
@@ -159,6 +160,31 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
                 zone_entry["intent"] = intent
             listening_zones.append(zone_entry)
         room["listening_zones"] = listening_zones
+
+    if "speakers" in room_mapping:
+        speakers_document = _require_sequence(room_mapping.get("speakers"), f"{context}.speakers")
+        speakers: list[dict[str, Any]] = []
+        for index, speaker_document in enumerate(speakers_document):
+            speaker_mapping = _require_mapping(speaker_document, f"{context}.speakers[{index}]")
+            speaker_id = speaker_mapping.get("speaker_id")
+            if not isinstance(speaker_id, str) or not speaker_id:
+                raise ValueError(f"{context}.speakers[{index}].speaker_id must be a non-empty string")
+            speaker_entry = {
+                "speaker_id": speaker_id,
+                "anchor": _require_spatial_vector(speaker_mapping.get("anchor"), f"{context}.speakers[{index}].anchor"),
+            }
+            if "channel" in speaker_mapping:
+                channel = speaker_mapping.get("channel")
+                if not isinstance(channel, str) or not channel:
+                    raise ValueError(f"{context}.speakers[{index}].channel must be a non-empty string")
+                speaker_entry["channel"] = channel
+            if "role" in speaker_mapping:
+                role = speaker_mapping.get("role")
+                if not isinstance(role, str) or not role:
+                    raise ValueError(f"{context}.speakers[{index}].role must be a non-empty string")
+                speaker_entry["role"] = role
+            speakers.append(speaker_entry)
+        room["speakers"] = speakers
 
     return room
 
@@ -218,7 +244,11 @@ def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
         metadata["reference_frame"] = reference_frame
 
     if "room" in document:
-        metadata["room"] = _require_room(document["room"], "room")
+        room_document = _require_mapping(document["room"], "room")
+        if channel_layout is not None:
+            room_document = dict(room_document)
+            room_document["channel_layout"] = channel_layout
+        metadata["room"] = _require_room(room_document, "room")
 
     metadata.update(
         {

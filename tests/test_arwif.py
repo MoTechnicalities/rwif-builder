@@ -2394,6 +2394,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "\n".join(
                     [
                         "title: Room aware fixture",
+                        "channel_layout: stereo",
                         "reference_frame: scene",
                         "listener_anchor:",
                         "  x: 0.0",
@@ -2420,6 +2421,21 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "        z: 3.5",
                         "      radius_m: 2.0",
                         "      intent: diffuse",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
                         "sample_rate_hz: 12000",
                         "default_duration_seconds: 0.5",
                         "states:",
@@ -2447,6 +2463,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(spec_payload["stats"]["room_surface_profile"], "reflective")
             self.assertEqual(spec_payload["stats"]["listening_zone_count"], 2)
             self.assertEqual(spec_payload["stats"]["listening_zone_ids"], ["rear-fill", "sweet-spot"])
+            self.assertEqual(spec_payload["stats"]["speaker_count"], 2)
+            self.assertEqual(spec_payload["stats"]["speaker_ids"], ["left-main", "right-main"])
+            self.assertEqual(spec_payload["stats"]["speaker_channels"], ["L", "R"])
 
             build_payload = self._run_json(
                 repo_root,
@@ -2464,10 +2483,15 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(inspect_payload["room"]["surface_profile"], "reflective")
             self.assertEqual(inspect_payload["room"]["dimensions"]["height_m"], 4.5)
             self.assertEqual(inspect_payload["room"]["listening_zones"][0]["zone_id"], "sweet-spot")
+            self.assertEqual(inspect_payload["room"]["speakers"][0]["speaker_id"], "left-main")
+            self.assertEqual(inspect_payload["room"]["speakers"][1]["channel"], "R")
             self.assertTrue(inspect_payload["spatial_summary"]["room_present"])
             self.assertEqual(inspect_payload["spatial_summary"]["room_surface_profile"], "reflective")
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_count"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_ids"], ["sweet-spot", "rear-fill"])
+            self.assertEqual(inspect_payload["spatial_summary"]["speaker_count"], 2)
+            self.assertEqual(inspect_payload["spatial_summary"]["speaker_ids"], ["left-main", "right-main"])
+            self.assertEqual(inspect_payload["spatial_summary"]["speaker_channels"], ["L", "R"])
 
             export_payload = self._run_json(
                 repo_root,
@@ -2482,6 +2506,8 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(exported_document["room"]["dimensions"]["width_m"], 10.0)
             self.assertEqual(exported_document["room"]["surface_profile"], "reflective")
             self.assertEqual(exported_document["room"]["listening_zones"][1]["zone_id"], "rear-fill")
+            self.assertEqual(exported_document["room"]["speakers"][0]["speaker_id"], "left-main")
+            self.assertEqual(exported_document["room"]["speakers"][1]["channel"], "R")
 
             import_payload = self._run_json(
                 repo_root,
@@ -2507,6 +2533,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(diff_payload["spatial_changes"]["room_surface_profile_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
             self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
+            self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_channels_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 0)
 
     def test_arwif_validate_spec_rejects_invalid_trajectory_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -2571,6 +2600,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "\n".join(
                     [
                         "title: Invalid room fixture",
+                        "channel_layout: stereo",
                         "room:",
                         "  dimensions:",
                         "    width_m: -4.0",
@@ -2584,6 +2614,14 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "        y: nope",
                         "        z: 0.0",
                         "      radius_m: 0.0",
+                        "  speakers:",
+                        "    - speaker_id: ''",
+                        "      anchor:",
+                        "        x: left",
+                        "        y: 1.0",
+                        "        z: 0.0",
+                        "      channel: C",
+                        "      role: ''",
                         "sample_rate_hz: 8000",
                         "default_duration_seconds: 0.25",
                         "states:",
@@ -2609,6 +2647,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertIn("room.listening_zones[0].zone_id must be a non-empty string", spec_payload["errors"])
             self.assertIn("room.listening_zones[0].anchor.y must be a finite number", spec_payload["errors"])
             self.assertIn("room.listening_zones[0].radius_m must be a positive finite number", spec_payload["errors"])
+            self.assertIn("room.speakers[0].speaker_id must be a non-empty string", spec_payload["errors"])
+            self.assertIn("room.speakers[0].anchor.x must be a finite number", spec_payload["errors"])
+            self.assertIn("room.speakers[0].channel must be one of: L, R", spec_payload["errors"])
+            self.assertIn("room.speakers[0].role must be a non-empty string", spec_payload["errors"])
 
     def test_arwif_batch_diff_analyze_tracks_trajectory_changes(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -2735,12 +2777,21 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "arwif_version": 1,
                         "frequency_unit": "hz",
                         "playback_model": "continuous_oscillator_bank",
+                        "channel_layout": "stereo",
                         "sample_rate_hz": 8000,
                         "default_duration_seconds": 0.25,
                         "title": "Room left",
                         "room": {
                             "dimensions": {"width_m": 8.0, "depth_m": 10.0, "height_m": 3.5},
                             "surface_profile": "dry",
+                            "speakers": [
+                                {
+                                    "speaker_id": "left-main",
+                                    "anchor": {"x": -2.0, "y": 1.2, "z": 2.0},
+                                    "channel": "L",
+                                    "role": "main",
+                                }
+                            ],
                             "listening_zones": [
                                 {
                                     "zone_id": "sweet-spot",
@@ -2770,12 +2821,27 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "arwif_version": 1,
                         "frequency_unit": "hz",
                         "playback_model": "continuous_oscillator_bank",
+                        "channel_layout": "stereo",
                         "sample_rate_hz": 8000,
                         "default_duration_seconds": 0.25,
                         "title": "Room right",
                         "room": {
                             "dimensions": {"width_m": 12.0, "depth_m": 15.0, "height_m": 5.0},
                             "surface_profile": "reflective",
+                            "speakers": [
+                                {
+                                    "speaker_id": "left-main",
+                                    "anchor": {"x": -2.5, "y": 1.2, "z": 2.5},
+                                    "channel": "L",
+                                    "role": "main",
+                                },
+                                {
+                                    "speaker_id": "right-main",
+                                    "anchor": {"x": 2.5, "y": 1.2, "z": 2.5},
+                                    "channel": "R",
+                                    "role": "main",
+                                },
+                            ],
                             "listening_zones": [
                                 {
                                     "zone_id": "sweet-spot",
@@ -2815,6 +2881,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speakers_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_channels_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_count_delta"], 1)
 
     def test_arwif_validate_spec_rejects_invalid_object_spatial_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

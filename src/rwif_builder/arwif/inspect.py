@@ -144,6 +144,9 @@ def _speakers_mapping(value: Any) -> list[dict[str, Any]]:
         role = speaker_document.get("role")
         if isinstance(role, str) and role:
             speaker_entry["role"] = role
+        coverage_intent = speaker_document.get("coverage_intent")
+        if isinstance(coverage_intent, str) and coverage_intent:
+            speaker_entry["coverage_intent"] = coverage_intent
         speakers.append(speaker_entry)
     return speakers
 
@@ -382,6 +385,13 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
             speaker.get("channel")
             for speaker in room.get("speakers", [])
             if isinstance(speaker, dict) and isinstance(speaker.get("channel"), str)
+        ) if isinstance(room.get("speakers"), list) else [],
+        "speaker_coverage_intents": sorted(
+            {
+                speaker.get("coverage_intent")
+                for speaker in room.get("speakers", [])
+                if isinstance(speaker, dict) and isinstance(speaker.get("coverage_intent"), str)
+            }
         ) if isinstance(room.get("speakers"), list) else [],
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,

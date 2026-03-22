@@ -26,6 +26,7 @@ ROOM_SURFACE_PROFILES = ("dry", "damped", "neutral", "reflective", "diffuse")
 ROOM_ABSORPTION_CLASSES = ("low", "balanced", "high")
 ROOM_DIFFUSION_CLASSES = ("focused", "balanced", "scattered")
 ROOM_GEOMETRY_CLASSES = ("shoebox", "fan", "arena", "corridor", "irregular")
+ROOM_SPEAKER_COVERAGE_INTENTS = ("focused", "balanced", "wide", "ambient")
 ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
 ROOM_REFLECTION_STYLES = ("direct", "balanced", "enveloping")
 ROOM_EARLY_REFLECTION_CLASSES = ("reduced", "natural", "emphasized")
@@ -434,7 +435,7 @@ def _validate_room_document(
                 if not isinstance(speaker_document, dict):
                     errors.append(f"{speaker_context} must be a mapping")
                     continue
-                allowed_speaker_keys = {"speaker_id", "anchor", "channel", "role"}
+                allowed_speaker_keys = {"speaker_id", "anchor", "channel", "role", "coverage_intent"}
                 unknown_speaker_keys = sorted(key for key in speaker_document if key not in allowed_speaker_keys)
                 if unknown_speaker_keys:
                     warnings.append(
@@ -462,6 +463,14 @@ def _validate_room_document(
                 role = speaker_document.get("role")
                 if role is not None and (not isinstance(role, str) or not role):
                     errors.append(f"{speaker_context}.role must be a non-empty string")
+                coverage_intent = speaker_document.get("coverage_intent")
+                if coverage_intent is not None:
+                    if not isinstance(coverage_intent, str):
+                        errors.append(f"{speaker_context}.coverage_intent must be a string")
+                    elif coverage_intent not in ROOM_SPEAKER_COVERAGE_INTENTS:
+                        errors.append(
+                            f"{speaker_context}.coverage_intent must be one of: " + ", ".join(ROOM_SPEAKER_COVERAGE_INTENTS)
+                        )
 
 
 def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
@@ -859,6 +868,7 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     stats["listening_zone_ids"] = sorted(listening_zone_ids)
     speaker_ids = []
     speaker_channels: set[str] = set()
+    speaker_coverage_intents: set[str] = set()
     if room_document and isinstance(room_document.get("speakers"), list):
         speaker_ids = [
             speaker_document["speaker_id"]
@@ -874,9 +884,17 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
             and isinstance(speaker_document.get("channel"), str)
             and speaker_document.get("channel")
         )
+        speaker_coverage_intents.update(
+            str(speaker_document["coverage_intent"])
+            for speaker_document in room_document["speakers"]
+            if isinstance(speaker_document, dict)
+            and isinstance(speaker_document.get("coverage_intent"), str)
+            and speaker_document.get("coverage_intent")
+        )
     stats["speaker_count"] = len(speaker_ids)
     stats["speaker_ids"] = sorted(speaker_ids)
     stats["speaker_channels"] = sorted(speaker_channels)
+    stats["speaker_coverage_intents"] = sorted(speaker_coverage_intents)
     stats["states_with_source_id"] = states_with_source_id
     stats["source_groups"] = sorted(source_groups)
     stats["positioned_state_count"] = positioned_state_count
@@ -1204,6 +1222,7 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["listening_zone_ids"] = sorted(listening_zone_ids)
     speaker_ids = []
     speaker_channels: set[str] = set()
+    speaker_coverage_intents: set[str] = set()
     if isinstance(room, dict) and isinstance(room.get("speakers"), list):
         speaker_ids = [
             speaker_document["speaker_id"]
@@ -1219,9 +1238,17 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             and isinstance(speaker_document.get("channel"), str)
             and speaker_document.get("channel")
         )
+        speaker_coverage_intents.update(
+            str(speaker_document["coverage_intent"])
+            for speaker_document in room["speakers"]
+            if isinstance(speaker_document, dict)
+            and isinstance(speaker_document.get("coverage_intent"), str)
+            and speaker_document.get("coverage_intent")
+        )
     stats["speaker_count"] = len(speaker_ids)
     stats["speaker_ids"] = sorted(speaker_ids)
     stats["speaker_channels"] = sorted(speaker_channels)
+    stats["speaker_coverage_intents"] = sorted(speaker_coverage_intents)
 
     if len(library.states) == 0:
         errors.append("ARWIF artifact must contain at least one state")

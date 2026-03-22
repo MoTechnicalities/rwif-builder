@@ -42,6 +42,7 @@ room:
         z: 2.5
       channel: L
       role: main
+      coverage_intent: wide
     - speaker_id: right-main
       anchor:
         x: 2.5
@@ -49,6 +50,7 @@ room:
         z: 2.5
       channel: R
       role: main
+      coverage_intent: wide
 sample_rate_hz: 12000
 default_duration_seconds: 0.5
 states:

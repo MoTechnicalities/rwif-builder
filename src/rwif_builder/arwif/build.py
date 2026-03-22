@@ -27,6 +27,7 @@ from .validation import ROOM_GEOMETRY_CLASSES
 from .validation import ROOM_EARLY_REFLECTION_CLASSES
 from .validation import ROOM_LATE_REVERB_CLASSES
 from .validation import ROOM_RENDER_TARGETS
+from .validation import ROOM_SPEAKER_COVERAGE_INTENTS
 from .validation import ROOM_REFLECTION_STYLES
 from .validation import ROOM_SPATIAL_PRIORITIES
 from .validation import ROOM_SURFACE_PROFILES
@@ -285,6 +286,14 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
                 if not isinstance(role, str) or not role:
                     raise ValueError(f"{context}.speakers[{index}].role must be a non-empty string")
                 speaker_entry["role"] = role
+            if "coverage_intent" in speaker_mapping:
+                coverage_intent = speaker_mapping.get("coverage_intent")
+                if not isinstance(coverage_intent, str) or coverage_intent not in ROOM_SPEAKER_COVERAGE_INTENTS:
+                    raise ValueError(
+                        f"{context}.speakers[{index}].coverage_intent must be one of: "
+                        + ", ".join(ROOM_SPEAKER_COVERAGE_INTENTS)
+                    )
+                speaker_entry["coverage_intent"] = coverage_intent
             speakers.append(speaker_entry)
         room["speakers"] = speakers
 

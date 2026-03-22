@@ -49,7 +49,7 @@ room:
         y: 1.3
         z: 2.5
       channel: R
-      role: main
+      role: surround
       coverage_intent: wide
 sample_rate_hz: 12000
 default_duration_seconds: 0.5

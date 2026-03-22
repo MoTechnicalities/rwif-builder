@@ -732,6 +732,7 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     total_listening_zone_count_delta = 0
     speakers_changed_pairs = 0
     speaker_channels_changed_pairs = 0
+    speaker_roles_changed_pairs = 0
     speaker_coverage_intents_changed_pairs = 0
     speaker_count_delta_pairs = 0
     total_speaker_count_delta = 0
@@ -842,6 +843,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 speakers_changed_pairs += 1
             if bool(spatial_changes.get("speaker_channels_changed", False)):
                 speaker_channels_changed_pairs += 1
+            if bool(spatial_changes.get("speaker_roles_changed", False)):
+                speaker_roles_changed_pairs += 1
             if bool(spatial_changes.get("speaker_coverage_intents_changed", False)):
                 speaker_coverage_intents_changed_pairs += 1
             speaker_count_delta = int(spatial_changes.get("speaker_count_delta", 0) or 0)
@@ -928,6 +931,7 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "total_listening_zone_count_delta": total_listening_zone_count_delta,
             "speakers_changed_pairs": speakers_changed_pairs,
             "speaker_channels_changed_pairs": speaker_channels_changed_pairs,
+            "speaker_roles_changed_pairs": speaker_roles_changed_pairs,
             "speaker_coverage_intents_changed_pairs": speaker_coverage_intents_changed_pairs,
             "pairs_with_speaker_count_delta": speaker_count_delta_pairs,
             "total_speaker_count_delta": total_speaker_count_delta,

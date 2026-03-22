@@ -408,6 +408,13 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
             for speaker in room.get("speakers", [])
             if isinstance(speaker, dict) and isinstance(speaker.get("channel"), str)
         ) if isinstance(room.get("speakers"), list) else [],
+        "speaker_roles": sorted(
+            {
+                speaker.get("role")
+                for speaker in room.get("speakers", [])
+                if isinstance(speaker, dict) and isinstance(speaker.get("role"), str)
+            }
+        ) if isinstance(room.get("speakers"), list) else [],
         "speaker_coverage_intents": sorted(
             {
                 speaker.get("coverage_intent")
@@ -471,6 +478,7 @@ def _spatial_changes(
         "speakers_changed": left_summary["speaker_ids"] != right_summary["speaker_ids"],
         "speaker_count_delta": right_summary["speaker_count"] - left_summary["speaker_count"],
         "speaker_channels_changed": left_summary["speaker_channels"] != right_summary["speaker_channels"],
+        "speaker_roles_changed": left_summary["speaker_roles"] != right_summary["speaker_roles"],
         "speaker_coverage_intents_changed": left_summary["speaker_coverage_intents"] != right_summary["speaker_coverage_intents"],
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],

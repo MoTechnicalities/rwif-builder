@@ -81,6 +81,7 @@ class ARWIFIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_roles_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_coverage_intents_changed_pairs"], 1)
 
     def test_arwif_build_validate_and_render(self) -> None:
@@ -2562,6 +2563,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(spec_payload["stats"]["speaker_count"], 2)
             self.assertEqual(spec_payload["stats"]["speaker_ids"], ["left-main", "right-main"])
             self.assertEqual(spec_payload["stats"]["speaker_channels"], ["L", "R"])
+            self.assertEqual(spec_payload["stats"]["speaker_roles"], ["main"])
             self.assertEqual(spec_payload["stats"]["speaker_coverage_intents"], ["focused"])
 
             build_payload = self._run_json(
@@ -2588,6 +2590,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(inspect_payload["room"]["listening_zones"][0]["zone_id"], "sweet-spot")
             self.assertEqual(inspect_payload["room"]["speakers"][0]["speaker_id"], "left-main")
             self.assertEqual(inspect_payload["room"]["speakers"][1]["channel"], "R")
+            self.assertEqual(inspect_payload["room"]["speakers"][0]["role"], "main")
             self.assertEqual(inspect_payload["room"]["speakers"][0]["coverage_intent"], "focused")
             self.assertTrue(inspect_payload["spatial_summary"]["room_present"])
             self.assertTrue(inspect_payload["spatial_summary"]["geometry_reference_present"])
@@ -2610,6 +2613,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_count"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_ids"], ["left-main", "right-main"])
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_channels"], ["L", "R"])
+            self.assertEqual(inspect_payload["spatial_summary"]["speaker_roles"], ["main"])
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_coverage_intents"], ["focused"])
 
             export_payload = self._run_json(
@@ -2633,6 +2637,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(exported_document["room"]["listening_zones"][1]["zone_id"], "rear-fill")
             self.assertEqual(exported_document["room"]["speakers"][0]["speaker_id"], "left-main")
             self.assertEqual(exported_document["room"]["speakers"][1]["channel"], "R")
+            self.assertEqual(exported_document["room"]["speakers"][0]["role"], "main")
             self.assertEqual(exported_document["room"]["speakers"][0]["coverage_intent"], "focused")
 
             import_payload = self._run_json(
@@ -2675,6 +2680,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["speaker_channels_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_roles_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["speaker_coverage_intents_changed"])
             self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 0)
 
@@ -2776,7 +2782,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "        y: 1.0",
                         "        z: 0.0",
                         "      channel: C",
-                        "      role: ''",
+                        "      role: sidefill",
                         "      coverage_intent: everywhere",
                         "sample_rate_hz: 8000",
                         "default_duration_seconds: 0.25",
@@ -2826,6 +2832,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 spec_payload["errors"],
             )
             self.assertIn(
+                "room.speakers[0].role must be one of: main, surround, height, fill",
+                spec_payload["errors"],
+            )
+            self.assertIn(
                 "room.renderer_adaptation_hints.target_playback must be one of: headphones, stereo_speakers, multichannel_room, portable_device",
                 spec_payload["errors"],
             )
@@ -2843,7 +2853,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertIn("room.speakers[0].speaker_id must be a non-empty string", spec_payload["errors"])
             self.assertIn("room.speakers[0].anchor.x must be a finite number", spec_payload["errors"])
             self.assertIn("room.speakers[0].channel must be one of: L, R", spec_payload["errors"])
-            self.assertIn("room.speakers[0].role must be a non-empty string", spec_payload["errors"])
+            self.assertIn(
+                "room.speakers[0].role must be one of: main, surround, height, fill",
+                spec_payload["errors"],
+            )
             self.assertIn(
                 "room.speakers[0].coverage_intent must be one of: focused, balanced, wide, ambient",
                 spec_payload["errors"],
@@ -3074,7 +3087,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                                     "speaker_id": "right-main",
                                     "anchor": {"x": 2.5, "y": 1.2, "z": 2.5},
                                     "channel": "R",
-                                    "role": "main",
+                                    "role": "surround",
                                     "coverage_intent": "wide",
                                 },
                             ],
@@ -3133,6 +3146,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speakers_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_channels_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_roles_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_coverage_intents_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_count_delta"], 1)

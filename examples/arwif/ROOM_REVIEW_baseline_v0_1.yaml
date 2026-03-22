@@ -11,6 +11,9 @@ room:
     width_m: 10.0
     depth_m: 14.0
     height_m: 4.5
+  geometry_reference:
+    geometry_id: studio.a
+    geometry_class: shoebox
   surface_profile: reflective
   surface_treatment:
     absorption: low

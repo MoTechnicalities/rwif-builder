@@ -115,7 +115,7 @@ Bind spatial audio to an acoustic scene instead of only a source scene.
 
 Current repo status:
 
-- initial support can now preserve validated room-aware context through top-level `room` metadata covering room dimensions, surface profile, surface treatment, reflection policy, renderer adaptation hints, listening zones, and initial speaker placement
+- initial support can now preserve validated room-aware context through top-level `room` metadata covering room dimensions, geometry reference, surface profile, surface treatment, reflection policy, renderer adaptation hints, listening zones, and initial speaker placement
 - inspect, diff, export, and batch review can now summarize those room-aware fields without pretending to solve full room-adaptive rendering
 
 ### Likely Schema Elements

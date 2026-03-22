@@ -23,6 +23,7 @@ from .validation import ROOM_DIMENSION_KEYS
 from .validation import ROOM_ABSORPTION_CLASSES
 from .validation import ROOM_DOWNMIX_POLICIES
 from .validation import ROOM_DIFFUSION_CLASSES
+from .validation import ROOM_GEOMETRY_CLASSES
 from .validation import ROOM_EARLY_REFLECTION_CLASSES
 from .validation import ROOM_LATE_REVERB_CLASSES
 from .validation import ROOM_RENDER_TARGETS
@@ -141,6 +142,23 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
             key: _require_positive_number(dimensions_mapping.get(key), f"{context}.dimensions.{key}")
             for key in ROOM_DIMENSION_KEYS
         }
+
+    if "geometry_reference" in room_mapping:
+        geometry_reference_mapping = _require_mapping(room_mapping.get("geometry_reference"), f"{context}.geometry_reference")
+        geometry_reference: dict[str, Any] = {}
+        if "geometry_id" in geometry_reference_mapping:
+            geometry_id = geometry_reference_mapping.get("geometry_id")
+            if not isinstance(geometry_id, str) or not geometry_id:
+                raise ValueError(f"{context}.geometry_reference.geometry_id must be a non-empty string")
+            geometry_reference["geometry_id"] = geometry_id
+        if "geometry_class" in geometry_reference_mapping:
+            geometry_class = geometry_reference_mapping.get("geometry_class")
+            if not isinstance(geometry_class, str) or geometry_class not in ROOM_GEOMETRY_CLASSES:
+                raise ValueError(
+                    f"{context}.geometry_reference.geometry_class must be one of: " + ", ".join(ROOM_GEOMETRY_CLASSES)
+                )
+            geometry_reference["geometry_class"] = geometry_class
+        room["geometry_reference"] = geometry_reference
 
     if "surface_profile" in room_mapping:
         surface_profile = room_mapping.get("surface_profile")

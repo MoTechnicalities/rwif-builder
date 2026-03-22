@@ -11,6 +11,9 @@ room:
     width_m: 12.0
     depth_m: 14.0
     height_m: 4.5
+  geometry_reference:
+    geometry_id: loft.b
+    geometry_class: irregular
   surface_profile: damped
   surface_treatment:
     absorption: high

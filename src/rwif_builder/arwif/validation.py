@@ -25,6 +25,7 @@ ARWIF_REFERENCE_FRAMES = ("listener", "scene", "world")
 ROOM_SURFACE_PROFILES = ("dry", "damped", "neutral", "reflective", "diffuse")
 ROOM_ABSORPTION_CLASSES = ("low", "balanced", "high")
 ROOM_DIFFUSION_CLASSES = ("focused", "balanced", "scattered")
+ROOM_GEOMETRY_CLASSES = ("shoebox", "fan", "arena", "corridor", "irregular")
 ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
 ROOM_REFLECTION_STYLES = ("direct", "balanced", "enveloping")
 ROOM_EARLY_REFLECTION_CLASSES = ("reduced", "natural", "emphasized")
@@ -228,6 +229,7 @@ def _validate_room_document(
 
     allowed_keys = {
         "dimensions",
+        "geometry_reference",
         "surface_profile",
         "surface_treatment",
         "reflection_policy",
@@ -252,6 +254,29 @@ def _validate_room_document(
             for key in ROOM_DIMENSION_KEYS:
                 if not _is_positive_number(dimensions.get(key)):
                     errors.append(f"{context}.dimensions.{key} must be a positive finite number")
+
+    geometry_reference = value.get("geometry_reference")
+    if geometry_reference is not None:
+        if not isinstance(geometry_reference, dict):
+            errors.append(f"{context}.geometry_reference must be a mapping")
+        else:
+            allowed_geometry_keys = {"geometry_id", "geometry_class"}
+            unknown_geometry_keys = sorted(key for key in geometry_reference if key not in allowed_geometry_keys)
+            if unknown_geometry_keys:
+                warnings.append(
+                    f"{context}.geometry_reference contains unknown fields ignored by the reference builder: {', '.join(unknown_geometry_keys)}"
+                )
+            geometry_id = geometry_reference.get("geometry_id")
+            if geometry_id is not None and (not isinstance(geometry_id, str) or not geometry_id):
+                errors.append(f"{context}.geometry_reference.geometry_id must be a non-empty string")
+            geometry_class = geometry_reference.get("geometry_class")
+            if geometry_class is not None:
+                if not isinstance(geometry_class, str):
+                    errors.append(f"{context}.geometry_reference.geometry_class must be a string")
+                elif geometry_class not in ROOM_GEOMETRY_CLASSES:
+                    errors.append(
+                        f"{context}.geometry_reference.geometry_class must be one of: " + ", ".join(ROOM_GEOMETRY_CLASSES)
+                    )
 
     surface_profile = value.get("surface_profile")
     if surface_profile is not None:
@@ -785,6 +810,15 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     stats["listener_anchor_present"] = isinstance(document.get("listener_anchor"), dict)
     stats["room_present"] = room_document is not None
     stats["room_dimensions_present"] = isinstance(room_document.get("dimensions"), dict) if room_document else False
+    geometry_reference = room_document.get("geometry_reference") if room_document else None
+    stats["geometry_reference_present"] = isinstance(geometry_reference, dict)
+    if isinstance(geometry_reference, dict):
+        geometry_id = geometry_reference.get("geometry_id")
+        geometry_class = geometry_reference.get("geometry_class")
+        if isinstance(geometry_id, str) and geometry_id:
+            stats["room_geometry_id"] = geometry_id
+        if geometry_class in ROOM_GEOMETRY_CLASSES:
+            stats["room_geometry_class"] = geometry_class
     if room_document and room_document.get("surface_profile") in ROOM_SURFACE_PROFILES:
         stats["room_surface_profile"] = room_document["surface_profile"]
     surface_treatment = room_document.get("surface_treatment") if room_document else None
@@ -1121,6 +1155,15 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["listener_anchor_present"] = isinstance(listener_anchor, dict)
     stats["room_present"] = isinstance(room, dict)
     stats["room_dimensions_present"] = isinstance(room.get("dimensions"), dict) if isinstance(room, dict) else False
+    geometry_reference = room.get("geometry_reference") if isinstance(room, dict) else None
+    stats["geometry_reference_present"] = isinstance(geometry_reference, dict)
+    if isinstance(geometry_reference, dict):
+        geometry_id = geometry_reference.get("geometry_id")
+        geometry_class = geometry_reference.get("geometry_class")
+        if isinstance(geometry_id, str) and geometry_id:
+            stats["room_geometry_id"] = geometry_id
+        if geometry_class in ROOM_GEOMETRY_CLASSES:
+            stats["room_geometry_class"] = geometry_class
     if isinstance(room, dict) and room.get("surface_profile") in ROOM_SURFACE_PROFILES:
         stats["room_surface_profile"] = room["surface_profile"]
     surface_treatment = room.get("surface_treatment") if isinstance(room, dict) else None

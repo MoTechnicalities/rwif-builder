@@ -712,6 +712,9 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     reference_frame_changed_pairs = 0
     room_changed_pairs = 0
     room_dimensions_changed_pairs = 0
+    geometry_reference_changed_pairs = 0
+    room_geometry_id_changed_pairs = 0
+    room_geometry_class_changed_pairs = 0
     room_surface_profile_changed_pairs = 0
     surface_treatment_changed_pairs = 0
     room_surface_absorption_changed_pairs = 0
@@ -798,6 +801,12 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 room_changed_pairs += 1
             if bool(spatial_changes.get("room_dimensions_changed", False)):
                 room_dimensions_changed_pairs += 1
+            if bool(spatial_changes.get("geometry_reference_changed", False)):
+                geometry_reference_changed_pairs += 1
+            if bool(spatial_changes.get("room_geometry_id_changed", False)):
+                room_geometry_id_changed_pairs += 1
+            if bool(spatial_changes.get("room_geometry_class_changed", False)):
+                room_geometry_class_changed_pairs += 1
             if bool(spatial_changes.get("room_surface_profile_changed", False)):
                 room_surface_profile_changed_pairs += 1
             if bool(spatial_changes.get("surface_treatment_changed", False)):
@@ -896,6 +905,9 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "reference_frame_changed_pairs": reference_frame_changed_pairs,
             "room_changed_pairs": room_changed_pairs,
             "room_dimensions_changed_pairs": room_dimensions_changed_pairs,
+            "geometry_reference_changed_pairs": geometry_reference_changed_pairs,
+            "room_geometry_id_changed_pairs": room_geometry_id_changed_pairs,
+            "room_geometry_class_changed_pairs": room_geometry_class_changed_pairs,
             "room_surface_profile_changed_pairs": room_surface_profile_changed_pairs,
             "surface_treatment_changed_pairs": surface_treatment_changed_pairs,
             "room_surface_absorption_changed_pairs": room_surface_absorption_changed_pairs,

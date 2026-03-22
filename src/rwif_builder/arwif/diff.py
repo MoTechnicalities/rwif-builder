@@ -155,6 +155,15 @@ def _room_mapping(value: Any) -> dict[str, Any]:
     dimensions = _room_dimensions_mapping(value.get("dimensions"))
     if dimensions:
         room["dimensions"] = dimensions
+    geometry_reference = value.get("geometry_reference")
+    if isinstance(geometry_reference, dict):
+        geometry_reference_mapping = {
+            key: geometry_reference[key]
+            for key in ("geometry_id", "geometry_class")
+            if isinstance(geometry_reference.get(key), str) and geometry_reference.get(key)
+        }
+        if geometry_reference_mapping:
+            room["geometry_reference"] = geometry_reference_mapping
     surface_profile = value.get("surface_profile")
     if isinstance(surface_profile, str) and surface_profile:
         room["surface_profile"] = surface_profile
@@ -364,6 +373,9 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "reference_frame": metadata.get("reference_frame"),
         "room_present": bool(room),
         "room_dimensions": dict(room.get("dimensions", {})) if isinstance(room.get("dimensions"), dict) else {},
+        "geometry_reference_present": isinstance(room.get("geometry_reference"), dict),
+        "room_geometry_id": room.get("geometry_reference", {}).get("geometry_id") if isinstance(room.get("geometry_reference"), dict) else None,
+        "room_geometry_class": room.get("geometry_reference", {}).get("geometry_class") if isinstance(room.get("geometry_reference"), dict) else None,
         "room_surface_profile": room.get("surface_profile"),
         "surface_treatment_present": isinstance(room.get("surface_treatment"), dict),
         "room_surface_absorption": room.get("surface_treatment", {}).get("absorption") if isinstance(room.get("surface_treatment"), dict) else None,
@@ -419,6 +431,11 @@ def _spatial_changes(
         "reference_frame_changed": left_summary["reference_frame"] != right_summary["reference_frame"],
         "room_changed": _room_mapping(left_metadata.get("room")) != _room_mapping(right_metadata.get("room")),
         "room_dimensions_changed": left_summary["room_dimensions"] != right_summary["room_dimensions"],
+        "geometry_reference_changed": left_summary["geometry_reference_present"] != right_summary["geometry_reference_present"]
+        or left_summary["room_geometry_id"] != right_summary["room_geometry_id"]
+        or left_summary["room_geometry_class"] != right_summary["room_geometry_class"],
+        "room_geometry_id_changed": left_summary["room_geometry_id"] != right_summary["room_geometry_id"],
+        "room_geometry_class_changed": left_summary["room_geometry_class"] != right_summary["room_geometry_class"],
         "room_surface_profile_changed": left_summary["room_surface_profile"] != right_summary["room_surface_profile"],
         "surface_treatment_changed": left_summary["surface_treatment_present"] != right_summary["surface_treatment_present"]
         or left_summary["room_surface_absorption"] != right_summary["room_surface_absorption"]

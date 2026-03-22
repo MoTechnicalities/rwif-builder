@@ -20,6 +20,9 @@ from .validation import DEFAULT_RELEASE_MS
 from .validation import DEFAULT_SAMPLE_RATE_HZ
 from .validation import OBJECT_DISTANCE_MODELS
 from .validation import ROOM_DIMENSION_KEYS
+from .validation import ROOM_EARLY_REFLECTION_CLASSES
+from .validation import ROOM_LATE_REVERB_CLASSES
+from .validation import ROOM_REFLECTION_STYLES
 from .validation import ROOM_SURFACE_PROFILES
 from .validation import SPATIAL_VECTOR_AXES
 from .validation import validate_arwif_artifact
@@ -139,6 +142,31 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
         if not isinstance(surface_profile, str) or surface_profile not in ROOM_SURFACE_PROFILES:
             raise ValueError(f"{context}.surface_profile must be one of: " + ", ".join(ROOM_SURFACE_PROFILES))
         room["surface_profile"] = surface_profile
+
+    if "reflection_policy" in room_mapping:
+        reflection_policy_mapping = _require_mapping(room_mapping.get("reflection_policy"), f"{context}.reflection_policy")
+        reflection_policy: dict[str, Any] = {}
+        if "style" in reflection_policy_mapping:
+            style = reflection_policy_mapping.get("style")
+            if not isinstance(style, str) or style not in ROOM_REFLECTION_STYLES:
+                raise ValueError(f"{context}.reflection_policy.style must be one of: " + ", ".join(ROOM_REFLECTION_STYLES))
+            reflection_policy["style"] = style
+        if "early_reflections" in reflection_policy_mapping:
+            early_reflections = reflection_policy_mapping.get("early_reflections")
+            if not isinstance(early_reflections, str) or early_reflections not in ROOM_EARLY_REFLECTION_CLASSES:
+                raise ValueError(
+                    f"{context}.reflection_policy.early_reflections must be one of: "
+                    + ", ".join(ROOM_EARLY_REFLECTION_CLASSES)
+                )
+            reflection_policy["early_reflections"] = early_reflections
+        if "late_reverb" in reflection_policy_mapping:
+            late_reverb = reflection_policy_mapping.get("late_reverb")
+            if not isinstance(late_reverb, str) or late_reverb not in ROOM_LATE_REVERB_CLASSES:
+                raise ValueError(
+                    f"{context}.reflection_policy.late_reverb must be one of: " + ", ".join(ROOM_LATE_REVERB_CLASSES)
+                )
+            reflection_policy["late_reverb"] = late_reverb
+        room["reflection_policy"] = reflection_policy
 
     if "listening_zones" in room_mapping:
         listening_zones_document = _require_sequence(room_mapping.get("listening_zones"), f"{context}.listening_zones")

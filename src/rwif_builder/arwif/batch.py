@@ -713,6 +713,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     room_changed_pairs = 0
     room_dimensions_changed_pairs = 0
     room_surface_profile_changed_pairs = 0
+    reflection_policy_changed_pairs = 0
+    room_reflection_style_changed_pairs = 0
+    room_early_reflections_changed_pairs = 0
+    room_late_reverb_changed_pairs = 0
     listening_zones_changed_pairs = 0
     listening_zone_delta_pairs = 0
     total_listening_zone_count_delta = 0
@@ -789,6 +793,14 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 room_dimensions_changed_pairs += 1
             if bool(spatial_changes.get("room_surface_profile_changed", False)):
                 room_surface_profile_changed_pairs += 1
+            if bool(spatial_changes.get("reflection_policy_changed", False)):
+                reflection_policy_changed_pairs += 1
+            if bool(spatial_changes.get("room_reflection_style_changed", False)):
+                room_reflection_style_changed_pairs += 1
+            if bool(spatial_changes.get("room_early_reflections_changed", False)):
+                room_early_reflections_changed_pairs += 1
+            if bool(spatial_changes.get("room_late_reverb_changed", False)):
+                room_late_reverb_changed_pairs += 1
             if bool(spatial_changes.get("listening_zones_changed", False)):
                 listening_zones_changed_pairs += 1
             listening_zone_count_delta = int(spatial_changes.get("listening_zone_count_delta", 0) or 0)
@@ -864,6 +876,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "room_changed_pairs": room_changed_pairs,
             "room_dimensions_changed_pairs": room_dimensions_changed_pairs,
             "room_surface_profile_changed_pairs": room_surface_profile_changed_pairs,
+            "reflection_policy_changed_pairs": reflection_policy_changed_pairs,
+            "room_reflection_style_changed_pairs": room_reflection_style_changed_pairs,
+            "room_early_reflections_changed_pairs": room_early_reflections_changed_pairs,
+            "room_late_reverb_changed_pairs": room_late_reverb_changed_pairs,
             "listening_zones_changed_pairs": listening_zones_changed_pairs,
             "pairs_with_listening_zone_count_delta": listening_zone_delta_pairs,
             "total_listening_zone_count_delta": total_listening_zone_count_delta,

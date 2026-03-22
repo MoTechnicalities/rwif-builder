@@ -24,6 +24,9 @@ OBJECT_DISTANCE_MODELS = ("none", "inverse", "linear", "exponential")
 ARWIF_REFERENCE_FRAMES = ("listener", "scene", "world")
 ROOM_SURFACE_PROFILES = ("dry", "damped", "neutral", "reflective", "diffuse")
 ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
+ROOM_REFLECTION_STYLES = ("direct", "balanced", "enveloping")
+ROOM_EARLY_REFLECTION_CLASSES = ("reduced", "natural", "emphasized")
+ROOM_LATE_REVERB_CLASSES = ("dry", "controlled", "lush")
 
 CHANNEL_LAYOUT_CHANNELS: dict[str, tuple[str, ...]] = {
     "mono": ("C",),
@@ -218,7 +221,7 @@ def _validate_room_document(
         errors.append(f"{context} must be a mapping")
         return
 
-    allowed_keys = {"dimensions", "surface_profile", "listening_zones", "speakers"}
+    allowed_keys = {"dimensions", "surface_profile", "reflection_policy", "listening_zones", "speakers"}
     unknown_keys = sorted(key for key in value if key not in allowed_keys)
     if unknown_keys:
         warnings.append(f"{context} contains unknown fields ignored by the reference builder: {', '.join(unknown_keys)}")
@@ -243,6 +246,45 @@ def _validate_room_document(
             errors.append(f"{context}.surface_profile must be a string")
         elif surface_profile not in ROOM_SURFACE_PROFILES:
             errors.append(f"{context}.surface_profile must be one of: " + ", ".join(ROOM_SURFACE_PROFILES))
+
+    reflection_policy = value.get("reflection_policy")
+    if reflection_policy is not None:
+        if not isinstance(reflection_policy, dict):
+            errors.append(f"{context}.reflection_policy must be a mapping")
+        else:
+            allowed_reflection_keys = {"style", "early_reflections", "late_reverb"}
+            unknown_reflection_keys = sorted(
+                key for key in reflection_policy if key not in allowed_reflection_keys
+            )
+            if unknown_reflection_keys:
+                warnings.append(
+                    f"{context}.reflection_policy contains unknown fields ignored by the reference builder: {', '.join(unknown_reflection_keys)}"
+                )
+            style = reflection_policy.get("style")
+            if style is not None:
+                if not isinstance(style, str):
+                    errors.append(f"{context}.reflection_policy.style must be a string")
+                elif style not in ROOM_REFLECTION_STYLES:
+                    errors.append(
+                        f"{context}.reflection_policy.style must be one of: " + ", ".join(ROOM_REFLECTION_STYLES)
+                    )
+            early_reflections = reflection_policy.get("early_reflections")
+            if early_reflections is not None:
+                if not isinstance(early_reflections, str):
+                    errors.append(f"{context}.reflection_policy.early_reflections must be a string")
+                elif early_reflections not in ROOM_EARLY_REFLECTION_CLASSES:
+                    errors.append(
+                        f"{context}.reflection_policy.early_reflections must be one of: "
+                        + ", ".join(ROOM_EARLY_REFLECTION_CLASSES)
+                    )
+            late_reverb = reflection_policy.get("late_reverb")
+            if late_reverb is not None:
+                if not isinstance(late_reverb, str):
+                    errors.append(f"{context}.reflection_policy.late_reverb must be a string")
+                elif late_reverb not in ROOM_LATE_REVERB_CLASSES:
+                    errors.append(
+                        f"{context}.reflection_policy.late_reverb must be one of: " + ", ".join(ROOM_LATE_REVERB_CLASSES)
+                    )
 
     listening_zones = value.get("listening_zones")
     if listening_zones is not None:
@@ -665,6 +707,15 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     stats["room_dimensions_present"] = isinstance(room_document.get("dimensions"), dict) if room_document else False
     if room_document and room_document.get("surface_profile") in ROOM_SURFACE_PROFILES:
         stats["room_surface_profile"] = room_document["surface_profile"]
+    reflection_policy = room_document.get("reflection_policy") if room_document else None
+    stats["reflection_policy_present"] = isinstance(reflection_policy, dict)
+    if isinstance(reflection_policy, dict):
+        if reflection_policy.get("style") in ROOM_REFLECTION_STYLES:
+            stats["room_reflection_style"] = reflection_policy["style"]
+        if reflection_policy.get("early_reflections") in ROOM_EARLY_REFLECTION_CLASSES:
+            stats["room_early_reflections"] = reflection_policy["early_reflections"]
+        if reflection_policy.get("late_reverb") in ROOM_LATE_REVERB_CLASSES:
+            stats["room_late_reverb"] = reflection_policy["late_reverb"]
     listening_zone_ids = []
     if room_document and isinstance(room_document.get("listening_zones"), list):
         listening_zone_ids = [
@@ -976,6 +1027,15 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     stats["room_dimensions_present"] = isinstance(room.get("dimensions"), dict) if isinstance(room, dict) else False
     if isinstance(room, dict) and room.get("surface_profile") in ROOM_SURFACE_PROFILES:
         stats["room_surface_profile"] = room["surface_profile"]
+    reflection_policy = room.get("reflection_policy") if isinstance(room, dict) else None
+    stats["reflection_policy_present"] = isinstance(reflection_policy, dict)
+    if isinstance(reflection_policy, dict):
+        if reflection_policy.get("style") in ROOM_REFLECTION_STYLES:
+            stats["room_reflection_style"] = reflection_policy["style"]
+        if reflection_policy.get("early_reflections") in ROOM_EARLY_REFLECTION_CLASSES:
+            stats["room_early_reflections"] = reflection_policy["early_reflections"]
+        if reflection_policy.get("late_reverb") in ROOM_LATE_REVERB_CLASSES:
+            stats["room_late_reverb"] = reflection_policy["late_reverb"]
     listening_zone_ids = []
     if isinstance(room, dict) and isinstance(room.get("listening_zones"), list):
         listening_zone_ids = [

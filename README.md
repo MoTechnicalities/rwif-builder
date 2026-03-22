@@ -231,9 +231,9 @@ The current ARWIF toolchain now spans three early spatial layers:
 
 - Level 1 channel-aware metadata via top-level `channel_layout` plus per-state `channel_gains`, which the reference renderer can emit as multichannel WAV for supported layouts
 - an initial Level 2 object-metadata slice via top-level `listener_anchor` and `reference_frame` plus per-state `source_id`, `source_groups`, `position`, `trajectory`, `orientation`, `spread`, and `distance_model`, which the current toolchain validates, preserves, inspects, diffs, and summarizes through batch review
-- an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, surface profile, listening zones, and speaker placement, which the current toolchain validates, preserves, inspects, diffs, exports, and summarizes through batch review
+- an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, surface profile, reflection policy, listening zones, and speaker placement, which the current toolchain validates, preserves, inspects, diffs, exports, and summarizes through batch review
 
-`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware, object-spatial, and initial room-aware revisions including listening zones and speaker placement can be reviewed at a glance instead of only through raw metadata blocks.
+`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware, object-spatial, and initial room-aware revisions including reflection policy, listening zones, and speaker placement can be reviewed at a glance instead of only through raw metadata blocks.
 
 Reference example:
 

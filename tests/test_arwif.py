@@ -2406,6 +2406,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "    depth_m: 14.0",
                         "    height_m: 4.5",
                         "  surface_profile: reflective",
+                        "  reflection_policy:",
+                        "    style: balanced",
+                        "    early_reflections: natural",
+                        "    late_reverb: controlled",
                         "  listening_zones:",
                         "    - zone_id: sweet-spot",
                         "      anchor:",
@@ -2461,6 +2465,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertTrue(spec_payload["stats"]["room_present"])
             self.assertTrue(spec_payload["stats"]["room_dimensions_present"])
             self.assertEqual(spec_payload["stats"]["room_surface_profile"], "reflective")
+            self.assertTrue(spec_payload["stats"]["reflection_policy_present"])
+            self.assertEqual(spec_payload["stats"]["room_reflection_style"], "balanced")
+            self.assertEqual(spec_payload["stats"]["room_early_reflections"], "natural")
+            self.assertEqual(spec_payload["stats"]["room_late_reverb"], "controlled")
             self.assertEqual(spec_payload["stats"]["listening_zone_count"], 2)
             self.assertEqual(spec_payload["stats"]["listening_zone_ids"], ["rear-fill", "sweet-spot"])
             self.assertEqual(spec_payload["stats"]["speaker_count"], 2)
@@ -2481,12 +2489,17 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
             self.assertTrue(inspect_payload["is_valid"], inspect_payload)
             self.assertEqual(inspect_payload["room"]["surface_profile"], "reflective")
+            self.assertEqual(inspect_payload["room"]["reflection_policy"]["style"], "balanced")
             self.assertEqual(inspect_payload["room"]["dimensions"]["height_m"], 4.5)
             self.assertEqual(inspect_payload["room"]["listening_zones"][0]["zone_id"], "sweet-spot")
             self.assertEqual(inspect_payload["room"]["speakers"][0]["speaker_id"], "left-main")
             self.assertEqual(inspect_payload["room"]["speakers"][1]["channel"], "R")
             self.assertTrue(inspect_payload["spatial_summary"]["room_present"])
             self.assertEqual(inspect_payload["spatial_summary"]["room_surface_profile"], "reflective")
+            self.assertTrue(inspect_payload["spatial_summary"]["reflection_policy_present"])
+            self.assertEqual(inspect_payload["spatial_summary"]["room_reflection_style"], "balanced")
+            self.assertEqual(inspect_payload["spatial_summary"]["room_early_reflections"], "natural")
+            self.assertEqual(inspect_payload["spatial_summary"]["room_late_reverb"], "controlled")
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_count"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_ids"], ["sweet-spot", "rear-fill"])
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_count"], 2)
@@ -2505,6 +2518,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
             self.assertEqual(exported_document["room"]["dimensions"]["width_m"], 10.0)
             self.assertEqual(exported_document["room"]["surface_profile"], "reflective")
+            self.assertEqual(exported_document["room"]["reflection_policy"]["late_reverb"], "controlled")
             self.assertEqual(exported_document["room"]["listening_zones"][1]["zone_id"], "rear-fill")
             self.assertEqual(exported_document["room"]["speakers"][0]["speaker_id"], "left-main")
             self.assertEqual(exported_document["room"]["speakers"][1]["channel"], "R")
@@ -2531,6 +2545,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(diff_payload["spatial_changes"]["room_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_dimensions_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_surface_profile_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["reflection_policy_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_reflection_style_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_early_reflections_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_late_reverb_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
             self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
@@ -2607,6 +2625,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "    depth_m: nope",
                         "    height_m: 0.0",
                         "  surface_profile: cathedral",
+                        "  reflection_policy:",
+                        "    style: huge",
+                        "    early_reflections: metallic",
+                        "    late_reverb: endless",
                         "  listening_zones:",
                         "    - zone_id: ''",
                         "      anchor:",
@@ -2642,6 +2664,18 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertIn("room.dimensions.height_m must be a positive finite number", spec_payload["errors"])
             self.assertIn(
                 "room.surface_profile must be one of: dry, damped, neutral, reflective, diffuse",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.reflection_policy.style must be one of: direct, balanced, enveloping",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.reflection_policy.early_reflections must be one of: reduced, natural, emphasized",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.reflection_policy.late_reverb must be one of: dry, controlled, lush",
                 spec_payload["errors"],
             )
             self.assertIn("room.listening_zones[0].zone_id must be a non-empty string", spec_payload["errors"])
@@ -2784,6 +2818,11 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "room": {
                             "dimensions": {"width_m": 8.0, "depth_m": 10.0, "height_m": 3.5},
                             "surface_profile": "dry",
+                            "reflection_policy": {
+                                "style": "direct",
+                                "early_reflections": "reduced",
+                                "late_reverb": "dry",
+                            },
                             "speakers": [
                                 {
                                     "speaker_id": "left-main",
@@ -2828,6 +2867,11 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "room": {
                             "dimensions": {"width_m": 12.0, "depth_m": 15.0, "height_m": 5.0},
                             "surface_profile": "reflective",
+                            "reflection_policy": {
+                                "style": "enveloping",
+                                "early_reflections": "emphasized",
+                                "late_reverb": "lush",
+                            },
                             "speakers": [
                                 {
                                     "speaker_id": "left-main",
@@ -2878,6 +2922,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_dimensions_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_profile_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_reflection_style_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_early_reflections_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_late_reverb_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)

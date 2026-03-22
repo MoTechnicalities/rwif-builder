@@ -158,6 +158,15 @@ def _room_mapping(value: Any) -> dict[str, Any]:
     surface_profile = value.get("surface_profile")
     if isinstance(surface_profile, str) and surface_profile:
         room["surface_profile"] = surface_profile
+    reflection_policy = value.get("reflection_policy")
+    if isinstance(reflection_policy, dict):
+        reflection_policy_mapping = {
+            key: reflection_policy[key]
+            for key in ("style", "early_reflections", "late_reverb")
+            if isinstance(reflection_policy.get(key), str) and reflection_policy.get(key)
+        }
+        if reflection_policy_mapping:
+            room["reflection_policy"] = reflection_policy_mapping
     listening_zones = _listening_zones_mapping(value.get("listening_zones"))
     if listening_zones:
         room["listening_zones"] = listening_zones
@@ -338,6 +347,10 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "room_present": bool(room),
         "room_dimensions": dict(room.get("dimensions", {})) if isinstance(room.get("dimensions"), dict) else {},
         "room_surface_profile": room.get("surface_profile"),
+        "reflection_policy_present": isinstance(room.get("reflection_policy"), dict),
+        "room_reflection_style": room.get("reflection_policy", {}).get("style") if isinstance(room.get("reflection_policy"), dict) else None,
+        "room_early_reflections": room.get("reflection_policy", {}).get("early_reflections") if isinstance(room.get("reflection_policy"), dict) else None,
+        "room_late_reverb": room.get("reflection_policy", {}).get("late_reverb") if isinstance(room.get("reflection_policy"), dict) else None,
         "listening_zone_count": len(room.get("listening_zones", [])) if isinstance(room.get("listening_zones"), list) else 0,
         "listening_zone_ids": [
             zone.get("zone_id")
@@ -382,6 +395,13 @@ def _spatial_changes(
         "room_changed": _room_mapping(left_metadata.get("room")) != _room_mapping(right_metadata.get("room")),
         "room_dimensions_changed": left_summary["room_dimensions"] != right_summary["room_dimensions"],
         "room_surface_profile_changed": left_summary["room_surface_profile"] != right_summary["room_surface_profile"],
+        "reflection_policy_changed": left_summary["reflection_policy_present"] != right_summary["reflection_policy_present"]
+        or left_summary["room_reflection_style"] != right_summary["room_reflection_style"]
+        or left_summary["room_early_reflections"] != right_summary["room_early_reflections"]
+        or left_summary["room_late_reverb"] != right_summary["room_late_reverb"],
+        "room_reflection_style_changed": left_summary["room_reflection_style"] != right_summary["room_reflection_style"],
+        "room_early_reflections_changed": left_summary["room_early_reflections"] != right_summary["room_early_reflections"],
+        "room_late_reverb_changed": left_summary["room_late_reverb"] != right_summary["room_late_reverb"],
         "listening_zones_changed": left_summary["listening_zone_ids"] != right_summary["listening_zone_ids"],
         "listening_zone_count_delta": right_summary["listening_zone_count"] - left_summary["listening_zone_count"],
         "speakers_changed": left_summary["speaker_ids"] != right_summary["speaker_ids"],

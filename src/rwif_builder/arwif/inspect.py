@@ -158,6 +158,15 @@ def _room_mapping(value: Any) -> dict[str, Any]:
     surface_profile = value.get("surface_profile")
     if isinstance(surface_profile, str) and surface_profile:
         room["surface_profile"] = surface_profile
+    reflection_policy = value.get("reflection_policy")
+    if isinstance(reflection_policy, dict):
+        reflection_policy_mapping = {
+            key: reflection_policy[key]
+            for key in ("style", "early_reflections", "late_reverb")
+            if isinstance(reflection_policy.get(key), str) and reflection_policy.get(key)
+        }
+        if reflection_policy_mapping:
+            room["reflection_policy"] = reflection_policy_mapping
     listening_zones = _listening_zones_mapping(value.get("listening_zones"))
     if listening_zones:
         room["listening_zones"] = listening_zones
@@ -316,6 +325,10 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
         "room_present": bool(room),
         "room_dimensions": dict(room.get("dimensions", {})) if isinstance(room.get("dimensions"), dict) else {},
         "room_surface_profile": room.get("surface_profile"),
+        "reflection_policy_present": isinstance(room.get("reflection_policy"), dict),
+        "room_reflection_style": room.get("reflection_policy", {}).get("style") if isinstance(room.get("reflection_policy"), dict) else None,
+        "room_early_reflections": room.get("reflection_policy", {}).get("early_reflections") if isinstance(room.get("reflection_policy"), dict) else None,
+        "room_late_reverb": room.get("reflection_policy", {}).get("late_reverb") if isinstance(room.get("reflection_policy"), dict) else None,
         "listening_zone_count": len(room.get("listening_zones", [])) if isinstance(room.get("listening_zones"), list) else 0,
         "listening_zone_ids": [
             zone.get("zone_id")

@@ -239,6 +239,8 @@ The current inspection path also reports a compact `spatial_summary` that identi
 
 The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so channel-aware, object-based, and initial room-aware revisions can be reviewed without reading the entire per-state metadata diff.
 
+For a concrete room-aware review workflow, the shipped example pair `examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml` and `examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml` is designed to exercise the current Level 3 batch-review surface end to end.
+
 ## Legacy Prototype Files
 
 Pre-spec ARWIF prototype files may omit the strict metadata fields while still reusing the `RWIFACT1` envelope and oscillator-bank interpretation.

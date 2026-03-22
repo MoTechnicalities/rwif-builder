@@ -1,6 +1,6 @@
 # ARWIF Examples
 
-This directory contains two small ARWIF example artifacts built around the same C major triad.
+This directory contains the original C major triad examples plus a room-aware review pair for the current Level 3 ARWIF surface.
 
 ## Files
 
@@ -9,6 +9,8 @@ This directory contains two small ARWIF example artifacts built around the same 
 - `CEG_v0_1.yaml`: source spec consumable by `rwif arwif-build`
 - `CEG_v0_1.arwif`: a compliant ARWIF v0.1 example using the strict metadata fields
 - `CEG_v0_1.md`: sidecar notes for the strict example
+- `ROOM_REVIEW_baseline_v0_1.yaml`: baseline Level 3 room-aware review spec covering dimensions, reflection policy, renderer adaptation hints, listening zones, and speaker placement
+- `ROOM_REVIEW_candidate_v0_1.yaml`: candidate Level 3 room-aware review spec with intentional room drift for diff and batch-review examples
 
 ## Validate
 
@@ -60,6 +62,18 @@ To run the diff and recurring-change review in one pass:
 ```bash
 rwif arwif-batch-review --left dist/a.baseline.arwif dist/b.baseline.arwif --right dist/a.candidate.arwif dist/b.candidate.arwif --output dist/batch-review-report.json --json
 ```
+
+To exercise the shipped Level 3 room-aware review pair end to end:
+
+```bash
+rwif arwif-validate-spec examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml --json
+rwif arwif-validate-spec examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml --json
+rwif arwif-build --spec examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml --output dist/ROOM_REVIEW_baseline_v0_1.arwif --json
+rwif arwif-build --spec examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml --output dist/ROOM_REVIEW_candidate_v0_1.arwif --json
+rwif arwif-batch-review --left dist/ROOM_REVIEW_baseline_v0_1.arwif --right dist/ROOM_REVIEW_candidate_v0_1.arwif --output dist/ROOM_REVIEW_batch_review.json --json
+```
+
+That review payload is intentionally non-trivial: it should surface room dimension, surface-profile, reflection-policy, renderer-adaptation, listening-zone, and speaker-placement drift in one compact batch-review document.
 
 To export multiple ARWIF artifacts into strict source specs in one pass:
 

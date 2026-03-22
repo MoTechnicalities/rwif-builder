@@ -17,6 +17,65 @@ from rwif_builder.writer.rwif_writer import save_wave_library
 
 
 class ARWIFIntegrationTest(unittest.TestCase):
+    def test_shipped_room_review_examples_validate_and_batch_review(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        baseline_spec_path = repo_root / "examples" / "arwif" / "ROOM_REVIEW_baseline_v0_1.yaml"
+        candidate_spec_path = repo_root / "examples" / "arwif" / "ROOM_REVIEW_candidate_v0_1.yaml"
+
+        self.assertTrue(baseline_spec_path.exists())
+        self.assertTrue(candidate_spec_path.exists())
+
+        baseline_spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(baseline_spec_path), "--json")
+        candidate_spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(candidate_spec_path), "--json")
+        self.assertTrue(baseline_spec_payload["is_valid"], baseline_spec_payload)
+        self.assertTrue(candidate_spec_payload["is_valid"], candidate_spec_payload)
+
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            baseline_artifact_path = tmp_dir / "ROOM_REVIEW_baseline_v0_1.arwif"
+            candidate_artifact_path = tmp_dir / "ROOM_REVIEW_candidate_v0_1.arwif"
+            review_report_path = tmp_dir / "ROOM_REVIEW_batch_review.json"
+
+            baseline_build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(baseline_spec_path),
+                "--output",
+                str(baseline_artifact_path),
+                "--json",
+            )
+            candidate_build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(candidate_spec_path),
+                "--output",
+                str(candidate_artifact_path),
+                "--json",
+            )
+            self.assertTrue(baseline_build_payload["is_valid"], baseline_build_payload)
+            self.assertTrue(candidate_build_payload["is_valid"], candidate_build_payload)
+
+            review_payload = self._run_json(
+                repo_root,
+                "arwif-batch-review",
+                "--left",
+                str(baseline_artifact_path),
+                "--right",
+                str(candidate_artifact_path),
+                "--output",
+                str(review_report_path),
+                "--json",
+            )
+            self.assertTrue(review_payload["is_valid"], review_payload)
+            self.assertTrue(review_report_path.exists())
+            analysis_payload = review_payload["analysis"]
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
+
     def test_arwif_build_validate_and_render(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

@@ -1,0 +1,59 @@
+title: Listening room candidate
+description: Candidate Level 3 ARWIF room-aware review example with intentional room drift.
+channel_layout: stereo
+reference_frame: scene
+listener_anchor:
+  x: 0.0
+  y: 1.2
+  z: 0.0
+room:
+  dimensions:
+    width_m: 12.0
+    depth_m: 14.0
+    height_m: 4.5
+  surface_profile: damped
+  reflection_policy:
+    style: enveloping
+    early_reflections: emphasized
+    late_reverb: lush
+  renderer_adaptation_hints:
+    target_playback: headphones
+    spatial_priority: precision
+    downmix_policy: preserve_focus
+  listening_zones:
+    - zone_id: couch
+      anchor:
+        x: 1.5
+        y: 1.2
+        z: -0.5
+      radius_m: 2.0
+      intent: casual
+  speakers:
+    - speaker_id: left-main
+      anchor:
+        x: -2.5
+        y: 1.3
+        z: 2.5
+      channel: L
+      role: main
+    - speaker_id: right-main
+      anchor:
+        x: 2.5
+        y: 1.3
+        z: 2.5
+      channel: R
+      role: main
+sample_rate_hz: 12000
+default_duration_seconds: 0.5
+states:
+  - label: room-tone
+    source_id: bell.near
+    source_groups:
+      - foreground
+    position:
+      x: -0.5
+      y: 1.0
+      z: 0.8
+    oscillators:
+      - hz: 261
+        amplitude: 0.8

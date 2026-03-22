@@ -151,6 +151,8 @@ See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and
 
 See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile draft and [docs/ARWIF_CONTAINER_DECISION.md](docs/ARWIF_CONTAINER_DECISION.md) for the container-strategy analysis.
 
+See [examples/arwif/README.md](examples/arwif/README.md) for the shipped ARWIF examples, including a Level 3 room-aware baseline/candidate pair designed for `arwif-batch-review` workflows.
+
 See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking spatial ARWIF roadmap centered on AI comprehension, reasoning, and production.
 
 See [docs/VISION.md](docs/VISION.md) for the longer-term thesis connecting RWIF semantic memory, ARWIF structured sound, and possible future multimodal companions such as VRWIF.
@@ -216,6 +218,8 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 `rwif arwif-batch-diff-analyze` builds on a saved `arwif-batch-diff` report, aggregates recurring metadata and state changes across all compared pairs, highlights change patterns that appear in every changed pair, summarizes spatial drift counts, and can optionally persist that higher-level analysis as `.json`, `.yaml`, or `.yml`.
 
 `rwif arwif-batch-review` collapses those two review steps into one command by running pairwise ARWIF batch diff and the recurring-change analysis together, returning both the detailed diff report and the higher-level pattern summary in a single payload that can also be persisted as `.json`, `.yaml`, or `.yml`.
+
+The shipped room-aware example pair in `examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml` and `examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml` provides a concrete batch-review fixture for the current Level 3 room surface, including dimensions, reflection policy, renderer adaptation hints, listening zones, and speaker placement drift.
 
 `rwif arwif-batch-validate-spec` scales strict ARWIF source-spec validation across multiple YAML or JSON specs in one command, returns collection-level valid and invalid counts plus the full per-spec validation payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 

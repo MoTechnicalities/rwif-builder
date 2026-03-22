@@ -88,6 +88,14 @@ Runs ARWIF batch diff and recurring-change analysis in one command.
 
 Current implementation: accepts pairwise `--left` and `--right` artifact collections like `arwif-batch-diff`, computes the per-pair diff report and the higher-level recurring-change analysis together, and can optionally persist the combined review result as `.json`, `.yaml`, or `.yml` based on the output suffix.
 
+Concrete example flow using the shipped Level 3 room-aware fixtures:
+
+```bash
+rwif arwif-build --spec examples/arwif/ROOM_REVIEW_baseline_v0_1.yaml --output dist/ROOM_REVIEW_baseline_v0_1.arwif --json
+rwif arwif-build --spec examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml --output dist/ROOM_REVIEW_candidate_v0_1.arwif --json
+rwif arwif-batch-review --left dist/ROOM_REVIEW_baseline_v0_1.arwif --right dist/ROOM_REVIEW_candidate_v0_1.arwif --output dist/ROOM_REVIEW_batch_review.json --json
+```
+
 ### `rwif arwif-batch-export`
 
 Exports multiple ARWIF artifacts to YAML or JSON specs.

@@ -22,6 +22,8 @@ DEFAULT_RELEASE_MS = 5.0
 SPATIAL_VECTOR_AXES = ("x", "y", "z")
 OBJECT_DISTANCE_MODELS = ("none", "inverse", "linear", "exponential")
 ARWIF_REFERENCE_FRAMES = ("listener", "scene", "world")
+ROOM_SURFACE_PROFILES = ("dry", "damped", "neutral", "reflective", "diffuse")
+ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
 
 CHANNEL_LAYOUT_CHANNELS: dict[str, tuple[str, ...]] = {
     "mono": ("C",),
@@ -45,6 +47,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "channel_layout",
     "listener_anchor",
     "reference_frame",
+    "room",
 }
 
 
@@ -203,6 +206,76 @@ def _validate_trajectory_mapping(
         )
 
 
+def _validate_room_document(
+    value: Any,
+    *,
+    context: str,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    if not isinstance(value, dict):
+        errors.append(f"{context} must be a mapping")
+        return
+
+    allowed_keys = {"dimensions", "surface_profile", "listening_zones"}
+    unknown_keys = sorted(key for key in value if key not in allowed_keys)
+    if unknown_keys:
+        warnings.append(f"{context} contains unknown fields ignored by the reference builder: {', '.join(unknown_keys)}")
+
+    dimensions = value.get("dimensions")
+    if dimensions is not None:
+        if not isinstance(dimensions, dict):
+            errors.append(f"{context}.dimensions must be a mapping")
+        else:
+            unknown_dimension_keys = sorted(key for key in dimensions if key not in ROOM_DIMENSION_KEYS)
+            if unknown_dimension_keys:
+                warnings.append(
+                    f"{context}.dimensions contains unknown fields ignored by the reference builder: {', '.join(unknown_dimension_keys)}"
+                )
+            for key in ROOM_DIMENSION_KEYS:
+                if not _is_positive_number(dimensions.get(key)):
+                    errors.append(f"{context}.dimensions.{key} must be a positive finite number")
+
+    surface_profile = value.get("surface_profile")
+    if surface_profile is not None:
+        if not isinstance(surface_profile, str):
+            errors.append(f"{context}.surface_profile must be a string")
+        elif surface_profile not in ROOM_SURFACE_PROFILES:
+            errors.append(f"{context}.surface_profile must be one of: " + ", ".join(ROOM_SURFACE_PROFILES))
+
+    listening_zones = value.get("listening_zones")
+    if listening_zones is not None:
+        if not isinstance(listening_zones, list):
+            errors.append(f"{context}.listening_zones must be a list")
+        else:
+            for index, zone_document in enumerate(listening_zones):
+                zone_context = f"{context}.listening_zones[{index}]"
+                if not isinstance(zone_document, dict):
+                    errors.append(f"{zone_context} must be a mapping")
+                    continue
+                allowed_zone_keys = {"zone_id", "anchor", "radius_m", "intent"}
+                unknown_zone_keys = sorted(key for key in zone_document if key not in allowed_zone_keys)
+                if unknown_zone_keys:
+                    warnings.append(
+                        f"{zone_context} contains unknown fields ignored by the reference builder: {', '.join(unknown_zone_keys)}"
+                    )
+                zone_id = zone_document.get("zone_id")
+                if not isinstance(zone_id, str) or not zone_id:
+                    errors.append(f"{zone_context}.zone_id must be a non-empty string")
+                _validate_spatial_vector_mapping(
+                    zone_document.get("anchor"),
+                    context=f"{zone_context}.anchor",
+                    errors=errors,
+                    warnings=warnings,
+                )
+                radius_m = zone_document.get("radius_m")
+                if not _is_positive_number(radius_m):
+                    errors.append(f"{zone_context}.radius_m must be a positive finite number")
+                intent = zone_document.get("intent")
+                if intent is not None and (not isinstance(intent, str) or not intent):
+                    errors.append(f"{zone_context}.intent must be a non-empty string")
+
+
 def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
     allowed_keys = {
         "title",
@@ -210,6 +283,7 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
         "channel_layout",
         "listener_anchor",
         "reference_frame",
+        "room",
         "sample_rate_hz",
         "default_duration_seconds",
         "default_phase_radians",
@@ -248,6 +322,14 @@ def _validate_top_level(document: dict[str, Any], errors: list[str], warnings: l
             errors.append("reference_frame must be a string")
         elif reference_frame not in ARWIF_REFERENCE_FRAMES:
             errors.append("reference_frame must be one of: " + ", ".join(ARWIF_REFERENCE_FRAMES))
+
+    if "room" in document:
+        _validate_room_document(
+            document.get("room"),
+            context="room",
+            errors=errors,
+            warnings=warnings,
+        )
 
     sample_rate_hz = document.get("sample_rate_hz", DEFAULT_SAMPLE_RATE_HZ)
     if not _is_positive_int(sample_rate_hz):
@@ -491,6 +573,7 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     states_with_orientation = 0
     states_with_spread = 0
     distance_models: set[str] = set()
+    room_document = document.get("room") if isinstance(document.get("room"), dict) else None
     if isinstance(document.get("states"), list):
         states = document["states"]
         state_count = len(states)
@@ -536,6 +619,21 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
     if document.get("reference_frame") in ARWIF_REFERENCE_FRAMES:
         stats["reference_frame"] = document["reference_frame"]
     stats["listener_anchor_present"] = isinstance(document.get("listener_anchor"), dict)
+    stats["room_present"] = room_document is not None
+    stats["room_dimensions_present"] = isinstance(room_document.get("dimensions"), dict) if room_document else False
+    if room_document and room_document.get("surface_profile") in ROOM_SURFACE_PROFILES:
+        stats["room_surface_profile"] = room_document["surface_profile"]
+    listening_zone_ids = []
+    if room_document and isinstance(room_document.get("listening_zones"), list):
+        listening_zone_ids = [
+            zone_document["zone_id"]
+            for zone_document in room_document["listening_zones"]
+            if isinstance(zone_document, dict)
+            and isinstance(zone_document.get("zone_id"), str)
+            and zone_document.get("zone_id")
+        ]
+    stats["listening_zone_count"] = len(listening_zone_ids)
+    stats["listening_zone_ids"] = sorted(listening_zone_ids)
     stats["states_with_source_id"] = states_with_source_id
     stats["source_groups"] = sorted(source_groups)
     stats["positioned_state_count"] = positioned_state_count
@@ -789,6 +887,14 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             errors=errors,
             warnings=warnings,
         )
+    room = metadata.get("room")
+    if room is not None:
+        _validate_room_document(
+            room,
+            context="library metadata 'room'",
+            errors=errors,
+            warnings=warnings,
+        )
     default_duration_seconds = _effective_default_duration(metadata, allow_legacy, errors, warnings)
     default_attack_ms = _effective_default_float(metadata, "default_attack_ms", DEFAULT_ATTACK_MS)
     default_release_ms = _effective_default_float(metadata, "default_release_ms", DEFAULT_RELEASE_MS)
@@ -803,6 +909,21 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
     if reference_frame in ARWIF_REFERENCE_FRAMES:
         stats["reference_frame"] = reference_frame
     stats["listener_anchor_present"] = isinstance(listener_anchor, dict)
+    stats["room_present"] = isinstance(room, dict)
+    stats["room_dimensions_present"] = isinstance(room.get("dimensions"), dict) if isinstance(room, dict) else False
+    if isinstance(room, dict) and room.get("surface_profile") in ROOM_SURFACE_PROFILES:
+        stats["room_surface_profile"] = room["surface_profile"]
+    listening_zone_ids = []
+    if isinstance(room, dict) and isinstance(room.get("listening_zones"), list):
+        listening_zone_ids = [
+            zone_document["zone_id"]
+            for zone_document in room["listening_zones"]
+            if isinstance(zone_document, dict)
+            and isinstance(zone_document.get("zone_id"), str)
+            and zone_document.get("zone_id")
+        ]
+    stats["listening_zone_count"] = len(listening_zone_ids)
+    stats["listening_zone_ids"] = sorted(listening_zone_ids)
 
     if len(library.states) == 0:
         errors.append("ARWIF artifact must contain at least one state")

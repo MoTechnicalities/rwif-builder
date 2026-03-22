@@ -19,6 +19,8 @@ from .validation import DEFAULT_DURATION_SECONDS
 from .validation import DEFAULT_RELEASE_MS
 from .validation import DEFAULT_SAMPLE_RATE_HZ
 from .validation import OBJECT_DISTANCE_MODELS
+from .validation import ROOM_DIMENSION_KEYS
+from .validation import ROOM_SURFACE_PROFILES
 from .validation import SPATIAL_VECTOR_AXES
 from .validation import validate_arwif_artifact
 from .validation import validate_arwif_spec
@@ -37,6 +39,7 @@ _LIBRARY_OVERRIDE_KEYS = {
     "channel_layout",
     "listener_anchor",
     "reference_frame",
+    "room",
 }
 
 
@@ -68,6 +71,13 @@ def _require_non_negative_number(value: Any, context: str) -> float:
     number = _require_finite_number(value, context)
     if number < 0.0:
         raise ValueError(f"{context} must be non-negative")
+    return number
+
+
+def _require_positive_number(value: Any, context: str) -> float:
+    number = _require_finite_number(value, context)
+    if number <= 0.0:
+        raise ValueError(f"{context} must be positive")
     return number
 
 
@@ -110,6 +120,47 @@ def _require_trajectory(value: Any, context: str, *, max_offset_seconds: float |
             }
         )
     return trajectory
+
+
+def _require_room(value: Any, context: str) -> dict[str, Any]:
+    room_mapping = _require_mapping(value, context)
+    room: dict[str, Any] = {}
+
+    if "dimensions" in room_mapping:
+        dimensions_mapping = _require_mapping(room_mapping.get("dimensions"), f"{context}.dimensions")
+        room["dimensions"] = {
+            key: _require_positive_number(dimensions_mapping.get(key), f"{context}.dimensions.{key}")
+            for key in ROOM_DIMENSION_KEYS
+        }
+
+    if "surface_profile" in room_mapping:
+        surface_profile = room_mapping.get("surface_profile")
+        if not isinstance(surface_profile, str) or surface_profile not in ROOM_SURFACE_PROFILES:
+            raise ValueError(f"{context}.surface_profile must be one of: " + ", ".join(ROOM_SURFACE_PROFILES))
+        room["surface_profile"] = surface_profile
+
+    if "listening_zones" in room_mapping:
+        listening_zones_document = _require_sequence(room_mapping.get("listening_zones"), f"{context}.listening_zones")
+        listening_zones: list[dict[str, Any]] = []
+        for index, zone_document in enumerate(listening_zones_document):
+            zone_mapping = _require_mapping(zone_document, f"{context}.listening_zones[{index}]")
+            zone_id = zone_mapping.get("zone_id")
+            if not isinstance(zone_id, str) or not zone_id:
+                raise ValueError(f"{context}.listening_zones[{index}].zone_id must be a non-empty string")
+            zone_entry = {
+                "zone_id": zone_id,
+                "anchor": _require_spatial_vector(zone_mapping.get("anchor"), f"{context}.listening_zones[{index}].anchor"),
+                "radius_m": _require_positive_number(zone_mapping.get("radius_m"), f"{context}.listening_zones[{index}].radius_m"),
+            }
+            if "intent" in zone_mapping:
+                intent = zone_mapping.get("intent")
+                if not isinstance(intent, str) or not intent:
+                    raise ValueError(f"{context}.listening_zones[{index}].intent must be a non-empty string")
+                zone_entry["intent"] = intent
+            listening_zones.append(zone_entry)
+        room["listening_zones"] = listening_zones
+
+    return room
 
 
 def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
@@ -165,6 +216,9 @@ def _library_metadata(document: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(reference_frame, str) or reference_frame not in ARWIF_REFERENCE_FRAMES:
             raise ValueError("reference_frame must be one of: " + ", ".join(ARWIF_REFERENCE_FRAMES))
         metadata["reference_frame"] = reference_frame
+
+    if "room" in document:
+        metadata["room"] = _require_room(document["room"], "room")
 
     metadata.update(
         {

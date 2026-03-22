@@ -710,6 +710,12 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     channel_layout_changed_pairs = 0
     listener_anchor_changed_pairs = 0
     reference_frame_changed_pairs = 0
+    room_changed_pairs = 0
+    room_dimensions_changed_pairs = 0
+    room_surface_profile_changed_pairs = 0
+    listening_zones_changed_pairs = 0
+    listening_zone_delta_pairs = 0
+    total_listening_zone_count_delta = 0
     active_channels_changed_pairs = 0
     channel_gains_delta_pairs = 0
     total_states_with_channel_gains_delta = 0
@@ -773,6 +779,18 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 listener_anchor_changed_pairs += 1
             if bool(spatial_changes.get("reference_frame_changed", False)):
                 reference_frame_changed_pairs += 1
+            if bool(spatial_changes.get("room_changed", False)):
+                room_changed_pairs += 1
+            if bool(spatial_changes.get("room_dimensions_changed", False)):
+                room_dimensions_changed_pairs += 1
+            if bool(spatial_changes.get("room_surface_profile_changed", False)):
+                room_surface_profile_changed_pairs += 1
+            if bool(spatial_changes.get("listening_zones_changed", False)):
+                listening_zones_changed_pairs += 1
+            listening_zone_count_delta = int(spatial_changes.get("listening_zone_count_delta", 0) or 0)
+            total_listening_zone_count_delta += listening_zone_count_delta
+            if listening_zone_count_delta != 0:
+                listening_zone_delta_pairs += 1
             if bool(spatial_changes.get("channel_layout_changed", False)):
                 channel_layout_changed_pairs += 1
             if bool(spatial_changes.get("active_channels_changed", False)):
@@ -831,6 +849,12 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
         "spatial_change_summary": {
             "listener_anchor_changed_pairs": listener_anchor_changed_pairs,
             "reference_frame_changed_pairs": reference_frame_changed_pairs,
+            "room_changed_pairs": room_changed_pairs,
+            "room_dimensions_changed_pairs": room_dimensions_changed_pairs,
+            "room_surface_profile_changed_pairs": room_surface_profile_changed_pairs,
+            "listening_zones_changed_pairs": listening_zones_changed_pairs,
+            "pairs_with_listening_zone_count_delta": listening_zone_delta_pairs,
+            "total_listening_zone_count_delta": total_listening_zone_count_delta,
             "channel_layout_changed_pairs": channel_layout_changed_pairs,
             "active_channels_changed_pairs": active_channels_changed_pairs,
             "pairs_with_channel_gain_count_delta": channel_gains_delta_pairs,

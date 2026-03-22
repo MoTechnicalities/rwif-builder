@@ -113,6 +113,11 @@ It makes spatial intent comprehensible and adaptable across playback targets.
 
 Bind spatial audio to an acoustic scene instead of only a source scene.
 
+Current repo status:
+
+- initial support can now preserve validated room-aware context through top-level `room` metadata covering room dimensions, surface profile, and listening zones
+- inspect, diff, export, and batch review can now summarize those room-aware fields without pretending to solve full room-adaptive rendering
+
 ### Likely Schema Elements
 
 - room dimensions or geometry reference

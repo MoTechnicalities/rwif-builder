@@ -8,6 +8,7 @@ from ..writer.rwif_writer import AtomicWaveUnit
 from ..writer.rwif_writer import WaveState
 from ..writer.rwif_writer import load_wave_library
 from .validation import CHANNEL_LAYOUT_CHANNELS
+from .validation import ROOM_DIMENSION_KEYS
 from .validation import validate_arwif_artifact
 
 _METADATA_KEYS = (
@@ -18,6 +19,7 @@ _METADATA_KEYS = (
     "channel_layout",
     "listener_anchor",
     "reference_frame",
+    "room",
     "sample_rate_hz",
     "default_duration_seconds",
     "default_attack_ms",
@@ -81,6 +83,60 @@ def _source_groups_value(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [group_name for group_name in value if isinstance(group_name, str) and group_name]
+
+
+def _room_dimensions_mapping(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, float] = {}
+    for key in ROOM_DIMENSION_KEYS:
+        component = value.get(key)
+        if not isinstance(component, (int, float)) or not math.isfinite(float(component)) or float(component) <= 0.0:
+            return {}
+        result[key] = float(component)
+    return result
+
+
+def _listening_zones_mapping(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    zones: list[dict[str, Any]] = []
+    for zone_document in value:
+        if not isinstance(zone_document, dict):
+            return []
+        zone_id = zone_document.get("zone_id")
+        radius_m = zone_document.get("radius_m")
+        anchor = _spatial_vector_mapping(zone_document.get("anchor"))
+        if not isinstance(zone_id, str) or not zone_id or not anchor:
+            return []
+        if not isinstance(radius_m, (int, float)) or not math.isfinite(float(radius_m)) or float(radius_m) <= 0.0:
+            return []
+        zone_entry = {
+            "zone_id": zone_id,
+            "anchor": anchor,
+            "radius_m": float(radius_m),
+        }
+        intent = zone_document.get("intent")
+        if isinstance(intent, str) and intent:
+            zone_entry["intent"] = intent
+        zones.append(zone_entry)
+    return zones
+
+
+def _room_mapping(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    room: dict[str, Any] = {}
+    dimensions = _room_dimensions_mapping(value.get("dimensions"))
+    if dimensions:
+        room["dimensions"] = dimensions
+    surface_profile = value.get("surface_profile")
+    if isinstance(surface_profile, str) and surface_profile:
+        room["surface_profile"] = surface_profile
+    listening_zones = _listening_zones_mapping(value.get("listening_zones"))
+    if listening_zones:
+        room["listening_zones"] = listening_zones
+    return room
 
 
 def _trajectory_sequences(states: tuple[WaveState, ...]) -> list[list[dict[str, Any]]]:
@@ -205,6 +261,7 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
     channel_layout = metadata.get("channel_layout")
     declared_channels = list(CHANNEL_LAYOUT_CHANNELS.get(channel_layout, ())) if isinstance(channel_layout, str) else []
     listener_anchor = _spatial_vector_mapping(metadata.get("listener_anchor"))
+    room = _room_mapping(metadata.get("room"))
     active_channels = sorted(
         {
             channel_name
@@ -250,6 +307,15 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
         "declared_channels": declared_channels,
         "listener_anchor": listener_anchor,
         "reference_frame": metadata.get("reference_frame"),
+        "room_present": bool(room),
+        "room_dimensions": dict(room.get("dimensions", {})) if isinstance(room.get("dimensions"), dict) else {},
+        "room_surface_profile": room.get("surface_profile"),
+        "listening_zone_count": len(room.get("listening_zones", [])) if isinstance(room.get("listening_zones"), list) else 0,
+        "listening_zone_ids": [
+            zone.get("zone_id")
+            for zone in room.get("listening_zones", [])
+            if isinstance(zone, dict) and isinstance(zone.get("zone_id"), str)
+        ] if isinstance(room.get("listening_zones"), list) else [],
         "active_channels": active_channels,
         "states_with_channel_gains": states_with_channel_gains,
         "positioned_states": positioned_states,
@@ -274,6 +340,11 @@ def _spatial_changes(
     return {
         "listener_anchor_changed": left_summary["listener_anchor"] != right_summary["listener_anchor"],
         "reference_frame_changed": left_summary["reference_frame"] != right_summary["reference_frame"],
+        "room_changed": _room_mapping(left_metadata.get("room")) != _room_mapping(right_metadata.get("room")),
+        "room_dimensions_changed": left_summary["room_dimensions"] != right_summary["room_dimensions"],
+        "room_surface_profile_changed": left_summary["room_surface_profile"] != right_summary["room_surface_profile"],
+        "listening_zones_changed": left_summary["listening_zone_ids"] != right_summary["listening_zone_ids"],
+        "listening_zone_count_delta": right_summary["listening_zone_count"] - left_summary["listening_zone_count"],
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
         "states_with_channel_gains_delta": (

@@ -151,19 +151,19 @@ An optional `--output` path can persist that aggregated report as `.json`, `.yam
 
 Summarizes an ARWIF artifact in ARWIF-native terms.
 
-Current implementation: reports playback metadata, preserved non-reserved library `metadata`, derived `realm_references`, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering the declared layout, active channels, and how many states carry explicit channel gains.
+Current implementation: reports playback metadata, preserved non-reserved library `metadata`, derived `realm_references`, structured room metadata when present, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering channel layout, source placement, and room-aware listening-zone context.
 
 ### `rwif arwif-diff`
 
 Compares two ARWIF artifacts in ARWIF-native terms.
 
-Current implementation: reports top-level playback metadata changes, left and right spatial summaries, a compact spatial-change summary, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
+Current implementation: reports top-level playback metadata changes, left and right spatial summaries, a compact spatial-change summary including room-aware deltas, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
 
 ### `rwif arwif-validate`
 
 Validates an ARWIF audio artifact profile layered on the RWIF container.
 
-Current implementation: checks ARWIF metadata, oscillator-bank semantics, Nyquist bounds, and legacy prototype compatibility when `--legacy` is supplied.
+Current implementation: checks ARWIF metadata, initial object-based and room-aware spatial semantics, oscillator-bank semantics, Nyquist bounds, and legacy prototype compatibility when `--legacy` is supplied.
 
 ### `rwif arwif-render`
 

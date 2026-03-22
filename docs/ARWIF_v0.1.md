@@ -15,7 +15,7 @@ ARWIF `v0.1` describes:
 
 It does not yet describe:
 
-- object-based or room-aware spatial layouts
+- full room-aware acoustic rendering or speaker-environment adaptation
 - streaming or chunked playback
 - compressed payloads
 - sample-accurate event scheduling
@@ -27,8 +27,9 @@ The current toolchain also accepts a minimal spatial metadata surface beyond the
 
 - Level 1 channel-aware metadata via top-level `channel_layout` and per-state `channel_gains`
 - an initial Level 2 object-metadata slice via top-level `listener_anchor` and `reference_frame`, plus per-state `source_id`, `source_groups`, `position`, `trajectory`, `orientation`, `spread`, and `distance_model`
+- an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, surface profile, and listening zones
 
-The reference renderer can emit multichannel PCM WAV for declared Level 1 layouts. Level 2 metadata is currently preserved for authoring, validation, inspection, diffing, and batch review rather than being rendered as a full object-based spatial mix.
+The reference renderer can emit multichannel PCM WAV for declared Level 1 layouts. Level 2 and the initial Level 3 metadata are currently preserved for authoring, validation, inspection, diffing, export, and batch review rather than being rendered as a full object-based or room-adaptive spatial mix.
 
 ## Container
 
@@ -57,6 +58,10 @@ Optional library metadata:
 - `title`
 - `listener_anchor` as `{ x, y, z }` finite coordinates describing the reference listening origin
 - `reference_frame` as one of `listener`, `scene`, or `world` to declare how spatial coordinates should be interpreted
+- `room` as a mapping that may contain:
+  - `dimensions` with positive finite `width_m`, `depth_m`, and `height_m`
+  - `surface_profile` as one of `dry`, `damped`, `neutral`, `reflective`, or `diffuse`
+  - `listening_zones` as a list of `{ zone_id, anchor, radius_m, intent? }` mappings
 - `normalize` as boolean, default `true`
 - `default_phase_radians`, default `0.0`
 - `default_attack_ms`, default `5.0`
@@ -146,6 +151,7 @@ Supported top-level fields:
 - `channel_layout` as one of `mono`, `stereo`, `quad`, `5.1`, or `7.1`
 - `listener_anchor` as a mapping with finite `x`, `y`, and `z` coordinates
 - `reference_frame` as one of `listener`, `scene`, or `world`
+- `room` for structured room-aware context including dimensions, surface profile, and listening zones
 - `sample_rate_hz`
 - `default_duration_seconds`
 - `default_phase_radians`
@@ -220,9 +226,9 @@ For strict ARWIF `v0.1` artifacts produced by the reference builder, the exporte
 
 The current inspection path also reports preserved non-reserved top-level `metadata` plus a normalized `realm_references` view derived from `metadata.related_realms` or `metadata.realm_references`, so ARWIF artifacts can expose clean outward pointers to neighboring `RWIF`, `VRWIF`, or future realms without treating those bridges as first-class playback fields.
 
-The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor and reference frame when present, how many states carry stable source identity, which source groups appear overall, how many states carry positioned, trajectory, or oriented object metadata, how many trajectory keyframes are present overall, how many states declare spread, and which distance models appear in the artifact.
+The current inspection path also reports a compact `spatial_summary` that identifies the declared layout, the active channels actually used by non-zero gains, the listener anchor and reference frame when present, structured room context such as dimensions, surface profile, and listening-zone summaries, how many states carry stable source identity, which source groups appear overall, how many states carry positioned, trajectory, or oriented object metadata, how many trajectory keyframes are present overall, how many states declare spread, and which distance models appear in the artifact.
 
-The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so both channel-aware and initial object-metadata revisions can be reviewed without reading the entire per-state metadata diff.
+The current diff path also reports `left_spatial_summary`, `right_spatial_summary`, and `spatial_changes` so channel-aware, object-based, and initial room-aware revisions can be reviewed without reading the entire per-state metadata diff.
 
 ## Legacy Prototype Files
 

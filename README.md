@@ -227,12 +227,13 @@ rwif arwif-render dist/CEG_v0_1.arwif dist/CEG_v0_1.wav --json
 
 `rwif arwif-batch-inspect` scales ARWIF artifact inspection across multiple `.arwif` files in one command, supports `--legacy`, returns collection-level valid and invalid counts plus aggregate state, oscillator, and maximum-frequency totals alongside the full per-artifact inspection payloads, and can optionally persist the aggregate report as `.json`, `.yaml`, or `.yml`.
 
-The current ARWIF toolchain now spans two early spatial layers:
+The current ARWIF toolchain now spans three early spatial layers:
 
 - Level 1 channel-aware metadata via top-level `channel_layout` plus per-state `channel_gains`, which the reference renderer can emit as multichannel WAV for supported layouts
 - an initial Level 2 object-metadata slice via top-level `listener_anchor` and `reference_frame` plus per-state `source_id`, `source_groups`, `position`, `trajectory`, `orientation`, `spread`, and `distance_model`, which the current toolchain validates, preserves, inspects, diffs, and summarizes through batch review
+- an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, surface profile, and listening zones, which the current toolchain validates, preserves, inspects, diffs, exports, and summarizes through batch review
 
-`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware and initial object-spatial revisions can be reviewed at a glance instead of only through raw metadata blocks.
+`rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware, object-spatial, and initial room-aware revisions can be reviewed at a glance instead of only through raw metadata blocks.
 
 Reference example:
 
@@ -241,7 +242,7 @@ rwif arwif-inspect dist/CEG_v0_1.arwif --json
 rwif arwif-diff dist/CEG_v0_1.arwif dist/CEG_v0_1.roundtrip.arwif --json
 ```
 
-Those JSON payloads now include preserved non-reserved library metadata, derived `realm_references`, declared channel layout, active channel usage, listener anchors, reference-frame semantics, stable source ids, source-group summaries, positioned-state and trajectory counts, trajectory keyframe totals, spread and distance-model summaries, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
+Those JSON payloads now include preserved non-reserved library metadata, derived `realm_references`, declared channel layout, active channel usage, listener anchors, reference-frame semantics, room dimensions, room surface profiles, listening-zone summaries, stable source ids, source-group summaries, positioned-state and trajectory counts, trajectory keyframe totals, spread and distance-model summaries, and basic spatial change summaries alongside the existing oscillator and state diagnostics.
 
 ## On-Disk Contract
 

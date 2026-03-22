@@ -2381,6 +2381,133 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(diff_payload["spatial_changes"]["trajectories_changed"])
             self.assertEqual(diff_payload["spatial_changes"]["trajectory_point_count_delta"], 0)
 
+    def test_arwif_room_aware_round_trip_cli(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            source_spec_path = tmp_dir / "room-aware.yaml"
+            artifact_path = tmp_dir / "room-aware.arwif"
+            exported_spec_path = tmp_dir / "room-aware.export.yaml"
+            roundtrip_artifact_path = tmp_dir / "room-aware.roundtrip.arwif"
+
+            source_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Room aware fixture",
+                        "reference_frame: scene",
+                        "listener_anchor:",
+                        "  x: 0.0",
+                        "  y: 1.2",
+                        "  z: 0.0",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 10.0",
+                        "    depth_m: 14.0",
+                        "    height_m: 4.5",
+                        "  surface_profile: reflective",
+                        "  listening_zones:",
+                        "    - zone_id: sweet-spot",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: 1.2",
+                        "        z: 0.0",
+                        "      radius_m: 1.5",
+                        "      intent: focused",
+                        "    - zone_id: rear-fill",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: 1.2",
+                        "        z: 3.5",
+                        "      radius_m: 2.0",
+                        "      intent: diffuse",
+                        "sample_rate_hz: 12000",
+                        "default_duration_seconds: 0.5",
+                        "states:",
+                        "  - label: near-source",
+                        "    source_id: bell.near",
+                        "    source_groups:",
+                        "      - foreground",
+                        "    position:",
+                        "      x: -0.6",
+                        "      y: 1.3",
+                        "      z: 1.0",
+                        "    oscillators:",
+                        "      - hz: 261",
+                        "        amplitude: 0.8",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(source_spec_path), "--json")
+            self.assertTrue(spec_payload["is_valid"], spec_payload)
+            self.assertTrue(spec_payload["stats"]["room_present"])
+            self.assertTrue(spec_payload["stats"]["room_dimensions_present"])
+            self.assertEqual(spec_payload["stats"]["room_surface_profile"], "reflective")
+            self.assertEqual(spec_payload["stats"]["listening_zone_count"], 2)
+            self.assertEqual(spec_payload["stats"]["listening_zone_ids"], ["rear-fill", "sweet-spot"])
+
+            build_payload = self._run_json(
+                repo_root,
+                "arwif-build",
+                "--spec",
+                str(source_spec_path),
+                "--output",
+                str(artifact_path),
+                "--json",
+            )
+            self.assertTrue(build_payload["is_valid"], build_payload)
+
+            inspect_payload = self._run_json(repo_root, "arwif-inspect", str(artifact_path), "--json")
+            self.assertTrue(inspect_payload["is_valid"], inspect_payload)
+            self.assertEqual(inspect_payload["room"]["surface_profile"], "reflective")
+            self.assertEqual(inspect_payload["room"]["dimensions"]["height_m"], 4.5)
+            self.assertEqual(inspect_payload["room"]["listening_zones"][0]["zone_id"], "sweet-spot")
+            self.assertTrue(inspect_payload["spatial_summary"]["room_present"])
+            self.assertEqual(inspect_payload["spatial_summary"]["room_surface_profile"], "reflective")
+            self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_count"], 2)
+            self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_ids"], ["sweet-spot", "rear-fill"])
+
+            export_payload = self._run_json(
+                repo_root,
+                "arwif-export",
+                str(artifact_path),
+                str(exported_spec_path),
+                "--json",
+            )
+            self.assertTrue(export_payload["is_valid"], export_payload)
+
+            exported_document = yaml.safe_load(exported_spec_path.read_text(encoding="utf-8"))
+            self.assertEqual(exported_document["room"]["dimensions"]["width_m"], 10.0)
+            self.assertEqual(exported_document["room"]["surface_profile"], "reflective")
+            self.assertEqual(exported_document["room"]["listening_zones"][1]["zone_id"], "rear-fill")
+
+            import_payload = self._run_json(
+                repo_root,
+                "arwif-import",
+                "--spec",
+                str(exported_spec_path),
+                "--output",
+                str(roundtrip_artifact_path),
+                "--json",
+            )
+            self.assertTrue(import_payload["is_valid"], import_payload)
+
+            diff_payload = self._run_json(
+                repo_root,
+                "arwif-diff",
+                str(artifact_path),
+                str(roundtrip_artifact_path),
+                "--json",
+            )
+            self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
+            self.assertFalse(diff_payload["spatial_changes"]["room_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_dimensions_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_surface_profile_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
+
     def test_arwif_validate_spec_rejects_invalid_trajectory_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -2434,6 +2561,54 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "states[0].trajectory[2].offset_seconds must not exceed state duration 0.25",
                 spec_payload["errors"],
             )
+
+    def test_arwif_validate_spec_rejects_invalid_room_fields(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            spec_path = tmp_dir / "invalid-room.yaml"
+            spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Invalid room fixture",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: -4.0",
+                        "    depth_m: nope",
+                        "    height_m: 0.0",
+                        "  surface_profile: cathedral",
+                        "  listening_zones:",
+                        "    - zone_id: ''",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: nope",
+                        "        z: 0.0",
+                        "      radius_m: 0.0",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "states:",
+                        "  - label: tone",
+                        "    oscillators:",
+                        "      - hz: 261",
+                        "        amplitude: 0.8",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            spec_payload = self._run_json(repo_root, "arwif-validate-spec", str(spec_path), "--json", allow_failure=True)
+            self.assertFalse(spec_payload["is_valid"])
+            self.assertIn("room.dimensions.width_m must be a positive finite number", spec_payload["errors"])
+            self.assertIn("room.dimensions.depth_m must be a positive finite number", spec_payload["errors"])
+            self.assertIn("room.dimensions.height_m must be a positive finite number", spec_payload["errors"])
+            self.assertIn(
+                "room.surface_profile must be one of: dry, damped, neutral, reflective, diffuse",
+                spec_payload["errors"],
+            )
+            self.assertIn("room.listening_zones[0].zone_id must be a non-empty string", spec_payload["errors"])
+            self.assertIn("room.listening_zones[0].anchor.y must be a finite number", spec_payload["errors"])
+            self.assertIn("room.listening_zones[0].radius_m must be a positive finite number", spec_payload["errors"])
 
     def test_arwif_batch_diff_analyze_tracks_trajectory_changes(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -2535,6 +2710,111 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_trajectory_state_delta"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_trajectory_point_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_trajectory_point_delta"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_room_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-room.arwif"
+            right_path = tmp_dir / "right-room.arwif"
+            diff_report_path = tmp_dir / "room-batch-diff-report.json"
+
+            save_wave_library(
+                left_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="room-tone",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Room left",
+                        "room": {
+                            "dimensions": {"width_m": 8.0, "depth_m": 10.0, "height_m": 3.5},
+                            "surface_profile": "dry",
+                            "listening_zones": [
+                                {
+                                    "zone_id": "sweet-spot",
+                                    "anchor": {"x": 0.0, "y": 1.2, "z": 0.0},
+                                    "radius_m": 1.5,
+                                    "intent": "focused",
+                                }
+                            ],
+                        },
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(261, 0.8),),
+                            label="room-tone",
+                            metadata={"duration_seconds": 0.25},
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Room right",
+                        "room": {
+                            "dimensions": {"width_m": 12.0, "depth_m": 15.0, "height_m": 5.0},
+                            "surface_profile": "reflective",
+                            "listening_zones": [
+                                {
+                                    "zone_id": "sweet-spot",
+                                    "anchor": {"x": 0.0, "y": 1.2, "z": 0.0},
+                                    "radius_m": 1.5,
+                                    "intent": "focused",
+                                },
+                                {
+                                    "zone_id": "rear-fill",
+                                    "anchor": {"x": 0.0, "y": 1.2, "z": 3.5},
+                                    "radius_m": 2.0,
+                                    "intent": "diffuse",
+                                },
+                            ],
+                        },
+                    },
+                ),
+            )
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_dimensions_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_profile_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)
 
     def test_arwif_validate_spec_rejects_invalid_object_spatial_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

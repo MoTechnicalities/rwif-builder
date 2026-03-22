@@ -27,6 +27,9 @@ ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
 ROOM_REFLECTION_STYLES = ("direct", "balanced", "enveloping")
 ROOM_EARLY_REFLECTION_CLASSES = ("reduced", "natural", "emphasized")
 ROOM_LATE_REVERB_CLASSES = ("dry", "controlled", "lush")
+ROOM_RENDER_TARGETS = ("headphones", "stereo_speakers", "multichannel_room", "portable_device")
+ROOM_SPATIAL_PRIORITIES = ("precision", "balanced", "envelopment")
+ROOM_DOWNMIX_POLICIES = ("preserve_positions", "preserve_focus", "preserve_energy")
 
 CHANNEL_LAYOUT_CHANNELS: dict[str, tuple[str, ...]] = {
     "mono": ("C",),
@@ -221,7 +224,14 @@ def _validate_room_document(
         errors.append(f"{context} must be a mapping")
         return
 
-    allowed_keys = {"dimensions", "surface_profile", "reflection_policy", "listening_zones", "speakers"}
+    allowed_keys = {
+        "dimensions",
+        "surface_profile",
+        "reflection_policy",
+        "renderer_adaptation_hints",
+        "listening_zones",
+        "speakers",
+    }
     unknown_keys = sorted(key for key in value if key not in allowed_keys)
     if unknown_keys:
         warnings.append(f"{context} contains unknown fields ignored by the reference builder: {', '.join(unknown_keys)}")
@@ -284,6 +294,45 @@ def _validate_room_document(
                 elif late_reverb not in ROOM_LATE_REVERB_CLASSES:
                     errors.append(
                         f"{context}.reflection_policy.late_reverb must be one of: " + ", ".join(ROOM_LATE_REVERB_CLASSES)
+                    )
+
+    renderer_adaptation_hints = value.get("renderer_adaptation_hints")
+    if renderer_adaptation_hints is not None:
+        if not isinstance(renderer_adaptation_hints, dict):
+            errors.append(f"{context}.renderer_adaptation_hints must be a mapping")
+        else:
+            allowed_hint_keys = {"target_playback", "spatial_priority", "downmix_policy"}
+            unknown_hint_keys = sorted(key for key in renderer_adaptation_hints if key not in allowed_hint_keys)
+            if unknown_hint_keys:
+                warnings.append(
+                    f"{context}.renderer_adaptation_hints contains unknown fields ignored by the reference builder: {', '.join(unknown_hint_keys)}"
+                )
+            target_playback = renderer_adaptation_hints.get("target_playback")
+            if target_playback is not None:
+                if not isinstance(target_playback, str):
+                    errors.append(f"{context}.renderer_adaptation_hints.target_playback must be a string")
+                elif target_playback not in ROOM_RENDER_TARGETS:
+                    errors.append(
+                        f"{context}.renderer_adaptation_hints.target_playback must be one of: "
+                        + ", ".join(ROOM_RENDER_TARGETS)
+                    )
+            spatial_priority = renderer_adaptation_hints.get("spatial_priority")
+            if spatial_priority is not None:
+                if not isinstance(spatial_priority, str):
+                    errors.append(f"{context}.renderer_adaptation_hints.spatial_priority must be a string")
+                elif spatial_priority not in ROOM_SPATIAL_PRIORITIES:
+                    errors.append(
+                        f"{context}.renderer_adaptation_hints.spatial_priority must be one of: "
+                        + ", ".join(ROOM_SPATIAL_PRIORITIES)
+                    )
+            downmix_policy = renderer_adaptation_hints.get("downmix_policy")
+            if downmix_policy is not None:
+                if not isinstance(downmix_policy, str):
+                    errors.append(f"{context}.renderer_adaptation_hints.downmix_policy must be a string")
+                elif downmix_policy not in ROOM_DOWNMIX_POLICIES:
+                    errors.append(
+                        f"{context}.renderer_adaptation_hints.downmix_policy must be one of: "
+                        + ", ".join(ROOM_DOWNMIX_POLICIES)
                     )
 
     listening_zones = value.get("listening_zones")
@@ -716,6 +765,15 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
             stats["room_early_reflections"] = reflection_policy["early_reflections"]
         if reflection_policy.get("late_reverb") in ROOM_LATE_REVERB_CLASSES:
             stats["room_late_reverb"] = reflection_policy["late_reverb"]
+    renderer_adaptation_hints = room_document.get("renderer_adaptation_hints") if room_document else None
+    stats["renderer_adaptation_present"] = isinstance(renderer_adaptation_hints, dict)
+    if isinstance(renderer_adaptation_hints, dict):
+        if renderer_adaptation_hints.get("target_playback") in ROOM_RENDER_TARGETS:
+            stats["room_target_playback"] = renderer_adaptation_hints["target_playback"]
+        if renderer_adaptation_hints.get("spatial_priority") in ROOM_SPATIAL_PRIORITIES:
+            stats["room_spatial_priority"] = renderer_adaptation_hints["spatial_priority"]
+        if renderer_adaptation_hints.get("downmix_policy") in ROOM_DOWNMIX_POLICIES:
+            stats["room_downmix_policy"] = renderer_adaptation_hints["downmix_policy"]
     listening_zone_ids = []
     if room_document and isinstance(room_document.get("listening_zones"), list):
         listening_zone_ids = [
@@ -1036,6 +1094,15 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             stats["room_early_reflections"] = reflection_policy["early_reflections"]
         if reflection_policy.get("late_reverb") in ROOM_LATE_REVERB_CLASSES:
             stats["room_late_reverb"] = reflection_policy["late_reverb"]
+    renderer_adaptation_hints = room.get("renderer_adaptation_hints") if isinstance(room, dict) else None
+    stats["renderer_adaptation_present"] = isinstance(renderer_adaptation_hints, dict)
+    if isinstance(renderer_adaptation_hints, dict):
+        if renderer_adaptation_hints.get("target_playback") in ROOM_RENDER_TARGETS:
+            stats["room_target_playback"] = renderer_adaptation_hints["target_playback"]
+        if renderer_adaptation_hints.get("spatial_priority") in ROOM_SPATIAL_PRIORITIES:
+            stats["room_spatial_priority"] = renderer_adaptation_hints["spatial_priority"]
+        if renderer_adaptation_hints.get("downmix_policy") in ROOM_DOWNMIX_POLICIES:
+            stats["room_downmix_policy"] = renderer_adaptation_hints["downmix_policy"]
     listening_zone_ids = []
     if isinstance(room, dict) and isinstance(room.get("listening_zones"), list):
         listening_zone_ids = [

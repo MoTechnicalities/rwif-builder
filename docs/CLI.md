@@ -151,19 +151,19 @@ An optional `--output` path can persist that aggregated report as `.json`, `.yam
 
 Summarizes an ARWIF artifact in ARWIF-native terms.
 
-Current implementation: reports playback metadata, preserved non-reserved library `metadata`, derived `realm_references`, structured room metadata when present, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering channel layout, source placement, and room-aware reflection-policy, listening-zone, and speaker-placement context.
+Current implementation: reports playback metadata, preserved non-reserved library `metadata`, derived `realm_references`, structured room metadata when present, strict or legacy validation status, state labels, oscillator counts, per-state frequency ranges, sample oscillator entries, and a compact spatial summary covering channel layout, source placement, and room-aware reflection-policy, renderer-adaptation, listening-zone, and speaker-placement context.
 
 ### `rwif arwif-diff`
 
 Compares two ARWIF artifacts in ARWIF-native terms.
 
-Current implementation: reports top-level playback metadata changes, left and right spatial summaries, a compact spatial-change summary including room-aware deltas for reflection policy, listening zones, and speakers, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
+Current implementation: reports top-level playback metadata changes, left and right spatial summaries, a compact spatial-change summary including room-aware deltas for reflection policy, renderer adaptation, listening zones, and speakers, state-count and oscillator-count deltas, and state-level oscillator differences keyed by label or fallback state index.
 
 ### `rwif arwif-validate`
 
 Validates an ARWIF audio artifact profile layered on the RWIF container.
 
-Current implementation: checks ARWIF metadata, initial object-based and room-aware spatial semantics including room reflection policy and speaker-channel bindings, oscillator-bank semantics, Nyquist bounds, and legacy prototype compatibility when `--legacy` is supplied.
+Current implementation: checks ARWIF metadata, initial object-based and room-aware spatial semantics including room reflection policy, renderer adaptation hints, and speaker-channel bindings, oscillator-bank semantics, Nyquist bounds, and legacy prototype compatibility when `--legacy` is supplied.
 
 ### `rwif arwif-render`
 

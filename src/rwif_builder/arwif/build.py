@@ -20,9 +20,12 @@ from .validation import DEFAULT_RELEASE_MS
 from .validation import DEFAULT_SAMPLE_RATE_HZ
 from .validation import OBJECT_DISTANCE_MODELS
 from .validation import ROOM_DIMENSION_KEYS
+from .validation import ROOM_DOWNMIX_POLICIES
 from .validation import ROOM_EARLY_REFLECTION_CLASSES
 from .validation import ROOM_LATE_REVERB_CLASSES
+from .validation import ROOM_RENDER_TARGETS
 from .validation import ROOM_REFLECTION_STYLES
+from .validation import ROOM_SPATIAL_PRIORITIES
 from .validation import ROOM_SURFACE_PROFILES
 from .validation import SPATIAL_VECTOR_AXES
 from .validation import validate_arwif_artifact
@@ -167,6 +170,38 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
                 )
             reflection_policy["late_reverb"] = late_reverb
         room["reflection_policy"] = reflection_policy
+
+    if "renderer_adaptation_hints" in room_mapping:
+        renderer_adaptation_mapping = _require_mapping(
+            room_mapping.get("renderer_adaptation_hints"),
+            f"{context}.renderer_adaptation_hints",
+        )
+        renderer_adaptation_hints: dict[str, Any] = {}
+        if "target_playback" in renderer_adaptation_mapping:
+            target_playback = renderer_adaptation_mapping.get("target_playback")
+            if not isinstance(target_playback, str) or target_playback not in ROOM_RENDER_TARGETS:
+                raise ValueError(
+                    f"{context}.renderer_adaptation_hints.target_playback must be one of: "
+                    + ", ".join(ROOM_RENDER_TARGETS)
+                )
+            renderer_adaptation_hints["target_playback"] = target_playback
+        if "spatial_priority" in renderer_adaptation_mapping:
+            spatial_priority = renderer_adaptation_mapping.get("spatial_priority")
+            if not isinstance(spatial_priority, str) or spatial_priority not in ROOM_SPATIAL_PRIORITIES:
+                raise ValueError(
+                    f"{context}.renderer_adaptation_hints.spatial_priority must be one of: "
+                    + ", ".join(ROOM_SPATIAL_PRIORITIES)
+                )
+            renderer_adaptation_hints["spatial_priority"] = spatial_priority
+        if "downmix_policy" in renderer_adaptation_mapping:
+            downmix_policy = renderer_adaptation_mapping.get("downmix_policy")
+            if not isinstance(downmix_policy, str) or downmix_policy not in ROOM_DOWNMIX_POLICIES:
+                raise ValueError(
+                    f"{context}.renderer_adaptation_hints.downmix_policy must be one of: "
+                    + ", ".join(ROOM_DOWNMIX_POLICIES)
+                )
+            renderer_adaptation_hints["downmix_policy"] = downmix_policy
+        room["renderer_adaptation_hints"] = renderer_adaptation_hints
 
     if "listening_zones" in room_mapping:
         listening_zones_document = _require_sequence(room_mapping.get("listening_zones"), f"{context}.listening_zones")

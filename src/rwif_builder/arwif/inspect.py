@@ -167,6 +167,15 @@ def _room_mapping(value: Any) -> dict[str, Any]:
         }
         if reflection_policy_mapping:
             room["reflection_policy"] = reflection_policy_mapping
+    renderer_adaptation_hints = value.get("renderer_adaptation_hints")
+    if isinstance(renderer_adaptation_hints, dict):
+        renderer_adaptation_mapping = {
+            key: renderer_adaptation_hints[key]
+            for key in ("target_playback", "spatial_priority", "downmix_policy")
+            if isinstance(renderer_adaptation_hints.get(key), str) and renderer_adaptation_hints.get(key)
+        }
+        if renderer_adaptation_mapping:
+            room["renderer_adaptation_hints"] = renderer_adaptation_mapping
     listening_zones = _listening_zones_mapping(value.get("listening_zones"))
     if listening_zones:
         room["listening_zones"] = listening_zones
@@ -329,6 +338,10 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
         "room_reflection_style": room.get("reflection_policy", {}).get("style") if isinstance(room.get("reflection_policy"), dict) else None,
         "room_early_reflections": room.get("reflection_policy", {}).get("early_reflections") if isinstance(room.get("reflection_policy"), dict) else None,
         "room_late_reverb": room.get("reflection_policy", {}).get("late_reverb") if isinstance(room.get("reflection_policy"), dict) else None,
+        "renderer_adaptation_present": isinstance(room.get("renderer_adaptation_hints"), dict),
+        "room_target_playback": room.get("renderer_adaptation_hints", {}).get("target_playback") if isinstance(room.get("renderer_adaptation_hints"), dict) else None,
+        "room_spatial_priority": room.get("renderer_adaptation_hints", {}).get("spatial_priority") if isinstance(room.get("renderer_adaptation_hints"), dict) else None,
+        "room_downmix_policy": room.get("renderer_adaptation_hints", {}).get("downmix_policy") if isinstance(room.get("renderer_adaptation_hints"), dict) else None,
         "listening_zone_count": len(room.get("listening_zones", [])) if isinstance(room.get("listening_zones"), list) else 0,
         "listening_zone_ids": [
             zone.get("zone_id")

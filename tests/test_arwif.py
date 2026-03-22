@@ -2410,6 +2410,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "    style: balanced",
                         "    early_reflections: natural",
                         "    late_reverb: controlled",
+                        "  renderer_adaptation_hints:",
+                        "    target_playback: multichannel_room",
+                        "    spatial_priority: envelopment",
+                        "    downmix_policy: preserve_positions",
                         "  listening_zones:",
                         "    - zone_id: sweet-spot",
                         "      anchor:",
@@ -2469,6 +2473,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(spec_payload["stats"]["room_reflection_style"], "balanced")
             self.assertEqual(spec_payload["stats"]["room_early_reflections"], "natural")
             self.assertEqual(spec_payload["stats"]["room_late_reverb"], "controlled")
+            self.assertTrue(spec_payload["stats"]["renderer_adaptation_present"])
+            self.assertEqual(spec_payload["stats"]["room_target_playback"], "multichannel_room")
+            self.assertEqual(spec_payload["stats"]["room_spatial_priority"], "envelopment")
+            self.assertEqual(spec_payload["stats"]["room_downmix_policy"], "preserve_positions")
             self.assertEqual(spec_payload["stats"]["listening_zone_count"], 2)
             self.assertEqual(spec_payload["stats"]["listening_zone_ids"], ["rear-fill", "sweet-spot"])
             self.assertEqual(spec_payload["stats"]["speaker_count"], 2)
@@ -2490,6 +2498,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertTrue(inspect_payload["is_valid"], inspect_payload)
             self.assertEqual(inspect_payload["room"]["surface_profile"], "reflective")
             self.assertEqual(inspect_payload["room"]["reflection_policy"]["style"], "balanced")
+            self.assertEqual(inspect_payload["room"]["renderer_adaptation_hints"]["target_playback"], "multichannel_room")
             self.assertEqual(inspect_payload["room"]["dimensions"]["height_m"], 4.5)
             self.assertEqual(inspect_payload["room"]["listening_zones"][0]["zone_id"], "sweet-spot")
             self.assertEqual(inspect_payload["room"]["speakers"][0]["speaker_id"], "left-main")
@@ -2500,6 +2509,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(inspect_payload["spatial_summary"]["room_reflection_style"], "balanced")
             self.assertEqual(inspect_payload["spatial_summary"]["room_early_reflections"], "natural")
             self.assertEqual(inspect_payload["spatial_summary"]["room_late_reverb"], "controlled")
+            self.assertTrue(inspect_payload["spatial_summary"]["renderer_adaptation_present"])
+            self.assertEqual(inspect_payload["spatial_summary"]["room_target_playback"], "multichannel_room")
+            self.assertEqual(inspect_payload["spatial_summary"]["room_spatial_priority"], "envelopment")
+            self.assertEqual(inspect_payload["spatial_summary"]["room_downmix_policy"], "preserve_positions")
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_count"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_ids"], ["sweet-spot", "rear-fill"])
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_count"], 2)
@@ -2519,6 +2532,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(exported_document["room"]["dimensions"]["width_m"], 10.0)
             self.assertEqual(exported_document["room"]["surface_profile"], "reflective")
             self.assertEqual(exported_document["room"]["reflection_policy"]["late_reverb"], "controlled")
+            self.assertEqual(exported_document["room"]["renderer_adaptation_hints"]["downmix_policy"], "preserve_positions")
             self.assertEqual(exported_document["room"]["listening_zones"][1]["zone_id"], "rear-fill")
             self.assertEqual(exported_document["room"]["speakers"][0]["speaker_id"], "left-main")
             self.assertEqual(exported_document["room"]["speakers"][1]["channel"], "R")
@@ -2549,6 +2563,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(diff_payload["spatial_changes"]["room_reflection_style_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_early_reflections_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_late_reverb_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["renderer_adaptation_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_target_playback_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_spatial_priority_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["room_downmix_policy_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
             self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
@@ -2629,6 +2647,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "    style: huge",
                         "    early_reflections: metallic",
                         "    late_reverb: endless",
+                        "  renderer_adaptation_hints:",
+                        "    target_playback: cinema-dome",
+                        "    spatial_priority: gigantic",
+                        "    downmix_policy: preserve_everything",
                         "  listening_zones:",
                         "    - zone_id: ''",
                         "      anchor:",
@@ -2676,6 +2698,18 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             )
             self.assertIn(
                 "room.reflection_policy.late_reverb must be one of: dry, controlled, lush",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.renderer_adaptation_hints.target_playback must be one of: headphones, stereo_speakers, multichannel_room, portable_device",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.renderer_adaptation_hints.spatial_priority must be one of: precision, balanced, envelopment",
+                spec_payload["errors"],
+            )
+            self.assertIn(
+                "room.renderer_adaptation_hints.downmix_policy must be one of: preserve_positions, preserve_focus, preserve_energy",
                 spec_payload["errors"],
             )
             self.assertIn("room.listening_zones[0].zone_id must be a non-empty string", spec_payload["errors"])
@@ -2823,6 +2857,11 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                                 "early_reflections": "reduced",
                                 "late_reverb": "dry",
                             },
+                            "renderer_adaptation_hints": {
+                                "target_playback": "headphones",
+                                "spatial_priority": "precision",
+                                "downmix_policy": "preserve_focus",
+                            },
                             "speakers": [
                                 {
                                     "speaker_id": "left-main",
@@ -2871,6 +2910,11 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                                 "style": "enveloping",
                                 "early_reflections": "emphasized",
                                 "late_reverb": "lush",
+                            },
+                            "renderer_adaptation_hints": {
+                                "target_playback": "multichannel_room",
+                                "spatial_priority": "envelopment",
+                                "downmix_policy": "preserve_positions",
                             },
                             "speakers": [
                                 {
@@ -2926,6 +2970,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_reflection_style_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_early_reflections_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_late_reverb_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_target_playback_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_spatial_priority_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_downmix_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)

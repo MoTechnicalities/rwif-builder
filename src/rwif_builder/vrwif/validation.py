@@ -9,6 +9,10 @@ import yaml
 
 VRWIF_VERSION = 1
 VRWIF_REFERENCE_FRAMES = ("scene", "world")
+VRWIF_CAMERA_FRAMING_INTENTS = ("establishing", "centered-medium", "subject-focused", "detail-close")
+VRWIF_OBJECT_STATES = ("idle", "active", "transitioning")
+VRWIF_OBJECT_VISIBILITIES = ("visible", "occluded", "hidden")
+VRWIF_LIGHT_COLORS = ("warm", "neutral", "cool", "accent")
 SPATIAL_VECTOR_AXES = ("x", "y", "z")
 
 
@@ -206,16 +210,32 @@ def _validate_object_document(
             warnings=warnings,
         )
 
+    if "state" in object_document and object_document.get("state") is not None:
+        state = object_document.get("state")
+        if not isinstance(state, str) or not state:
+            errors.append(f"{context}.state must be a non-empty string")
+        elif state not in VRWIF_OBJECT_STATES:
+            errors.append(f"{context}.state must be one of: {', '.join(VRWIF_OBJECT_STATES)}")
+
+    if "visibility" in object_document and object_document.get("visibility") is not None:
+        visibility = object_document.get("visibility")
+        if not isinstance(visibility, str) or not visibility:
+            errors.append(f"{context}.visibility must be a non-empty string")
+        elif visibility not in VRWIF_OBJECT_VISIBILITIES:
+            errors.append(
+                f"{context}.visibility must be one of: {', '.join(VRWIF_OBJECT_VISIBILITIES)}"
+            )
+
     if "metadata" in object_document and object_document.get("metadata") is not None and not isinstance(object_document.get("metadata"), dict):
         errors.append(f"{context}.metadata must be a mapping")
 
     return "trajectory" in object_document, groups, appearance_class if isinstance(appearance_class, str) and appearance_class else None, trajectory_point_count
 
 
-def _validate_camera_document(camera_document: Any, *, errors: list[str], warnings: list[str]) -> tuple[bool, int]:
+def _validate_camera_document(camera_document: Any, *, errors: list[str], warnings: list[str]) -> tuple[bool, int, str | None]:
     if not isinstance(camera_document, dict):
         errors.append("camera must be a mapping")
-        return False, 0
+        return False, 0, None
 
     allowed_keys = {
         "camera_id",
@@ -259,11 +279,20 @@ def _validate_camera_document(camera_document: Any, *, errors: list[str], warnin
         framing_intent = camera_document.get("framing_intent")
         if not isinstance(framing_intent, str) or not framing_intent:
             errors.append("camera.framing_intent must be a non-empty string")
+        elif framing_intent not in VRWIF_CAMERA_FRAMING_INTENTS:
+            errors.append(
+                "camera.framing_intent must be one of: " + ", ".join(VRWIF_CAMERA_FRAMING_INTENTS)
+            )
 
     if "metadata" in camera_document and camera_document.get("metadata") is not None and not isinstance(camera_document.get("metadata"), dict):
         errors.append("camera.metadata must be a mapping")
 
-    return "trajectory" in camera_document, camera_trajectory_point_count
+    normalized_framing_intent = camera_document.get("framing_intent")
+    return (
+        "trajectory" in camera_document,
+        camera_trajectory_point_count,
+        normalized_framing_intent if isinstance(normalized_framing_intent, str) and normalized_framing_intent else None,
+    )
 
 
 def _validate_lighting_document(lighting_document: Any, *, errors: list[str], warnings: list[str]) -> int:
@@ -322,6 +351,8 @@ def _validate_lighting_document(lighting_document: Any, *, errors: list[str], wa
             color = light_document.get("color")
             if not isinstance(color, str) or not color:
                 errors.append(f"{context}.color must be a non-empty string")
+            elif color not in VRWIF_LIGHT_COLORS:
+                errors.append(f"{context}.color must be one of: {', '.join(VRWIF_LIGHT_COLORS)}")
 
         if "temperature_kelvin" in light_document and light_document.get("temperature_kelvin") is not None:
             if not _is_non_negative_number(light_document.get("temperature_kelvin")):
@@ -402,6 +433,8 @@ def validate_vrwif_spec_document(document: dict[str, Any], *, source: str = "<me
     object_trajectory_point_count = 0
     object_groups: set[str] = set()
     appearance_classes: set[str] = set()
+    object_states: set[str] = set()
+    object_visibilities: set[str] = set()
     for index, object_document in enumerate(objects):
         has_trajectory, groups, appearance_class, trajectory_point_count = _validate_object_document(
             object_document,
@@ -415,20 +448,35 @@ def validate_vrwif_spec_document(document: dict[str, Any], *, source: str = "<me
         object_groups.update(groups)
         if appearance_class is not None:
             appearance_classes.add(appearance_class)
+        state = object_document.get("state") if isinstance(object_document, dict) else None
+        if isinstance(state, str) and state:
+            object_states.add(state)
+        visibility = object_document.get("visibility") if isinstance(object_document, dict) else None
+        if isinstance(visibility, str) and visibility:
+            object_visibilities.add(visibility)
 
     camera_present = "camera" in document and document.get("camera") is not None
     camera_has_trajectory = False
     camera_trajectory_point_count = 0
+    camera_framing_intent: str | None = None
     if camera_present:
-        camera_has_trajectory, camera_trajectory_point_count = _validate_camera_document(
+        camera_has_trajectory, camera_trajectory_point_count, camera_framing_intent = _validate_camera_document(
             document.get("camera"),
             errors=errors,
             warnings=warnings,
         )
 
     light_count = 0
+    light_colors: set[str] = set()
     if "lighting" in document:
         light_count = _validate_lighting_document(document.get("lighting"), errors=errors, warnings=warnings)
+        if isinstance(document.get("lighting"), list):
+            for light_document in document.get("lighting"):
+                if not isinstance(light_document, dict):
+                    continue
+                color = light_document.get("color")
+                if isinstance(color, str) and color:
+                    light_colors.add(color)
 
     stats["object_count"] = len(objects)
     stats["objects_with_trajectory"] = objects_with_trajectory
@@ -436,9 +484,13 @@ def validate_vrwif_spec_document(document: dict[str, Any], *, source: str = "<me
     stats["camera_present"] = camera_present
     stats["camera_has_trajectory"] = camera_has_trajectory
     stats["camera_trajectory_point_count"] = camera_trajectory_point_count
+    stats["camera_framing_intent"] = camera_framing_intent
     stats["light_count"] = light_count
+    stats["light_colors"] = sorted(light_colors)
     stats["object_groups"] = sorted(object_groups)
     stats["appearance_classes"] = sorted(appearance_classes)
+    stats["object_states"] = sorted(object_states)
+    stats["object_visibilities"] = sorted(object_visibilities)
 
     normalized_document = _deep_copy_document(document) if not errors else None
     return VRWIFSpecValidationReport(

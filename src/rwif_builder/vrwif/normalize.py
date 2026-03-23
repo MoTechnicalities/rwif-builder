@@ -286,9 +286,11 @@ def _normalize_object_document(value: Any, summary: dict[str, int]) -> Any:
     if "trajectory" in value:
         normalized["trajectory"] = _normalize_trajectory(value.get("trajectory"), summary, "sorted_object_trajectories")
 
-    for key in ("state", "visibility"):
-        if key in value and value.get(key) is not None:
-            normalized[key] = _deep_copy_document(value.get(key))
+    if "state" in value and value.get("state") is not None:
+        normalized["state"] = _normalize_string(value.get("state"), lower=True)
+
+    if "visibility" in value and value.get("visibility") is not None:
+        normalized["visibility"] = _normalize_string(value.get("visibility"), lower=True)
 
     if isinstance(value.get("metadata"), dict):
         normalized["metadata"] = _deep_copy_document(value.get("metadata"))
@@ -314,7 +316,7 @@ def _normalize_camera_document(value: Any, summary: dict[str, int]) -> Any:
     if "trajectory" in value:
         normalized["trajectory"] = _normalize_trajectory(value.get("trajectory"), summary, "sorted_camera_trajectory")
     if "framing_intent" in value and value.get("framing_intent") is not None:
-        normalized["framing_intent"] = _normalize_string(value.get("framing_intent"))
+        normalized["framing_intent"] = _normalize_string(value.get("framing_intent"), lower=True)
     if isinstance(value.get("metadata"), dict):
         normalized["metadata"] = _deep_copy_document(value.get("metadata"))
     elif "metadata" in value and value.get("metadata") is not None:
@@ -340,7 +342,7 @@ def _normalize_light_document(value: Any, summary: dict[str, int]) -> Any:
         intensity = value.get("intensity")
         normalized["intensity"] = float(intensity) if _is_finite_number(intensity) else _deep_copy_document(intensity)
     if "color" in value and value.get("color") is not None:
-        normalized["color"] = _normalize_string(value.get("color"))
+        normalized["color"] = _normalize_string(value.get("color"), lower=True)
     if "temperature_kelvin" in value and value.get("temperature_kelvin") is not None:
         temperature = value.get("temperature_kelvin")
         normalized["temperature_kelvin"] = float(temperature) if _is_finite_number(temperature) else _deep_copy_document(temperature)

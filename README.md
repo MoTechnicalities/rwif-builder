@@ -159,6 +159,72 @@ See [docs/VISION.md](docs/VISION.md) for the longer-term thesis connecting RWIF 
 
 The first concrete VRWIF surface now covers source-spec validation, normalization, inspection, diff, and higher-level batch review. That keeps the realm narrow while establishing a real schema contract for scene identity, object identity, grouping, camera intent, and lighting intent before build or render tooling exists.
 
+VRWIF camera framing now also uses compact canonical intents: `establishing`, `centered-medium`, `subject-focused`, and `detail-close`, so scene review can distinguish framing drift explicitly instead of only treating it as a generic camera blob change.
+
+VRWIF object visibility now also uses compact canonical states: `visible`, `occluded`, and `hidden`, so object-level scene diffs can surface salience and concealment drift without relying on free-form labels.
+
+VRWIF object state now also uses compact canonical states: `idle`, `active`, and `transitioning`, so object revisions can distinguish stable presence from active or in-progress scene participation without free-form state labels.
+
+VRWIF lighting color now also uses compact canonical states: `warm`, `neutral`, `cool`, and `accent`, so scene review can track lighting mood drift without relying on arbitrary color strings.
+
+VRWIF scene summaries now also distinguish positioned lights from directional lights, so lighting-layout drift is visible in inspect and batch review without expanding the schema surface.
+
+VRWIF scene summaries now also expose how many lights carry explicit `temperature_kelvin` values plus the derived temperature range, so lighting warmth drift is visible in inspect and batch review without forcing another categorical field.
+
+VRWIF scene summaries now also expose total light intensity plus the derived intensity range, so lighting-energy drift is visible in inspect and batch review without adding a renderer-specific abstraction.
+
+VRWIF scene summaries now also expose derived camera distance from the scene origin, so camera-placement drift is visible in inspect and batch review without collapsing the full camera vector into a renderer-specific preset.
+
+VRWIF scene summaries now also expose total object distance from the origin plus the derived object-distance range, so scene-layout drift is visible in inspect and batch review without adding renderer-specific placement categories.
+
+VRWIF scene summaries now also expose total object-trajectory duration plus the derived trajectory-duration range, so motion-timing drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory path length plus the derived path-length range, so motion-magnitude drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory displacement plus the derived displacement range, so net-movement drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory average speed plus the derived speed range, so motion-intensity drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory peak speed plus the derived peak-speed range, so burst-intensity drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory peak speed, so camera motion spikes are visible alongside average-speed drift in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory speed standard deviation plus the derived variability range, so per-segment motion consistency drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory speed standard deviation, so camera motion consistency drift is visible alongside average-speed and peak-speed changes in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory straightness plus the derived straightness range, so path-directness drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory turn angle in degrees plus the derived turn-angle range, so path-bending drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory peak turn angle in degrees plus the derived peak-turn-angle range, so sharpest-corner drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory turn count plus the derived turn-count range, so repeated-bending drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory average turn angle in degrees plus the derived average-turn-angle range, so typical-bend drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory turn-angle standard deviation in degrees plus the derived standard-deviation range, so bend-consistency drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory duration, so camera motion-timing drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory path length, so camera motion-magnitude drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory displacement, so camera net-movement drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory average speed, so camera motion-intensity drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory straightness, so camera path-directness drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory turn angle in degrees, so camera path-bending drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory peak turn angle in degrees, so camera sharpest-corner drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory turn count, so camera repeated-bending drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory average turn angle in degrees, so camera typical-bend drift is visible in inspect and batch review without adding shot-planning schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory turn-angle standard deviation in degrees, so camera bend-consistency drift is visible in inspect and batch review without adding shot-planning schema.
+
 `rwif vrwif-inspect` now also exposes preserved top-level metadata and derived `realm_references`, so VRWIF scene specs can point cleanly to related RWIF or ARWIF artifacts without turning those cross-realm links into first-class scene fields.
 
 Reference example:

@@ -117,7 +117,7 @@ Minimum object fields:
 - `position`
 - `orientation` or `transform`
 - optional `trajectory`
-- optional `state` or `visibility`
+- optional `state` or `visibility`, where state can use `idle`, `active`, or `transitioning` and visibility can use `visible`, `occluded`, or `hidden`
 
 Minimum camera fields:
 
@@ -125,14 +125,14 @@ Minimum camera fields:
 - `position`
 - `orientation`
 - optional `trajectory`
-- optional `framing_intent`
+- optional `framing_intent` using one of `establishing`, `centered-medium`, `subject-focused`, or `detail-close`
 
 Minimum lighting fields:
 
 - one or more light records with stable ids
 - position or directional intent
 - intensity
-- color or temperature
+- color or temperature, where color can use `warm`, `neutral`, `cool`, or `accent`
 
 This keeps `VRWIF` inspectable and diffable without trying to encode full render-engine behavior.
 
@@ -162,15 +162,48 @@ The current validator checks:
 - object identity via `object_id`
 - object grouping via `object_groups`
 - object placement via `position`
+- optional object state via canonical `state`
+- optional object visibility via canonical `visibility`
 - optional object `orientation` and `trajectory`
-- camera identity and placement
-- lighting identity plus directional or positional intent
+- camera identity and placement plus canonical framing intent
+- lighting identity plus directional or positional intent, optional temperature, and canonical lighting color
 
 The current normalization path also:
 
 - inserts the strict `vrwif_version`
 - canonicalizes `class` into `appearance_class`
 - normalizes reference-frame casing
+
+The current inspect and diff path also:
+
+- summarizes total object distance from origin plus the min/max object-distance range
+- summarizes total object-trajectory duration plus the min/max object-trajectory duration range
+- summarizes total object-trajectory path length plus the min/max object-trajectory path-length range
+- summarizes total object-trajectory displacement plus the min/max object-trajectory displacement range
+- summarizes total object-trajectory average speed plus the min/max object-trajectory average-speed range
+- summarizes total object-trajectory peak speed plus the min/max object-trajectory peak-speed range
+- summarizes total object-trajectory speed standard deviation plus the min/max object-trajectory speed-standard-deviation range
+- summarizes total object-trajectory straightness plus the min/max object-trajectory straightness range
+- summarizes total object-trajectory cumulative turn angle in degrees plus the min/max object-trajectory turn-angle range
+- summarizes total object-trajectory peak turn angle in degrees plus the min/max object-trajectory peak-turn-angle range
+- summarizes total object-trajectory turn count plus the min/max object-trajectory turn-count range
+- summarizes total object-trajectory average turn angle in degrees plus the min/max object-trajectory average-turn-angle range
+- summarizes total object-trajectory turn-angle standard deviation in degrees plus the min/max object-trajectory standard-deviation range
+- summarizes derived camera-trajectory duration when camera keyframes are present
+- summarizes derived camera-trajectory path length when camera keyframes are present
+- summarizes derived camera-trajectory displacement when camera keyframes are present
+- summarizes derived camera-trajectory average speed when camera keyframes are present
+- summarizes derived camera-trajectory straightness when camera keyframes are present
+- summarizes derived camera-trajectory cumulative turn angle in degrees when camera keyframes are present
+- summarizes derived camera-trajectory peak turn angle in degrees when camera keyframes are present
+- summarizes derived camera-trajectory turn count when camera keyframes are present
+- summarizes derived camera-trajectory average turn angle in degrees when camera keyframes are present
+- summarizes derived camera-trajectory turn-angle standard deviation in degrees when camera keyframes are present
+- summarizes derived camera distance from the origin when a camera is present
+- summarizes total light intensity plus the min/max scene intensity range
+- summarizes positioned lights separately from directional lights
+- summarizes how many lights carry explicit `temperature_kelvin` values plus the min/max scene temperature range when present
+- treats light-temperature coverage drift and light-temperature range drift as first-class scene-review signals in pairwise and batch analysis
 - sorts object groups for stable review output
 - sorts trajectories by `offset_seconds`
 - reorders objects and lights by stable ids for cleaner diff baselines
@@ -179,9 +212,9 @@ The current normalization path also:
 
 The current inspection path reports preserved top-level `metadata` plus a normalized `realm_references` view derived from `metadata.related_realms` or `metadata.realm_references`, so VRWIF source specs can expose clean outward pointers to neighboring `RWIF`, `ARWIF`, or future realms without collapsing those bridge links into scene geometry itself.
 
-The current inspection path reports compact scene summaries including object ids, object groups, appearance classes, positioned-object counts, trajectory counts, camera presence, and lighting presence.
+The current inspection path reports compact scene summaries including object ids, object groups, appearance classes, canonical object state and visibility summaries, total object distance from origin, object-distance range, total object-trajectory duration, object-trajectory duration range, total object-trajectory path length, object-trajectory path-length range, total object-trajectory displacement, object-trajectory displacement range, total object-trajectory average speed, object-trajectory average-speed range, total object-trajectory peak speed, object-trajectory peak-speed range, total object-trajectory speed standard deviation, object-trajectory speed-standard-deviation range, total object-trajectory straightness, object-trajectory straightness range, total object-trajectory cumulative turn angle in degrees, object-trajectory turn-angle range in degrees, total object-trajectory peak turn angle in degrees, object-trajectory peak-turn-angle range in degrees, total object-trajectory turn count, object-trajectory turn-count range, total object-trajectory average turn angle in degrees, object-trajectory average-turn-angle range in degrees, total object-trajectory turn-angle standard deviation in degrees, object-trajectory turn-angle standard-deviation range in degrees, positioned-object counts, trajectory counts, canonical camera framing intent, camera presence, derived camera-trajectory duration, derived camera-trajectory path length, derived camera-trajectory displacement, derived camera-trajectory average speed, derived camera-trajectory peak speed, derived camera-trajectory speed standard deviation, derived camera-trajectory straightness, derived camera-trajectory cumulative turn angle in degrees, derived camera-trajectory peak turn angle in degrees, derived camera-trajectory turn count, derived camera-trajectory average turn angle in degrees, derived camera-trajectory turn-angle standard deviation in degrees, derived camera distance from origin, lighting presence, total light intensity, light-intensity range, positioned-light versus directional-light counts, and canonical lighting colors.
 
-The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting id changes.
+The current diff path reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, object-state changes, object-visibility changes, object-distance changes, object-trajectory duration changes, object-trajectory path-length changes, object-trajectory displacement changes, object-trajectory average-speed changes, object-trajectory peak-speed changes, object-trajectory speed-standard-deviation changes, object-trajectory straightness changes, object-trajectory cumulative turn-angle changes in degrees, object-trajectory peak-turn-angle changes in degrees, object-trajectory turn-count changes, object-trajectory average-turn-angle changes in degrees, object-trajectory turn-angle standard-deviation changes in degrees, framing-intent changes, camera changes, camera-trajectory duration changes, camera-trajectory path-length changes, camera-trajectory displacement changes, camera-trajectory average-speed changes, camera-trajectory peak-speed changes, camera-trajectory speed-standard-deviation changes, camera-trajectory straightness changes, camera-trajectory cumulative turn-angle changes in degrees, camera-trajectory peak-turn-angle changes in degrees, camera-trajectory turn-count changes, camera-trajectory average-turn-angle changes in degrees, camera-trajectory turn-angle standard-deviation changes in degrees, camera-distance changes, light-intensity changes, light-placement deltas, lighting-color changes, and lighting id changes.
 
 The current batch normalization, batch inspection, and batch diff paths scale those same source-authoring and review surfaces across collections of VRWIF scene specs, returning aggregated counts plus the full per-spec or per-pair payloads.
 
@@ -191,7 +224,7 @@ The current batch normalization analysis path builds on a saved `vrwif-batch-nor
 
 The current batch normalization review path collapses those two steps into one command by running batch normalization and normalization analysis together in a single persisted review payload.
 
-The current batch diff analysis path builds on a saved `vrwif-batch-diff` report, aggregates recurring metadata and object changes across all compared pairs, and summarizes scene-level drift such as reference-frame changes, camera changes, trajectory deltas, and lighting identity churn.
+The current batch diff analysis path builds on a saved `vrwif-batch-diff` report, aggregates recurring metadata and object changes across all compared pairs, and summarizes scene-level drift such as reference-frame changes, object-state changes, object-visibility changes, object-distance drift, object-trajectory duration drift, object-trajectory path-length drift, object-trajectory displacement drift, object-trajectory average-speed drift, object-trajectory peak-speed drift, object-trajectory speed-standard-deviation drift, object-trajectory straightness drift, object-trajectory cumulative turn-angle drift in degrees, object-trajectory peak-turn-angle drift in degrees, object-trajectory turn-count drift, object-trajectory average-turn-angle drift in degrees, object-trajectory turn-angle standard-deviation drift in degrees, framing-intent changes, camera changes, camera-trajectory duration drift, camera-trajectory path-length drift, camera-trajectory displacement drift, camera-trajectory average-speed drift, camera-trajectory peak-speed drift, camera-trajectory speed-standard-deviation drift, camera-trajectory straightness drift, camera-trajectory cumulative turn-angle drift in degrees, camera-trajectory peak-turn-angle drift in degrees, camera-trajectory turn-count drift, camera-trajectory average-turn-angle drift in degrees, camera-trajectory turn-angle standard-deviation drift in degrees, camera-distance drift, trajectory deltas, light-intensity drift, light-placement deltas, lighting-color changes, and lighting identity churn.
 
 The current batch review path collapses those two review steps into one command by running pairwise VRWIF batch diff and the recurring-change analysis together in a single payload.
 

@@ -183,7 +183,7 @@ Current implementation: interprets each state as a sequential oscillator-bank se
 
 Validates a VRWIF source spec.
 
-Current implementation: checks scene identity, reference-frame semantics, object, camera, and lighting structures, top-level and per-entity metadata mappings, and trajectory ordering without writing any artifacts.
+Current implementation: checks scene identity, reference-frame semantics, object, camera, and lighting structures, canonical object state, canonical object visibility, canonical camera framing intents, and canonical lighting colors, top-level and per-entity metadata mappings, and trajectory ordering without writing any artifacts.
 
 ### `rwif vrwif-normalize`
 
@@ -213,7 +213,7 @@ Current implementation: combines the `vrwif-batch-normalize` and `vrwif-batch-no
 
 Summarizes a VRWIF source spec in VRWIF-native terms.
 
-Current implementation: reports scene identity, preserved top-level `metadata`, derived `realm_references`, object, camera, and lighting summaries, and a compact `scene_summary` covering grouping, trajectory, camera, and lighting presence.
+Current implementation: reports scene identity, preserved top-level `metadata`, derived `realm_references`, object, camera, and lighting summaries, and a compact `scene_summary` covering grouping, canonical object state, canonical object visibility, object-distance totals and range, object-trajectory duration totals and range, object-trajectory path-length totals and range, object-trajectory displacement totals and range, object-trajectory average-speed totals and range, object-trajectory peak-speed totals and range, object-trajectory speed-standard-deviation totals and range, object-trajectory straightness totals and range, object-trajectory cumulative turn-angle totals and range in degrees, object-trajectory peak-turn-angle totals and range in degrees, object-trajectory turn-count totals and range, object-trajectory average-turn-angle totals and range in degrees, object-trajectory turn-angle standard-deviation totals and range in degrees, trajectory, canonical camera framing intent, camera presence, derived camera-trajectory duration, derived camera-trajectory path length, derived camera-trajectory displacement, derived camera-trajectory average speed, derived camera-trajectory peak speed, derived camera-trajectory speed standard deviation, derived camera-trajectory straightness, derived camera-trajectory turn angle in degrees, derived camera-trajectory peak turn angle in degrees, derived camera-trajectory turn count, derived camera-trajectory average turn angle in degrees, derived camera-trajectory turn-angle standard deviation in degrees, derived camera distance from origin, lighting presence, light-intensity totals and range, positioned-light versus directional-light counts, light-temperature coverage and range, and canonical lighting colors.
 
 ### `rwif vrwif-batch-inspect`
 
@@ -225,7 +225,7 @@ Current implementation: reuses the same inspection path as `vrwif-inspect`, retu
 
 Compares two VRWIF source specs.
 
-Current implementation: reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, camera changes, and lighting identity churn.
+Current implementation: reports top-level metadata changes, added or removed objects, changed objects, object field deltas, and scene-level changes such as reference-frame drift, group changes, object-state drift, object-visibility drift, object-distance total and range drift, object-trajectory duration total and range drift, object-trajectory path-length total and range drift, object-trajectory displacement total and range drift, object-trajectory average-speed total and range drift, object-trajectory peak-speed total and range drift, object-trajectory speed-standard-deviation total and range drift, object-trajectory straightness total and range drift, object-trajectory cumulative turn-angle total and range drift in degrees, object-trajectory peak-turn-angle total and range drift in degrees, object-trajectory turn-count total and range drift, object-trajectory average-turn-angle total and range drift in degrees, object-trajectory turn-angle standard-deviation total and range drift in degrees, explicit framing-intent drift, camera changes, camera-trajectory duration drift, camera-trajectory path-length drift, camera-trajectory displacement drift, camera-trajectory average-speed drift, camera-trajectory peak-speed drift, camera-trajectory speed-standard-deviation drift, camera-trajectory straightness drift, camera-trajectory turn-angle drift in degrees, camera-trajectory peak-turn-angle drift in degrees, camera-trajectory turn-count drift, camera-trajectory average-turn-angle drift in degrees, camera-trajectory turn-angle standard-deviation drift in degrees, camera-distance drift, light-intensity total and range drift, positioned-light and directional-light deltas, light-temperature coverage and range drift, lighting-color drift, and lighting identity churn.
 
 ### `rwif vrwif-batch-diff`
 
@@ -237,7 +237,7 @@ Current implementation: accepts explicit pairwise `--left` and `--right` collect
 
 Analyzes a saved VRWIF batch diff report.
 
-Current implementation: aggregates recurring metadata, object, and scene-level changes across all compared pairs, and can optionally persist the analysis result as `.json`, `.yaml`, or `.yml`.
+Current implementation: aggregates recurring metadata, object, and scene-level changes across all compared pairs, including object-state, object-visibility, object-distance, object-trajectory duration, object-trajectory path length, object-trajectory displacement, object-trajectory average speed, object-trajectory peak speed, object-trajectory speed standard deviation, object-trajectory straightness, object-trajectory cumulative turn angle in degrees, object-trajectory peak turn angle in degrees, object-trajectory turn count, object-trajectory average turn angle in degrees, object-trajectory turn-angle standard deviation in degrees, framing-intent, camera-trajectory duration, camera-trajectory path length, camera-trajectory displacement, camera-trajectory average speed, camera-trajectory peak speed, camera-trajectory speed standard deviation, camera-trajectory straightness, camera-trajectory turn angle in degrees, camera-trajectory peak turn angle in degrees, camera-trajectory turn count, camera-trajectory average turn angle in degrees, camera-trajectory turn-angle standard deviation in degrees, camera-distance, light-intensity, light-placement, light-temperature, and lighting-color drift counts, and can optionally persist the analysis result as `.json`, `.yaml`, or `.yml`.
 
 ### `rwif vrwif-batch-review`
 

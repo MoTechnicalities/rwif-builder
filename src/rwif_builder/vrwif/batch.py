@@ -551,18 +551,97 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     reference_frame_changed_pairs = 0
     object_groups_changed_pairs = 0
     appearance_classes_changed_pairs = 0
+    object_states_changed_pairs = 0
+    object_visibilities_changed_pairs = 0
+    object_distance_delta_pairs = 0
+    total_object_distance_delta = 0.0
+    object_distance_range_changed_pairs = 0
     positioned_object_delta_pairs = 0
     total_positioned_objects_delta = 0
     orientation_delta_pairs = 0
     total_objects_with_orientation_delta = 0
     trajectory_delta_pairs = 0
     total_objects_with_trajectory_delta = 0
+    trajectory_duration_delta_pairs = 0
+    total_object_trajectory_duration_delta = 0.0
+    trajectory_duration_range_changed_pairs = 0
+    trajectory_path_length_delta_pairs = 0
+    total_object_trajectory_path_length_delta = 0.0
+    trajectory_path_length_range_changed_pairs = 0
+    trajectory_displacement_delta_pairs = 0
+    total_object_trajectory_displacement_delta = 0.0
+    trajectory_displacement_range_changed_pairs = 0
+    trajectory_average_speed_delta_pairs = 0
+    total_object_trajectory_average_speed_delta = 0.0
+    trajectory_average_speed_range_changed_pairs = 0
+    trajectory_peak_speed_delta_pairs = 0
+    total_object_trajectory_peak_speed_delta = 0.0
+    trajectory_peak_speed_range_changed_pairs = 0
+    trajectory_speed_standard_deviation_delta_pairs = 0
+    total_object_trajectory_speed_standard_deviation_delta = 0.0
+    trajectory_speed_standard_deviation_range_changed_pairs = 0
+    trajectory_straightness_delta_pairs = 0
+    total_object_trajectory_straightness_delta = 0.0
+    trajectory_straightness_range_changed_pairs = 0
+    trajectory_turn_angle_delta_pairs = 0
+    total_object_trajectory_turn_angle_delta_degrees = 0.0
+    trajectory_turn_angle_range_changed_pairs = 0
+    trajectory_peak_turn_angle_delta_pairs = 0
+    total_object_trajectory_peak_turn_angle_delta_degrees = 0.0
+    trajectory_peak_turn_angle_range_changed_pairs = 0
+    trajectory_turn_count_delta_pairs = 0
+    total_object_trajectory_turn_count_delta = 0
+    trajectory_turn_count_range_changed_pairs = 0
+    trajectory_average_turn_angle_delta_pairs = 0
+    total_object_trajectory_average_turn_angle_delta_degrees = 0.0
+    trajectory_average_turn_angle_range_changed_pairs = 0
+    trajectory_turn_angle_standard_deviation_delta_pairs = 0
+    total_object_trajectory_turn_angle_standard_deviation_delta_degrees = 0.0
+    trajectory_turn_angle_standard_deviation_range_changed_pairs = 0
     trajectory_point_delta_pairs = 0
     total_object_trajectory_point_delta = 0
     camera_changed_pairs = 0
+    camera_distance_delta_pairs = 0
+    total_camera_distance_delta = 0.0
+    camera_trajectory_duration_delta_pairs = 0
+    total_camera_trajectory_duration_delta = 0.0
+    camera_trajectory_path_length_delta_pairs = 0
+    total_camera_trajectory_path_length_delta = 0.0
+    camera_trajectory_displacement_delta_pairs = 0
+    total_camera_trajectory_displacement_delta = 0.0
+    camera_trajectory_average_speed_delta_pairs = 0
+    total_camera_trajectory_average_speed_delta = 0.0
+    camera_trajectory_peak_speed_delta_pairs = 0
+    total_camera_trajectory_peak_speed_delta = 0.0
+    camera_trajectory_speed_standard_deviation_delta_pairs = 0
+    total_camera_trajectory_speed_standard_deviation_delta = 0.0
+    camera_trajectory_straightness_delta_pairs = 0
+    total_camera_trajectory_straightness_delta = 0.0
+    camera_trajectory_turn_angle_delta_pairs = 0
+    total_camera_trajectory_turn_angle_delta_degrees = 0.0
+    camera_trajectory_peak_turn_angle_delta_pairs = 0
+    total_camera_trajectory_peak_turn_angle_delta_degrees = 0.0
+    camera_trajectory_turn_count_delta_pairs = 0
+    total_camera_trajectory_turn_count_delta = 0
+    camera_trajectory_average_turn_angle_delta_pairs = 0
+    total_camera_trajectory_average_turn_angle_delta_degrees = 0.0
+    camera_trajectory_turn_angle_standard_deviation_delta_pairs = 0
+    total_camera_trajectory_turn_angle_standard_deviation_delta_degrees = 0.0
+    framing_intent_changed_pairs = 0
     camera_trajectory_changed_pairs = 0
     light_count_delta_pairs = 0
     total_light_count_delta = 0
+    light_intensity_total_delta_pairs = 0
+    total_light_intensity_delta = 0.0
+    light_intensity_range_changed_pairs = 0
+    positioned_light_delta_pairs = 0
+    total_positioned_lights_delta = 0
+    directional_light_delta_pairs = 0
+    total_directional_lights_delta = 0
+    light_temperature_delta_pairs = 0
+    total_lights_with_temperature_delta = 0
+    light_temperature_range_changed_pairs = 0
+    light_colors_changed_pairs = 0
     light_ids_changed_pairs = 0
 
     changed_pairs = 0
@@ -610,6 +689,18 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 object_groups_changed_pairs += 1
             if bool(scene_changes.get("appearance_classes_changed", False)):
                 appearance_classes_changed_pairs += 1
+            if bool(scene_changes.get("object_states_changed", False)):
+                object_states_changed_pairs += 1
+            if bool(scene_changes.get("object_visibilities_changed", False)):
+                object_visibilities_changed_pairs += 1
+
+            object_distance_delta = float(scene_changes.get("object_distance_from_origin_total_delta", 0.0) or 0.0)
+            total_object_distance_delta += object_distance_delta
+            if object_distance_delta != 0.0:
+                object_distance_delta_pairs += 1
+
+            if bool(scene_changes.get("object_distance_from_origin_range_changed", False)):
+                object_distance_range_changed_pairs += 1
 
             positioned_delta = int(scene_changes.get("positioned_objects_delta", 0) or 0)
             total_positioned_objects_delta += positioned_delta
@@ -626,6 +717,106 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             if trajectory_delta != 0:
                 trajectory_delta_pairs += 1
 
+            trajectory_duration_delta = float(scene_changes.get("object_trajectory_duration_total_delta", 0.0) or 0.0)
+            total_object_trajectory_duration_delta += trajectory_duration_delta
+            if trajectory_duration_delta != 0.0:
+                trajectory_duration_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_duration_range_changed", False)):
+                trajectory_duration_range_changed_pairs += 1
+
+            trajectory_path_length_delta = float(scene_changes.get("object_trajectory_path_length_total_delta", 0.0) or 0.0)
+            total_object_trajectory_path_length_delta += trajectory_path_length_delta
+            if trajectory_path_length_delta != 0.0:
+                trajectory_path_length_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_path_length_range_changed", False)):
+                trajectory_path_length_range_changed_pairs += 1
+
+            trajectory_displacement_delta = float(scene_changes.get("object_trajectory_displacement_total_delta", 0.0) or 0.0)
+            total_object_trajectory_displacement_delta += trajectory_displacement_delta
+            if trajectory_displacement_delta != 0.0:
+                trajectory_displacement_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_displacement_range_changed", False)):
+                trajectory_displacement_range_changed_pairs += 1
+
+            trajectory_average_speed_delta = float(scene_changes.get("object_trajectory_average_speed_total_delta", 0.0) or 0.0)
+            total_object_trajectory_average_speed_delta += trajectory_average_speed_delta
+            if trajectory_average_speed_delta != 0.0:
+                trajectory_average_speed_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_average_speed_range_changed", False)):
+                trajectory_average_speed_range_changed_pairs += 1
+
+            trajectory_peak_speed_delta = float(scene_changes.get("object_trajectory_peak_speed_total_delta", 0.0) or 0.0)
+            total_object_trajectory_peak_speed_delta += trajectory_peak_speed_delta
+            if trajectory_peak_speed_delta != 0.0:
+                trajectory_peak_speed_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_peak_speed_range_changed", False)):
+                trajectory_peak_speed_range_changed_pairs += 1
+
+            trajectory_speed_standard_deviation_delta = float(
+                scene_changes.get("object_trajectory_speed_standard_deviation_total_delta", 0.0) or 0.0
+            )
+            total_object_trajectory_speed_standard_deviation_delta += trajectory_speed_standard_deviation_delta
+            if trajectory_speed_standard_deviation_delta != 0.0:
+                trajectory_speed_standard_deviation_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_speed_standard_deviation_range_changed", False)):
+                trajectory_speed_standard_deviation_range_changed_pairs += 1
+
+            trajectory_straightness_delta = float(scene_changes.get("object_trajectory_straightness_total_delta", 0.0) or 0.0)
+            total_object_trajectory_straightness_delta += trajectory_straightness_delta
+            if trajectory_straightness_delta != 0.0:
+                trajectory_straightness_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_straightness_range_changed", False)):
+                trajectory_straightness_range_changed_pairs += 1
+
+            trajectory_turn_angle_delta = float(scene_changes.get("object_trajectory_turn_angle_total_degrees_delta", 0.0) or 0.0)
+            total_object_trajectory_turn_angle_delta_degrees += trajectory_turn_angle_delta
+            if trajectory_turn_angle_delta != 0.0:
+                trajectory_turn_angle_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_turn_angle_range_degrees_changed", False)):
+                trajectory_turn_angle_range_changed_pairs += 1
+
+            trajectory_peak_turn_angle_delta = float(scene_changes.get("object_trajectory_peak_turn_angle_total_degrees_delta", 0.0) or 0.0)
+            total_object_trajectory_peak_turn_angle_delta_degrees += trajectory_peak_turn_angle_delta
+            if trajectory_peak_turn_angle_delta != 0.0:
+                trajectory_peak_turn_angle_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_peak_turn_angle_range_degrees_changed", False)):
+                trajectory_peak_turn_angle_range_changed_pairs += 1
+
+            trajectory_turn_count_delta = int(scene_changes.get("object_trajectory_turn_count_total_delta", 0) or 0)
+            total_object_trajectory_turn_count_delta += trajectory_turn_count_delta
+            if trajectory_turn_count_delta != 0:
+                trajectory_turn_count_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_turn_count_range_changed", False)):
+                trajectory_turn_count_range_changed_pairs += 1
+
+            trajectory_average_turn_angle_delta = float(scene_changes.get("object_trajectory_average_turn_angle_total_degrees_delta", 0.0) or 0.0)
+            total_object_trajectory_average_turn_angle_delta_degrees += trajectory_average_turn_angle_delta
+            if trajectory_average_turn_angle_delta != 0.0:
+                trajectory_average_turn_angle_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_average_turn_angle_range_degrees_changed", False)):
+                trajectory_average_turn_angle_range_changed_pairs += 1
+
+            trajectory_turn_angle_standard_deviation_delta = float(
+                scene_changes.get("object_trajectory_turn_angle_standard_deviation_total_degrees_delta", 0.0) or 0.0
+            )
+            total_object_trajectory_turn_angle_standard_deviation_delta_degrees += trajectory_turn_angle_standard_deviation_delta
+            if trajectory_turn_angle_standard_deviation_delta != 0.0:
+                trajectory_turn_angle_standard_deviation_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_turn_angle_standard_deviation_range_degrees_changed", False)):
+                trajectory_turn_angle_standard_deviation_range_changed_pairs += 1
+
             trajectory_point_delta = int(scene_changes.get("object_trajectory_point_count_delta", 0) or 0)
             total_object_trajectory_point_delta += trajectory_point_delta
             if trajectory_point_delta != 0:
@@ -633,6 +824,78 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
 
             if bool(scene_changes.get("camera_changed", False)):
                 camera_changed_pairs += 1
+
+            camera_distance_delta = float(scene_changes.get("camera_distance_from_origin_delta", 0.0) or 0.0)
+            total_camera_distance_delta += camera_distance_delta
+            if camera_distance_delta != 0.0:
+                camera_distance_delta_pairs += 1
+
+            camera_trajectory_duration_delta = float(scene_changes.get("camera_trajectory_duration_delta", 0.0) or 0.0)
+            total_camera_trajectory_duration_delta += camera_trajectory_duration_delta
+            if camera_trajectory_duration_delta != 0.0:
+                camera_trajectory_duration_delta_pairs += 1
+
+            camera_trajectory_path_length_delta = float(scene_changes.get("camera_trajectory_path_length_delta", 0.0) or 0.0)
+            total_camera_trajectory_path_length_delta += camera_trajectory_path_length_delta
+            if camera_trajectory_path_length_delta != 0.0:
+                camera_trajectory_path_length_delta_pairs += 1
+
+            camera_trajectory_displacement_delta = float(scene_changes.get("camera_trajectory_displacement_delta", 0.0) or 0.0)
+            total_camera_trajectory_displacement_delta += camera_trajectory_displacement_delta
+            if camera_trajectory_displacement_delta != 0.0:
+                camera_trajectory_displacement_delta_pairs += 1
+
+            camera_trajectory_average_speed_delta = float(scene_changes.get("camera_trajectory_average_speed_delta", 0.0) or 0.0)
+            total_camera_trajectory_average_speed_delta += camera_trajectory_average_speed_delta
+            if camera_trajectory_average_speed_delta != 0.0:
+                camera_trajectory_average_speed_delta_pairs += 1
+
+            camera_trajectory_peak_speed_delta = float(scene_changes.get("camera_trajectory_peak_speed_delta", 0.0) or 0.0)
+            total_camera_trajectory_peak_speed_delta += camera_trajectory_peak_speed_delta
+            if camera_trajectory_peak_speed_delta != 0.0:
+                camera_trajectory_peak_speed_delta_pairs += 1
+
+            camera_trajectory_speed_standard_deviation_delta = float(
+                scene_changes.get("camera_trajectory_speed_standard_deviation_delta", 0.0) or 0.0
+            )
+            total_camera_trajectory_speed_standard_deviation_delta += camera_trajectory_speed_standard_deviation_delta
+            if camera_trajectory_speed_standard_deviation_delta != 0.0:
+                camera_trajectory_speed_standard_deviation_delta_pairs += 1
+
+            camera_trajectory_straightness_delta = float(scene_changes.get("camera_trajectory_straightness_delta", 0.0) or 0.0)
+            total_camera_trajectory_straightness_delta += camera_trajectory_straightness_delta
+            if camera_trajectory_straightness_delta != 0.0:
+                camera_trajectory_straightness_delta_pairs += 1
+
+            camera_trajectory_turn_angle_delta = float(scene_changes.get("camera_trajectory_turn_angle_degrees_delta", 0.0) or 0.0)
+            total_camera_trajectory_turn_angle_delta_degrees += camera_trajectory_turn_angle_delta
+            if camera_trajectory_turn_angle_delta != 0.0:
+                camera_trajectory_turn_angle_delta_pairs += 1
+
+            camera_trajectory_peak_turn_angle_delta = float(scene_changes.get("camera_trajectory_peak_turn_angle_degrees_delta", 0.0) or 0.0)
+            total_camera_trajectory_peak_turn_angle_delta_degrees += camera_trajectory_peak_turn_angle_delta
+            if camera_trajectory_peak_turn_angle_delta != 0.0:
+                camera_trajectory_peak_turn_angle_delta_pairs += 1
+
+            camera_trajectory_turn_count_delta = int(scene_changes.get("camera_trajectory_turn_count_delta", 0) or 0)
+            total_camera_trajectory_turn_count_delta += camera_trajectory_turn_count_delta
+            if camera_trajectory_turn_count_delta != 0:
+                camera_trajectory_turn_count_delta_pairs += 1
+
+            camera_trajectory_average_turn_angle_delta = float(scene_changes.get("camera_trajectory_average_turn_angle_degrees_delta", 0.0) or 0.0)
+            total_camera_trajectory_average_turn_angle_delta_degrees += camera_trajectory_average_turn_angle_delta
+            if camera_trajectory_average_turn_angle_delta != 0.0:
+                camera_trajectory_average_turn_angle_delta_pairs += 1
+
+            camera_trajectory_turn_angle_standard_deviation_delta = float(
+                scene_changes.get("camera_trajectory_turn_angle_standard_deviation_degrees_delta", 0.0) or 0.0
+            )
+            total_camera_trajectory_turn_angle_standard_deviation_delta_degrees += camera_trajectory_turn_angle_standard_deviation_delta
+            if camera_trajectory_turn_angle_standard_deviation_delta != 0.0:
+                camera_trajectory_turn_angle_standard_deviation_delta_pairs += 1
+
+            if bool(scene_changes.get("framing_intent_changed", False)):
+                framing_intent_changed_pairs += 1
             if bool(scene_changes.get("camera_trajectory_changed", False)):
                 camera_trajectory_changed_pairs += 1
 
@@ -641,6 +904,34 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             if light_count_delta != 0:
                 light_count_delta_pairs += 1
 
+            light_intensity_total_delta = float(scene_changes.get("light_intensity_total_delta", 0.0) or 0.0)
+            total_light_intensity_delta += light_intensity_total_delta
+            if light_intensity_total_delta != 0.0:
+                light_intensity_total_delta_pairs += 1
+
+            if bool(scene_changes.get("light_intensity_range_changed", False)):
+                light_intensity_range_changed_pairs += 1
+
+            positioned_lights_delta = int(scene_changes.get("positioned_lights_delta", 0) or 0)
+            total_positioned_lights_delta += positioned_lights_delta
+            if positioned_lights_delta != 0:
+                positioned_light_delta_pairs += 1
+
+            directional_lights_delta = int(scene_changes.get("directional_lights_delta", 0) or 0)
+            total_directional_lights_delta += directional_lights_delta
+            if directional_lights_delta != 0:
+                directional_light_delta_pairs += 1
+
+            lights_with_temperature_delta = int(scene_changes.get("lights_with_temperature_delta", 0) or 0)
+            total_lights_with_temperature_delta += lights_with_temperature_delta
+            if lights_with_temperature_delta != 0:
+                light_temperature_delta_pairs += 1
+
+            if bool(scene_changes.get("light_temperature_range_changed", False)):
+                light_temperature_range_changed_pairs += 1
+
+            if bool(scene_changes.get("light_colors_changed", False)):
+                light_colors_changed_pairs += 1
             if bool(scene_changes.get("light_ids_changed", False)):
                 light_ids_changed_pairs += 1
 
@@ -663,18 +954,97 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "reference_frame_changed_pairs": reference_frame_changed_pairs,
             "object_groups_changed_pairs": object_groups_changed_pairs,
             "appearance_classes_changed_pairs": appearance_classes_changed_pairs,
+            "object_states_changed_pairs": object_states_changed_pairs,
+            "object_visibilities_changed_pairs": object_visibilities_changed_pairs,
+            "pairs_with_object_distance_delta": object_distance_delta_pairs,
+            "total_object_distance_delta": total_object_distance_delta,
+            "object_distance_range_changed_pairs": object_distance_range_changed_pairs,
             "pairs_with_positioned_object_delta": positioned_object_delta_pairs,
             "total_positioned_objects_delta": total_positioned_objects_delta,
             "pairs_with_orientation_delta": orientation_delta_pairs,
             "total_objects_with_orientation_delta": total_objects_with_orientation_delta,
             "pairs_with_trajectory_delta": trajectory_delta_pairs,
             "total_objects_with_trajectory_delta": total_objects_with_trajectory_delta,
+            "pairs_with_trajectory_duration_delta": trajectory_duration_delta_pairs,
+            "total_object_trajectory_duration_delta": total_object_trajectory_duration_delta,
+            "trajectory_duration_range_changed_pairs": trajectory_duration_range_changed_pairs,
+            "pairs_with_trajectory_path_length_delta": trajectory_path_length_delta_pairs,
+            "total_object_trajectory_path_length_delta": total_object_trajectory_path_length_delta,
+            "trajectory_path_length_range_changed_pairs": trajectory_path_length_range_changed_pairs,
+            "pairs_with_trajectory_displacement_delta": trajectory_displacement_delta_pairs,
+            "total_object_trajectory_displacement_delta": total_object_trajectory_displacement_delta,
+            "trajectory_displacement_range_changed_pairs": trajectory_displacement_range_changed_pairs,
+            "pairs_with_trajectory_average_speed_delta": trajectory_average_speed_delta_pairs,
+            "total_object_trajectory_average_speed_delta": total_object_trajectory_average_speed_delta,
+            "trajectory_average_speed_range_changed_pairs": trajectory_average_speed_range_changed_pairs,
+            "pairs_with_trajectory_peak_speed_delta": trajectory_peak_speed_delta_pairs,
+            "total_object_trajectory_peak_speed_delta": total_object_trajectory_peak_speed_delta,
+            "trajectory_peak_speed_range_changed_pairs": trajectory_peak_speed_range_changed_pairs,
+            "pairs_with_trajectory_speed_standard_deviation_delta": trajectory_speed_standard_deviation_delta_pairs,
+            "total_object_trajectory_speed_standard_deviation_delta": total_object_trajectory_speed_standard_deviation_delta,
+            "trajectory_speed_standard_deviation_range_changed_pairs": trajectory_speed_standard_deviation_range_changed_pairs,
+            "pairs_with_trajectory_straightness_delta": trajectory_straightness_delta_pairs,
+            "total_object_trajectory_straightness_delta": total_object_trajectory_straightness_delta,
+            "trajectory_straightness_range_changed_pairs": trajectory_straightness_range_changed_pairs,
+            "pairs_with_trajectory_turn_angle_delta": trajectory_turn_angle_delta_pairs,
+            "total_object_trajectory_turn_angle_delta_degrees": total_object_trajectory_turn_angle_delta_degrees,
+            "trajectory_turn_angle_range_changed_pairs": trajectory_turn_angle_range_changed_pairs,
+            "pairs_with_trajectory_peak_turn_angle_delta": trajectory_peak_turn_angle_delta_pairs,
+            "total_object_trajectory_peak_turn_angle_delta_degrees": total_object_trajectory_peak_turn_angle_delta_degrees,
+            "trajectory_peak_turn_angle_range_changed_pairs": trajectory_peak_turn_angle_range_changed_pairs,
+            "pairs_with_trajectory_turn_count_delta": trajectory_turn_count_delta_pairs,
+            "total_object_trajectory_turn_count_delta": total_object_trajectory_turn_count_delta,
+            "trajectory_turn_count_range_changed_pairs": trajectory_turn_count_range_changed_pairs,
+            "pairs_with_trajectory_average_turn_angle_delta": trajectory_average_turn_angle_delta_pairs,
+            "total_object_trajectory_average_turn_angle_delta_degrees": total_object_trajectory_average_turn_angle_delta_degrees,
+            "trajectory_average_turn_angle_range_changed_pairs": trajectory_average_turn_angle_range_changed_pairs,
+            "pairs_with_trajectory_turn_angle_standard_deviation_delta": trajectory_turn_angle_standard_deviation_delta_pairs,
+            "total_object_trajectory_turn_angle_standard_deviation_delta_degrees": total_object_trajectory_turn_angle_standard_deviation_delta_degrees,
+            "trajectory_turn_angle_standard_deviation_range_changed_pairs": trajectory_turn_angle_standard_deviation_range_changed_pairs,
             "pairs_with_trajectory_point_delta": trajectory_point_delta_pairs,
             "total_object_trajectory_point_delta": total_object_trajectory_point_delta,
             "camera_changed_pairs": camera_changed_pairs,
+            "pairs_with_camera_distance_delta": camera_distance_delta_pairs,
+            "total_camera_distance_delta": total_camera_distance_delta,
+            "pairs_with_camera_trajectory_duration_delta": camera_trajectory_duration_delta_pairs,
+            "total_camera_trajectory_duration_delta": total_camera_trajectory_duration_delta,
+            "pairs_with_camera_trajectory_path_length_delta": camera_trajectory_path_length_delta_pairs,
+            "total_camera_trajectory_path_length_delta": total_camera_trajectory_path_length_delta,
+            "pairs_with_camera_trajectory_displacement_delta": camera_trajectory_displacement_delta_pairs,
+            "total_camera_trajectory_displacement_delta": total_camera_trajectory_displacement_delta,
+            "pairs_with_camera_trajectory_average_speed_delta": camera_trajectory_average_speed_delta_pairs,
+            "total_camera_trajectory_average_speed_delta": total_camera_trajectory_average_speed_delta,
+            "pairs_with_camera_trajectory_peak_speed_delta": camera_trajectory_peak_speed_delta_pairs,
+            "total_camera_trajectory_peak_speed_delta": total_camera_trajectory_peak_speed_delta,
+            "pairs_with_camera_trajectory_speed_standard_deviation_delta": camera_trajectory_speed_standard_deviation_delta_pairs,
+            "total_camera_trajectory_speed_standard_deviation_delta": total_camera_trajectory_speed_standard_deviation_delta,
+            "pairs_with_camera_trajectory_straightness_delta": camera_trajectory_straightness_delta_pairs,
+            "total_camera_trajectory_straightness_delta": total_camera_trajectory_straightness_delta,
+            "pairs_with_camera_trajectory_turn_angle_delta": camera_trajectory_turn_angle_delta_pairs,
+            "total_camera_trajectory_turn_angle_delta_degrees": total_camera_trajectory_turn_angle_delta_degrees,
+            "pairs_with_camera_trajectory_peak_turn_angle_delta": camera_trajectory_peak_turn_angle_delta_pairs,
+            "total_camera_trajectory_peak_turn_angle_delta_degrees": total_camera_trajectory_peak_turn_angle_delta_degrees,
+            "pairs_with_camera_trajectory_turn_count_delta": camera_trajectory_turn_count_delta_pairs,
+            "total_camera_trajectory_turn_count_delta": total_camera_trajectory_turn_count_delta,
+            "pairs_with_camera_trajectory_average_turn_angle_delta": camera_trajectory_average_turn_angle_delta_pairs,
+            "total_camera_trajectory_average_turn_angle_delta_degrees": total_camera_trajectory_average_turn_angle_delta_degrees,
+            "pairs_with_camera_trajectory_turn_angle_standard_deviation_delta": camera_trajectory_turn_angle_standard_deviation_delta_pairs,
+            "total_camera_trajectory_turn_angle_standard_deviation_delta_degrees": total_camera_trajectory_turn_angle_standard_deviation_delta_degrees,
+            "framing_intent_changed_pairs": framing_intent_changed_pairs,
             "camera_trajectory_changed_pairs": camera_trajectory_changed_pairs,
             "pairs_with_light_count_delta": light_count_delta_pairs,
             "total_light_count_delta": total_light_count_delta,
+            "pairs_with_light_intensity_total_delta": light_intensity_total_delta_pairs,
+            "total_light_intensity_delta": total_light_intensity_delta,
+            "light_intensity_range_changed_pairs": light_intensity_range_changed_pairs,
+            "pairs_with_positioned_light_delta": positioned_light_delta_pairs,
+            "total_positioned_lights_delta": total_positioned_lights_delta,
+            "pairs_with_directional_light_delta": directional_light_delta_pairs,
+            "total_directional_lights_delta": total_directional_lights_delta,
+            "pairs_with_light_temperature_delta": light_temperature_delta_pairs,
+            "total_lights_with_temperature_delta": total_lights_with_temperature_delta,
+            "light_temperature_range_changed_pairs": light_temperature_range_changed_pairs,
+            "light_colors_changed_pairs": light_colors_changed_pairs,
             "light_ids_changed_pairs": light_ids_changed_pairs,
         },
     }
@@ -701,9 +1071,59 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "reference_frame_changed",
                 "object_groups_changed",
                 "appearance_classes_changed",
+                "object_states_changed",
+                "object_visibilities_changed",
+                "object_distance_from_origin_range_changed",
+                "object_trajectory_duration_range_changed",
+                "object_trajectory_path_length_range_changed",
+                "object_trajectory_displacement_range_changed",
+                "object_trajectory_average_speed_range_changed",
+                "object_trajectory_peak_speed_range_changed",
+                "object_trajectory_speed_standard_deviation_range_changed",
+                "object_trajectory_straightness_range_changed",
+                "object_trajectory_turn_angle_range_degrees_changed",
+                "object_trajectory_peak_turn_angle_range_degrees_changed",
+                "object_trajectory_turn_count_range_changed",
+                "object_trajectory_average_turn_angle_range_degrees_changed",
+                "object_trajectory_turn_angle_standard_deviation_range_degrees_changed",
                 "camera_changed",
+                "framing_intent_changed",
                 "camera_trajectory_changed",
+                "light_intensity_range_changed",
+                "light_temperature_range_changed",
+                "light_colors_changed",
                 "light_ids_changed",
+            )
+        ):
+            return True
+        if any(
+            float(scene_changes.get(key, 0.0) or 0.0) != 0.0
+            for key in (
+                "object_distance_from_origin_total_delta",
+                "object_trajectory_duration_total_delta",
+                "object_trajectory_path_length_total_delta",
+                "object_trajectory_displacement_total_delta",
+                "object_trajectory_average_speed_total_delta",
+                "object_trajectory_peak_speed_total_delta",
+                "object_trajectory_speed_standard_deviation_total_delta",
+                "object_trajectory_straightness_total_delta",
+                "object_trajectory_turn_angle_total_degrees_delta",
+                "object_trajectory_peak_turn_angle_total_degrees_delta",
+                "object_trajectory_average_turn_angle_total_degrees_delta",
+                "object_trajectory_turn_angle_standard_deviation_total_degrees_delta",
+                "camera_distance_from_origin_delta",
+                "camera_trajectory_duration_delta",
+                "camera_trajectory_path_length_delta",
+                "camera_trajectory_displacement_delta",
+                "camera_trajectory_average_speed_delta",
+                "camera_trajectory_peak_speed_delta",
+                "camera_trajectory_speed_standard_deviation_delta",
+                "camera_trajectory_straightness_delta",
+                "camera_trajectory_turn_angle_degrees_delta",
+                "camera_trajectory_peak_turn_angle_degrees_delta",
+                "camera_trajectory_average_turn_angle_degrees_delta",
+                "camera_trajectory_turn_angle_standard_deviation_degrees_delta",
+                "light_intensity_total_delta",
             )
         ):
             return True
@@ -713,8 +1133,13 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "positioned_objects_delta",
                 "objects_with_orientation_delta",
                 "objects_with_trajectory_delta",
+                "object_trajectory_turn_count_total_delta",
+                "camera_trajectory_turn_count_delta",
                 "object_trajectory_point_count_delta",
                 "light_count_delta",
+                "positioned_lights_delta",
+                "directional_lights_delta",
+                "lights_with_temperature_delta",
             )
         ):
             return True

@@ -375,6 +375,13 @@ def _spatial_summary(metadata: dict[str, Any], state_summaries: list[dict[str, A
             for zone in room.get("listening_zones", [])
             if isinstance(zone, dict) and isinstance(zone.get("zone_id"), str)
         ] if isinstance(room.get("listening_zones"), list) else [],
+        "listening_zone_intents": sorted(
+            {
+                zone.get("intent")
+                for zone in room.get("listening_zones", [])
+                if isinstance(zone, dict) and isinstance(zone.get("intent"), str)
+            }
+        ) if isinstance(room.get("listening_zones"), list) else [],
         "speaker_count": len(room.get("speakers", [])) if isinstance(room.get("speakers"), list) else 0,
         "speaker_ids": [
             speaker.get("speaker_id")

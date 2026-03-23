@@ -28,6 +28,7 @@ ROOM_DIFFUSION_CLASSES = ("focused", "balanced", "scattered")
 ROOM_GEOMETRY_CLASSES = ("shoebox", "fan", "arena", "corridor", "irregular")
 ROOM_SPEAKER_ROLES = ("main", "surround", "height", "fill")
 ROOM_SPEAKER_COVERAGE_INTENTS = ("focused", "balanced", "wide", "ambient")
+ROOM_LISTENING_ZONE_INTENTS = ("focused", "balanced", "diffuse", "casual")
 ROOM_DIMENSION_KEYS = ("width_m", "depth_m", "height_m")
 ROOM_REFLECTION_STYLES = ("direct", "balanced", "enveloping")
 ROOM_EARLY_REFLECTION_CLASSES = ("reduced", "natural", "emphasized")
@@ -422,8 +423,13 @@ def _validate_room_document(
                 if not _is_positive_number(radius_m):
                     errors.append(f"{zone_context}.radius_m must be a positive finite number")
                 intent = zone_document.get("intent")
-                if intent is not None and (not isinstance(intent, str) or not intent):
-                    errors.append(f"{zone_context}.intent must be a non-empty string")
+                if intent is not None:
+                    if not isinstance(intent, str):
+                        errors.append(f"{zone_context}.intent must be a string")
+                    elif intent not in ROOM_LISTENING_ZONE_INTENTS:
+                        errors.append(
+                            f"{zone_context}.intent must be one of: " + ", ".join(ROOM_LISTENING_ZONE_INTENTS)
+                        )
 
     speakers = value.get("speakers")
     if speakers is not None:
@@ -862,6 +868,7 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
         if renderer_adaptation_hints.get("downmix_policy") in ROOM_DOWNMIX_POLICIES:
             stats["room_downmix_policy"] = renderer_adaptation_hints["downmix_policy"]
     listening_zone_ids = []
+    listening_zone_intents: set[str] = set()
     if room_document and isinstance(room_document.get("listening_zones"), list):
         listening_zone_ids = [
             zone_document["zone_id"]
@@ -870,8 +877,16 @@ def validate_arwif_spec_document(document: dict[str, Any], *, source: str = "<me
             and isinstance(zone_document.get("zone_id"), str)
             and zone_document.get("zone_id")
         ]
+        listening_zone_intents.update(
+            str(zone_document["intent"])
+            for zone_document in room_document["listening_zones"]
+            if isinstance(zone_document, dict)
+            and isinstance(zone_document.get("intent"), str)
+            and zone_document.get("intent")
+        )
     stats["listening_zone_count"] = len(listening_zone_ids)
     stats["listening_zone_ids"] = sorted(listening_zone_ids)
+    stats["listening_zone_intents"] = sorted(listening_zone_intents)
     speaker_ids = []
     speaker_channels: set[str] = set()
     speaker_roles: set[str] = set()
@@ -1225,6 +1240,7 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
         if renderer_adaptation_hints.get("downmix_policy") in ROOM_DOWNMIX_POLICIES:
             stats["room_downmix_policy"] = renderer_adaptation_hints["downmix_policy"]
     listening_zone_ids = []
+    listening_zone_intents: set[str] = set()
     if isinstance(room, dict) and isinstance(room.get("listening_zones"), list):
         listening_zone_ids = [
             zone_document["zone_id"]
@@ -1233,8 +1249,16 @@ def validate_arwif_artifact(path: str | Path, *, allow_legacy: bool = False) -> 
             and isinstance(zone_document.get("zone_id"), str)
             and zone_document.get("zone_id")
         ]
+        listening_zone_intents.update(
+            str(zone_document["intent"])
+            for zone_document in room["listening_zones"]
+            if isinstance(zone_document, dict)
+            and isinstance(zone_document.get("intent"), str)
+            and zone_document.get("intent")
+        )
     stats["listening_zone_count"] = len(listening_zone_ids)
     stats["listening_zone_ids"] = sorted(listening_zone_ids)
+    stats["listening_zone_intents"] = sorted(listening_zone_intents)
     speaker_ids = []
     speaker_channels: set[str] = set()
     speaker_roles: set[str] = set()

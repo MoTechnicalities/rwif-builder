@@ -75,7 +75,7 @@ Optional library metadata:
     - `target_playback` as one of `headphones`, `stereo_speakers`, `multichannel_room`, or `portable_device`
     - `spatial_priority` as one of `precision`, `balanced`, or `envelopment`
     - `downmix_policy` as one of `preserve_positions`, `preserve_focus`, or `preserve_energy`
-  - `listening_zones` as a list of `{ zone_id, anchor, radius_m, intent? }` mappings
+  - `listening_zones` as a list of `{ zone_id, anchor, radius_m, intent? }` mappings, where `intent` may be one of `focused`, `balanced`, `diffuse`, or `casual`
   - `speakers` as a list of `{ speaker_id, anchor, channel?, role?, coverage_intent? }` mappings, where `channel` must match the declared `channel_layout` when present, `role` may be one of `main`, `surround`, `height`, or `fill`, and `coverage_intent` may be one of `focused`, `balanced`, `wide`, or `ambient`
 - `normalize` as boolean, default `true`
 - `default_phase_radians`, default `0.0`

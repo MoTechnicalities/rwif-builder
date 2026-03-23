@@ -728,6 +728,7 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     room_spatial_priority_changed_pairs = 0
     room_downmix_policy_changed_pairs = 0
     listening_zones_changed_pairs = 0
+    listening_zone_intents_changed_pairs = 0
     listening_zone_delta_pairs = 0
     total_listening_zone_count_delta = 0
     speakers_changed_pairs = 0
@@ -835,6 +836,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 room_downmix_policy_changed_pairs += 1
             if bool(spatial_changes.get("listening_zones_changed", False)):
                 listening_zones_changed_pairs += 1
+            if bool(spatial_changes.get("listening_zone_intents_changed", False)):
+                listening_zone_intents_changed_pairs += 1
             listening_zone_count_delta = int(spatial_changes.get("listening_zone_count_delta", 0) or 0)
             total_listening_zone_count_delta += listening_zone_count_delta
             if listening_zone_count_delta != 0:
@@ -927,6 +930,7 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "room_spatial_priority_changed_pairs": room_spatial_priority_changed_pairs,
             "room_downmix_policy_changed_pairs": room_downmix_policy_changed_pairs,
             "listening_zones_changed_pairs": listening_zones_changed_pairs,
+            "listening_zone_intents_changed_pairs": listening_zone_intents_changed_pairs,
             "pairs_with_listening_zone_count_delta": listening_zone_delta_pairs,
             "total_listening_zone_count_delta": total_listening_zone_count_delta,
             "speakers_changed_pairs": speakers_changed_pairs,

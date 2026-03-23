@@ -397,6 +397,13 @@ def _spatial_summary(metadata: dict[str, Any], states: tuple[WaveState, ...]) ->
             for zone in room.get("listening_zones", [])
             if isinstance(zone, dict) and isinstance(zone.get("zone_id"), str)
         ] if isinstance(room.get("listening_zones"), list) else [],
+        "listening_zone_intents": sorted(
+            {
+                zone.get("intent")
+                for zone in room.get("listening_zones", [])
+                if isinstance(zone, dict) and isinstance(zone.get("intent"), str)
+            }
+        ) if isinstance(room.get("listening_zones"), list) else [],
         "speaker_count": len(room.get("speakers", [])) if isinstance(room.get("speakers"), list) else 0,
         "speaker_ids": [
             speaker.get("speaker_id")
@@ -474,6 +481,7 @@ def _spatial_changes(
         "room_spatial_priority_changed": left_summary["room_spatial_priority"] != right_summary["room_spatial_priority"],
         "room_downmix_policy_changed": left_summary["room_downmix_policy"] != right_summary["room_downmix_policy"],
         "listening_zones_changed": left_summary["listening_zone_ids"] != right_summary["listening_zone_ids"],
+        "listening_zone_intents_changed": left_summary["listening_zone_intents"] != right_summary["listening_zone_intents"],
         "listening_zone_count_delta": right_summary["listening_zone_count"] - left_summary["listening_zone_count"],
         "speakers_changed": left_summary["speaker_ids"] != right_summary["speaker_ids"],
         "speaker_count_delta": right_summary["speaker_count"] - left_summary["speaker_count"],

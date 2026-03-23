@@ -26,6 +26,7 @@ from .validation import ROOM_DIFFUSION_CLASSES
 from .validation import ROOM_GEOMETRY_CLASSES
 from .validation import ROOM_EARLY_REFLECTION_CLASSES
 from .validation import ROOM_LATE_REVERB_CLASSES
+from .validation import ROOM_LISTENING_ZONE_INTENTS
 from .validation import ROOM_RENDER_TARGETS
 from .validation import ROOM_SPEAKER_ROLES
 from .validation import ROOM_SPEAKER_COVERAGE_INTENTS
@@ -259,8 +260,11 @@ def _require_room(value: Any, context: str) -> dict[str, Any]:
             }
             if "intent" in zone_mapping:
                 intent = zone_mapping.get("intent")
-                if not isinstance(intent, str) or not intent:
-                    raise ValueError(f"{context}.listening_zones[{index}].intent must be a non-empty string")
+                if not isinstance(intent, str) or intent not in ROOM_LISTENING_ZONE_INTENTS:
+                    raise ValueError(
+                        f"{context}.listening_zones[{index}].intent must be one of: "
+                        + ", ".join(ROOM_LISTENING_ZONE_INTENTS)
+                    )
                 zone_entry["intent"] = intent
             listening_zones.append(zone_entry)
         room["listening_zones"] = listening_zones

@@ -9,7 +9,7 @@ This directory contains the original C major triad examples plus a room-aware re
 - `CEG_v0_1.yaml`: source spec consumable by `rwif arwif-build`
 - `CEG_v0_1.arwif`: a compliant ARWIF v0.1 example using the strict metadata fields
 - `CEG_v0_1.md`: sidecar notes for the strict example
-- `ROOM_REVIEW_baseline_v0_1.yaml`: baseline Level 3 room-aware review spec covering dimensions, geometry reference, surface treatment, reflection policy, renderer adaptation hints, listening zones, speaker placement, canonical speaker role, and speaker coverage intent
+- `ROOM_REVIEW_baseline_v0_1.yaml`: baseline Level 3 room-aware review spec covering dimensions, geometry reference, surface treatment, reflection policy, renderer adaptation hints, listening zones with canonical intent, speaker placement, canonical speaker role, and speaker coverage intent
 - `ROOM_REVIEW_candidate_v0_1.yaml`: candidate Level 3 room-aware review spec with intentional room drift for diff and batch-review examples
 
 ## Validate
@@ -73,7 +73,7 @@ rwif arwif-build --spec examples/arwif/ROOM_REVIEW_candidate_v0_1.yaml --output 
 rwif arwif-batch-review --left dist/ROOM_REVIEW_baseline_v0_1.arwif --right dist/ROOM_REVIEW_candidate_v0_1.arwif --output dist/ROOM_REVIEW_batch_review.json --json
 ```
 
-That review payload is intentionally non-trivial: it should surface room dimension, geometry-reference, surface-profile, surface-treatment, reflection-policy, renderer-adaptation, listening-zone, speaker-placement, speaker-role, and speaker-coverage drift in one compact batch-review document.
+That review payload is intentionally non-trivial: it should surface room dimension, geometry-reference, surface-profile, surface-treatment, reflection-policy, renderer-adaptation, listening-zone and listening-zone-intent, speaker-placement, speaker-role, and speaker-coverage drift in one compact batch-review document.
 
 To export multiple ARWIF artifacts into strict source specs in one pass:
 

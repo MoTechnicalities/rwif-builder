@@ -81,6 +81,7 @@ class ARWIFIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zone_intents_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_roles_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_coverage_intents_changed_pairs"], 1)
 
@@ -2560,6 +2561,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(spec_payload["stats"]["room_downmix_policy"], "preserve_positions")
             self.assertEqual(spec_payload["stats"]["listening_zone_count"], 2)
             self.assertEqual(spec_payload["stats"]["listening_zone_ids"], ["rear-fill", "sweet-spot"])
+            self.assertEqual(spec_payload["stats"]["listening_zone_intents"], ["diffuse", "focused"])
             self.assertEqual(spec_payload["stats"]["speaker_count"], 2)
             self.assertEqual(spec_payload["stats"]["speaker_ids"], ["left-main", "right-main"])
             self.assertEqual(spec_payload["stats"]["speaker_channels"], ["L", "R"])
@@ -2610,6 +2612,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(inspect_payload["spatial_summary"]["room_downmix_policy"], "preserve_positions")
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_count"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_ids"], ["sweet-spot", "rear-fill"])
+            self.assertEqual(inspect_payload["spatial_summary"]["listening_zone_intents"], ["diffuse", "focused"])
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_count"], 2)
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_ids"], ["left-main", "right-main"])
             self.assertEqual(inspect_payload["spatial_summary"]["speaker_channels"], ["L", "R"])
@@ -2677,6 +2680,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(diff_payload["spatial_changes"]["room_spatial_priority_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_downmix_policy_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["listening_zone_intents_changed"])
             self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["speaker_channels_changed"])
@@ -2775,6 +2779,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                         "        y: nope",
                         "        z: 0.0",
                         "      radius_m: 0.0",
+                        "      intent: everywhere",
                         "  speakers:",
                         "    - speaker_id: ''",
                         "      anchor:",
@@ -2850,6 +2855,10 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertIn("room.listening_zones[0].zone_id must be a non-empty string", spec_payload["errors"])
             self.assertIn("room.listening_zones[0].anchor.y must be a finite number", spec_payload["errors"])
             self.assertIn("room.listening_zones[0].radius_m must be a positive finite number", spec_payload["errors"])
+            self.assertIn(
+                "room.listening_zones[0].intent must be one of: focused, balanced, diffuse, casual",
+                spec_payload["errors"],
+            )
             self.assertIn("room.speakers[0].speaker_id must be a non-empty string", spec_payload["errors"])
             self.assertIn("room.speakers[0].anchor.x must be a finite number", spec_payload["errors"])
             self.assertIn("room.speakers[0].channel must be one of: L, R", spec_payload["errors"])
@@ -3142,6 +3151,7 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_spatial_priority_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_downmix_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zone_intents_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speakers_changed_pairs"], 1)

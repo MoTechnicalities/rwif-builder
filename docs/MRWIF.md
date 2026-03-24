@@ -91,13 +91,30 @@ A practical `MRWIF` draft would likely need:
 4. Treat correspondences as first-class data, not comments.
 5. Avoid duplicating the full payloads of linked formats.
 
-## Relationship To This Repo
+## Minimal v0.1 Surface
 
-This repo does not implement `MRWIF` today.
+This repo now implements a minimal source-spec surface for `MRWIF`:
+
+- validation
+- inspection
+- diff
+
+The initial document shape is intentionally narrow and centers on:
+
+- `linked_artifacts`
+- `intent_mappings`
+- `interpretation_records`
+- `revision_traces`
+
+That gives the repo an operational multimodal bridge without prematurely expanding into artifact serialization or learned-weight pipelines.
+
+## Relationship To This Repo
 
 What it does implement is the necessary precursor:
 
 - `RWIF` as a semantic memory artifact path
 - `ARWIF` as a structured sound artifact path
+
+It now also implements the first bridge layer that can explicitly connect those neighboring domains, plus `VRWIF`, inside a shared inspectable source spec.
 
 `MRWIF` becomes credible only once those neighboring domains are concrete enough to link.

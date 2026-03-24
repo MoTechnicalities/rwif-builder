@@ -98,7 +98,7 @@ Why it matters:
 
 Implemented here today:
 
-- no, draft only
+- partial: source-spec validation, inspection, and diff
 
 Reference:
 
@@ -187,4 +187,4 @@ This repo currently proves two operational legs of that stack and a narrow third
 - `ARWIF` for structured sound authoring
 - `VRWIF` for review-oriented visual source-spec authoring
 
-The remaining realms are documented as design targets so the broader reasoning architecture remains coherent as the project evolves.
+The remaining realms are documented as design targets so the broader reasoning architecture remains coherent as the project evolves. `MRWIF` has now crossed from draft-only status into an initial operational bridge surface.

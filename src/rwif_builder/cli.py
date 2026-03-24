@@ -26,6 +26,9 @@ from .arwif.normalize import normalize_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
+from .mrwif.diff import diff_mrwif_specs
+from .mrwif.inspect import inspect_mrwif_spec
+from .mrwif.validation import validate_mrwif_spec
 from .vrwif.batch import batch_diff_vrwif_specs
 from .vrwif.batch import analyze_batch_diff_report as analyze_vrwif_batch_diff_report
 from .vrwif.batch import analyze_batch_normalize_report as analyze_vrwif_batch_normalize_report
@@ -316,6 +319,22 @@ def build_parser() -> argparse.ArgumentParser:
     vrwif_diff_parser.add_argument("right", help="Second VRWIF source spec path")
     vrwif_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     vrwif_diff_parser.set_defaults(handler=handle_vrwif_diff)
+
+    mrwif_validate_spec_parser = subparsers.add_parser("mrwif-validate-spec", help="Validate an MRWIF YAML or JSON source spec")
+    mrwif_validate_spec_parser.add_argument("spec", help="Path to an MRWIF source spec")
+    mrwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_validate_spec_parser.set_defaults(handler=handle_mrwif_validate_spec)
+
+    mrwif_inspect_parser = subparsers.add_parser("mrwif-inspect", help="Inspect an MRWIF YAML or JSON source spec")
+    mrwif_inspect_parser.add_argument("spec", help="Path to an MRWIF source spec")
+    mrwif_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_inspect_parser.set_defaults(handler=handle_mrwif_inspect)
+
+    mrwif_diff_parser = subparsers.add_parser("mrwif-diff", help="Compare two MRWIF YAML or JSON source specs")
+    mrwif_diff_parser.add_argument("left", help="First MRWIF source spec path")
+    mrwif_diff_parser.add_argument("right", help="Second MRWIF source spec path")
+    mrwif_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_diff_parser.set_defaults(handler=handle_mrwif_diff)
 
     arwif_import_parser = subparsers.add_parser("arwif-import", help="Import an ARWIF YAML or JSON spec into an artifact")
     arwif_import_parser.add_argument("--spec", required=True, help="Path to an ARWIF import spec")
@@ -767,6 +786,24 @@ def handle_vrwif_inspect(args: argparse.Namespace) -> int:
 
 def handle_vrwif_diff(args: argparse.Namespace) -> int:
     payload = diff_vrwif_specs(Path(args.left), Path(args.right))
+    _print_payload(payload, args.json)
+    return 0 if payload["left_valid"] and payload["right_valid"] else 1
+
+
+def handle_mrwif_validate_spec(args: argparse.Namespace) -> int:
+    report = validate_mrwif_spec(Path(args.spec))
+    _print_payload(report.to_payload(), args.json)
+    return 0 if report.is_valid else 1
+
+
+def handle_mrwif_inspect(args: argparse.Namespace) -> int:
+    payload = inspect_mrwif_spec(Path(args.spec))
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_mrwif_diff(args: argparse.Namespace) -> int:
+    payload = diff_mrwif_specs(Path(args.left), Path(args.right))
     _print_payload(payload, args.json)
     return 0 if payload["left_valid"] and payload["right_valid"] else 1
 

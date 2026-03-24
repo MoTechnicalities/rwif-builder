@@ -562,6 +562,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     object_states_count_delta_pairs = 0
     total_object_states_count_delta = 0
     object_visibilities_changed_pairs = 0
+    object_visibilities_count_delta_pairs = 0
+    total_object_visibilities_count_delta = 0
     object_count_delta_pairs = 0
     total_object_count_delta = 0
     object_distance_delta_pairs = 0
@@ -742,6 +744,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 object_states_count_delta_pairs += 1
             if bool(scene_changes.get("object_visibilities_changed", False)):
                 object_visibilities_changed_pairs += 1
+            object_visibilities_count_delta = int(scene_changes.get("object_visibilities_count_delta", 0) or 0)
+            total_object_visibilities_count_delta += object_visibilities_count_delta
+            if object_visibilities_count_delta != 0:
+                object_visibilities_count_delta_pairs += 1
 
             object_count_delta = int(scene_changes.get("object_count_delta", 0) or 0)
             total_object_count_delta += object_count_delta
@@ -1075,6 +1081,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "pairs_with_object_states_count_delta": object_states_count_delta_pairs,
             "total_object_states_count_delta": total_object_states_count_delta,
             "object_visibilities_changed_pairs": object_visibilities_changed_pairs,
+            "pairs_with_object_visibilities_count_delta": object_visibilities_count_delta_pairs,
+            "total_object_visibilities_count_delta": total_object_visibilities_count_delta,
             "pairs_with_object_count_delta": object_count_delta_pairs,
             "total_object_count_delta": total_object_count_delta,
             "pairs_with_object_distance_delta": object_distance_delta_pairs,

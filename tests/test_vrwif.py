@@ -456,6 +456,8 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue(payload["scene_changes"]["object_ids_changed"])
             self.assertTrue(payload["scene_changes"]["object_groups_changed"])
             self.assertEqual(payload["scene_changes"]["object_groups_count_delta"], 2)
+            self.assertTrue(payload["scene_changes"]["appearance_classes_changed"])
+            self.assertEqual(payload["scene_changes"]["appearance_classes_count_delta"], 1)
             self.assertTrue(payload["scene_changes"]["camera_changed"])
             self.assertAlmostEqual(payload["scene_changes"]["object_distance_from_origin_total_delta"], 1.753368262458999)
             self.assertTrue(payload["scene_changes"]["object_distance_from_origin_range_changed"])
@@ -1333,6 +1335,9 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["scene_change_summary"]["framing_intent_changed_pairs"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["camera_id_changed_pairs"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["camera_has_trajectory_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["appearance_classes_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_appearance_classes_count_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_appearance_classes_count_delta"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["object_states_changed_pairs"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["object_visibilities_changed_pairs"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["lighting_present_changed_pairs"], 0)
@@ -6923,6 +6928,94 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["scene_change_summary"]["light_ids_changed_pairs"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_ids_count_delta"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["total_light_ids_count_delta"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_tracks_appearance_classes_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-appearance-classes-count.yaml"
+            right_path = tmp_dir / "right-batch-appearance-classes-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-appearance-classes-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-appearance-classes-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.appearance-classes-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.appearance-classes-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "  - object_id: object.marker",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: marker",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(diff_payload["scene_changes"]["appearance_classes_changed"])
+            self.assertEqual(diff_payload["scene_changes"]["appearance_classes_count_delta"], 1)
+            self.assertEqual(diff_payload["scene_changes"]["object_count_delta"], 1)
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["appearance_classes_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_appearance_classes_count_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_appearance_classes_count_delta"], 1)
             self.assertTrue(analysis_report_path.exists())
 
     def test_vrwif_batch_diff_analysis_reports_camera_trajectory_path_length_drift(self) -> None:

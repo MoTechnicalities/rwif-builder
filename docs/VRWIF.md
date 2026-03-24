@@ -55,6 +55,7 @@ This can include:
 - stable identity growth or shrinkage across revisions
 - position and transform
 - appearance class
+- appearance-class diversity growth or shrinkage across revisions
 - motion role
 - group membership
 - group diversity growth or shrinkage across revisions
@@ -178,6 +179,7 @@ The current normalization path also:
 
 The current inspect and diff path also:
 
+- summarizes appearance-class roster diversity growth or shrinkage across revisions
 - summarizes total object distance from origin plus the min/max object-distance range
 - summarizes total object-trajectory duration plus the min/max object-trajectory duration range
 - summarizes total object-trajectory path length plus the min/max object-trajectory path-length range

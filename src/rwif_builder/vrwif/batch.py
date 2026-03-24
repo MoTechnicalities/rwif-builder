@@ -556,6 +556,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     object_groups_count_delta_pairs = 0
     total_object_groups_count_delta = 0
     appearance_classes_changed_pairs = 0
+    appearance_classes_count_delta_pairs = 0
+    total_appearance_classes_count_delta = 0
     object_states_changed_pairs = 0
     object_visibilities_changed_pairs = 0
     object_count_delta_pairs = 0
@@ -724,6 +726,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 object_groups_count_delta_pairs += 1
             if bool(scene_changes.get("appearance_classes_changed", False)):
                 appearance_classes_changed_pairs += 1
+            appearance_classes_count_delta = int(scene_changes.get("appearance_classes_count_delta", 0) or 0)
+            total_appearance_classes_count_delta += appearance_classes_count_delta
+            if appearance_classes_count_delta != 0:
+                appearance_classes_count_delta_pairs += 1
             if bool(scene_changes.get("object_states_changed", False)):
                 object_states_changed_pairs += 1
             if bool(scene_changes.get("object_visibilities_changed", False)):
@@ -1051,6 +1057,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "pairs_with_object_groups_count_delta": object_groups_count_delta_pairs,
             "total_object_groups_count_delta": total_object_groups_count_delta,
             "appearance_classes_changed_pairs": appearance_classes_changed_pairs,
+            "pairs_with_appearance_classes_count_delta": appearance_classes_count_delta_pairs,
+            "total_appearance_classes_count_delta": total_appearance_classes_count_delta,
             "object_states_changed_pairs": object_states_changed_pairs,
             "object_visibilities_changed_pairs": object_visibilities_changed_pairs,
             "pairs_with_object_count_delta": object_count_delta_pairs,

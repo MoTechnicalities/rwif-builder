@@ -523,6 +523,7 @@ def _spatial_changes(
         ),
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
+        "active_channels_count_delta": len(right_summary["active_channels"]) - len(left_summary["active_channels"]),
         "states_with_channel_gains_delta": (
             right_summary["states_with_channel_gains"] - left_summary["states_with_channel_gains"]
         ),

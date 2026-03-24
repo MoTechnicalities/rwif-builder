@@ -763,6 +763,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     max_frequency_hz_delta_pairs = 0
     total_max_frequency_hz_delta = 0
     active_channels_changed_pairs = 0
+    active_channels_count_delta_pairs = 0
+    total_active_channels_count_delta = 0
     channel_gains_delta_pairs = 0
     total_states_with_channel_gains_delta = 0
     positioned_state_delta_pairs = 0
@@ -928,6 +930,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 channel_layout_changed_pairs += 1
             if bool(spatial_changes.get("active_channels_changed", False)):
                 active_channels_changed_pairs += 1
+            active_channels_count_delta = int(spatial_changes.get("active_channels_count_delta", 0) or 0)
+            total_active_channels_count_delta += active_channels_count_delta
+            if active_channels_count_delta != 0:
+                active_channels_count_delta_pairs += 1
             channel_gains_delta = int(spatial_changes.get("states_with_channel_gains_delta", 0) or 0)
             total_states_with_channel_gains_delta += channel_gains_delta
             if channel_gains_delta != 0:
@@ -1035,6 +1041,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "total_max_frequency_hz_delta": total_max_frequency_hz_delta,
             "channel_layout_changed_pairs": channel_layout_changed_pairs,
             "active_channels_changed_pairs": active_channels_changed_pairs,
+            "pairs_with_active_channels_count_delta": active_channels_count_delta_pairs,
+            "total_active_channels_count_delta": total_active_channels_count_delta,
             "pairs_with_channel_gain_count_delta": channel_gains_delta_pairs,
             "total_states_with_channel_gains_delta": total_states_with_channel_gains_delta,
             "pairs_with_positioned_state_delta": positioned_state_delta_pairs,

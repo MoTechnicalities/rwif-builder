@@ -333,6 +333,8 @@ states:
             )
             self.assertEqual(diff_payload["left_spatial_summary"]["channel_layout"], "stereo")
             self.assertEqual(diff_payload["right_spatial_summary"]["active_channels"], ["L", "R"])
+            self.assertFalse(diff_payload["spatial_changes"]["active_channels_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["active_channels_count_delta"], 0)
             self.assertEqual(diff_payload["spatial_changes"]["states_with_channel_gains_delta"], 1)
             self.assertFalse(diff_payload["spatial_changes"]["channel_layout_changed"])
 
@@ -1661,6 +1663,9 @@ states:
             metadata_fields = {entry["field"] for entry in analysis_payload["metadata_field_frequencies"]}
             self.assertEqual(metadata_fields, {"default_duration_seconds", "sample_rate_hz", "title"})
             self.assertEqual(analysis_payload["spatial_change_summary"]["channel_layout_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["active_channels_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_active_channels_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_active_channels_count_delta"], 0)
 
             persisted_analysis = yaml.safe_load(analysis_report_path.read_text(encoding="utf-8"))
             self.assertEqual(persisted_analysis["pairs_compared"], 2)
@@ -3195,6 +3200,9 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_coverage_intents_count_delta"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["active_channels_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_active_channels_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_active_channels_count_delta"], 0)
 
     def test_arwif_validate_spec_rejects_invalid_object_spatial_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -4139,6 +4147,83 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_channels_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_channels_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_channels_count_delta"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_active_channels_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "active-channels-count-left.yaml"
+            right_spec_path = tmp_dir / "active-channels-count-right.yaml"
+            left_artifact_path = tmp_dir / "active-channels-count-left.arwif"
+            right_artifact_path = tmp_dir / "active-channels-count-right.arwif"
+            diff_report_path = tmp_dir / "active-channels-count-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Active channels count left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "states:",
+                        "  - label: base",
+                        "    channel_gains:",
+                        "      L: 1.0",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Active channels count right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "states:",
+                        "  - label: base",
+                        "    channel_gains:",
+                        "      L: 1.0",
+                        "      R: 0.5",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["channel_layout_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["active_channels_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["active_channels_count_delta"], 1)
+            self.assertEqual(diff_payload["spatial_changes"]["states_with_channel_gains_delta"], 0)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["active_channels_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_active_channels_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_active_channels_count_delta"], 1)
 
     def _run_json(self, repo_root: Path, *args: str, allow_failure: bool = False) -> dict[str, object]:
         result = subprocess.run(

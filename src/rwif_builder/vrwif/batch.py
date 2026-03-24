@@ -549,10 +549,17 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     removed_object_pair_indexes: dict[str, list[int]] = {}
 
     reference_frame_changed_pairs = 0
+    object_ids_changed_pairs = 0
+    object_ids_count_delta_pairs = 0
+    total_object_ids_count_delta = 0
     object_groups_changed_pairs = 0
+    object_groups_count_delta_pairs = 0
+    total_object_groups_count_delta = 0
     appearance_classes_changed_pairs = 0
     object_states_changed_pairs = 0
     object_visibilities_changed_pairs = 0
+    object_count_delta_pairs = 0
+    total_object_count_delta = 0
     object_distance_delta_pairs = 0
     total_object_distance_delta = 0.0
     object_distance_range_changed_pairs = 0
@@ -580,6 +587,12 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     trajectory_speed_standard_deviation_delta_pairs = 0
     total_object_trajectory_speed_standard_deviation_delta = 0.0
     trajectory_speed_standard_deviation_range_changed_pairs = 0
+    trajectory_average_acceleration_delta_pairs = 0
+    total_object_trajectory_average_acceleration_delta = 0.0
+    trajectory_average_acceleration_range_changed_pairs = 0
+    trajectory_peak_acceleration_delta_pairs = 0
+    total_object_trajectory_peak_acceleration_delta = 0.0
+    trajectory_peak_acceleration_range_changed_pairs = 0
     trajectory_straightness_delta_pairs = 0
     total_object_trajectory_straightness_delta = 0.0
     trajectory_straightness_range_changed_pairs = 0
@@ -615,6 +628,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     total_camera_trajectory_peak_speed_delta = 0.0
     camera_trajectory_speed_standard_deviation_delta_pairs = 0
     total_camera_trajectory_speed_standard_deviation_delta = 0.0
+    camera_trajectory_average_acceleration_delta_pairs = 0
+    total_camera_trajectory_average_acceleration_delta = 0.0
+    camera_trajectory_peak_acceleration_delta_pairs = 0
+    total_camera_trajectory_peak_acceleration_delta = 0.0
     camera_trajectory_straightness_delta_pairs = 0
     total_camera_trajectory_straightness_delta = 0.0
     camera_trajectory_turn_angle_delta_pairs = 0
@@ -627,8 +644,14 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     total_camera_trajectory_average_turn_angle_delta_degrees = 0.0
     camera_trajectory_turn_angle_standard_deviation_delta_pairs = 0
     total_camera_trajectory_turn_angle_standard_deviation_delta_degrees = 0.0
+    camera_trajectory_point_delta_pairs = 0
+    total_camera_trajectory_point_delta = 0
+    camera_present_changed_pairs = 0
     framing_intent_changed_pairs = 0
+    camera_id_changed_pairs = 0
+    camera_has_trajectory_changed_pairs = 0
     camera_trajectory_changed_pairs = 0
+    lighting_present_changed_pairs = 0
     light_count_delta_pairs = 0
     total_light_count_delta = 0
     light_intensity_total_delta_pairs = 0
@@ -643,6 +666,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     light_temperature_range_changed_pairs = 0
     light_colors_changed_pairs = 0
     light_ids_changed_pairs = 0
+    light_ids_count_delta_pairs = 0
+    total_light_ids_count_delta = 0
 
     changed_pairs = 0
     unchanged_pairs = 0
@@ -685,14 +710,29 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
         if isinstance(scene_changes, dict):
             if bool(scene_changes.get("reference_frame_changed", False)):
                 reference_frame_changed_pairs += 1
+            if bool(scene_changes.get("object_ids_changed", False)):
+                object_ids_changed_pairs += 1
+            object_ids_count_delta = int(scene_changes.get("object_ids_count_delta", 0) or 0)
+            total_object_ids_count_delta += object_ids_count_delta
+            if object_ids_count_delta != 0:
+                object_ids_count_delta_pairs += 1
             if bool(scene_changes.get("object_groups_changed", False)):
                 object_groups_changed_pairs += 1
+            object_groups_count_delta = int(scene_changes.get("object_groups_count_delta", 0) or 0)
+            total_object_groups_count_delta += object_groups_count_delta
+            if object_groups_count_delta != 0:
+                object_groups_count_delta_pairs += 1
             if bool(scene_changes.get("appearance_classes_changed", False)):
                 appearance_classes_changed_pairs += 1
             if bool(scene_changes.get("object_states_changed", False)):
                 object_states_changed_pairs += 1
             if bool(scene_changes.get("object_visibilities_changed", False)):
                 object_visibilities_changed_pairs += 1
+
+            object_count_delta = int(scene_changes.get("object_count_delta", 0) or 0)
+            total_object_count_delta += object_count_delta
+            if object_count_delta != 0:
+                object_count_delta_pairs += 1
 
             object_distance_delta = float(scene_changes.get("object_distance_from_origin_total_delta", 0.0) or 0.0)
             total_object_distance_delta += object_distance_delta
@@ -766,6 +806,26 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
 
             if bool(scene_changes.get("object_trajectory_speed_standard_deviation_range_changed", False)):
                 trajectory_speed_standard_deviation_range_changed_pairs += 1
+
+            trajectory_average_acceleration_delta = float(
+                scene_changes.get("object_trajectory_average_acceleration_total_delta", 0.0) or 0.0
+            )
+            total_object_trajectory_average_acceleration_delta += trajectory_average_acceleration_delta
+            if trajectory_average_acceleration_delta != 0.0:
+                trajectory_average_acceleration_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_average_acceleration_range_changed", False)):
+                trajectory_average_acceleration_range_changed_pairs += 1
+
+            trajectory_peak_acceleration_delta = float(
+                scene_changes.get("object_trajectory_peak_acceleration_total_delta", 0.0) or 0.0
+            )
+            total_object_trajectory_peak_acceleration_delta += trajectory_peak_acceleration_delta
+            if trajectory_peak_acceleration_delta != 0.0:
+                trajectory_peak_acceleration_delta_pairs += 1
+
+            if bool(scene_changes.get("object_trajectory_peak_acceleration_range_changed", False)):
+                trajectory_peak_acceleration_range_changed_pairs += 1
 
             trajectory_straightness_delta = float(scene_changes.get("object_trajectory_straightness_total_delta", 0.0) or 0.0)
             total_object_trajectory_straightness_delta += trajectory_straightness_delta
@@ -862,6 +922,20 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             if camera_trajectory_speed_standard_deviation_delta != 0.0:
                 camera_trajectory_speed_standard_deviation_delta_pairs += 1
 
+            camera_trajectory_average_acceleration_delta = float(
+                scene_changes.get("camera_trajectory_average_acceleration_delta", 0.0) or 0.0
+            )
+            total_camera_trajectory_average_acceleration_delta += camera_trajectory_average_acceleration_delta
+            if camera_trajectory_average_acceleration_delta != 0.0:
+                camera_trajectory_average_acceleration_delta_pairs += 1
+
+            camera_trajectory_peak_acceleration_delta = float(
+                scene_changes.get("camera_trajectory_peak_acceleration_delta", 0.0) or 0.0
+            )
+            total_camera_trajectory_peak_acceleration_delta += camera_trajectory_peak_acceleration_delta
+            if camera_trajectory_peak_acceleration_delta != 0.0:
+                camera_trajectory_peak_acceleration_delta_pairs += 1
+
             camera_trajectory_straightness_delta = float(scene_changes.get("camera_trajectory_straightness_delta", 0.0) or 0.0)
             total_camera_trajectory_straightness_delta += camera_trajectory_straightness_delta
             if camera_trajectory_straightness_delta != 0.0:
@@ -894,10 +968,24 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             if camera_trajectory_turn_angle_standard_deviation_delta != 0.0:
                 camera_trajectory_turn_angle_standard_deviation_delta_pairs += 1
 
+            camera_trajectory_point_delta = int(scene_changes.get("camera_trajectory_point_count_delta", 0) or 0)
+            total_camera_trajectory_point_delta += camera_trajectory_point_delta
+            if camera_trajectory_point_delta != 0:
+                camera_trajectory_point_delta_pairs += 1
+
+            if bool(scene_changes.get("camera_present_changed", False)):
+                camera_present_changed_pairs += 1
             if bool(scene_changes.get("framing_intent_changed", False)):
                 framing_intent_changed_pairs += 1
+            if bool(scene_changes.get("camera_id_changed", False)):
+                camera_id_changed_pairs += 1
+            if bool(scene_changes.get("camera_has_trajectory_changed", False)):
+                camera_has_trajectory_changed_pairs += 1
             if bool(scene_changes.get("camera_trajectory_changed", False)):
                 camera_trajectory_changed_pairs += 1
+
+            if bool(scene_changes.get("lighting_present_changed", False)):
+                lighting_present_changed_pairs += 1
 
             light_count_delta = int(scene_changes.get("light_count_delta", 0) or 0)
             total_light_count_delta += light_count_delta
@@ -934,6 +1022,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 light_colors_changed_pairs += 1
             if bool(scene_changes.get("light_ids_changed", False)):
                 light_ids_changed_pairs += 1
+            light_ids_count_delta = int(scene_changes.get("light_ids_count_delta", 0) or 0)
+            total_light_ids_count_delta += light_ids_count_delta
+            if light_ids_count_delta != 0:
+                light_ids_count_delta_pairs += 1
 
     pairs_compared = int(report_document.get("pairs_compared", len(results)))
     analysis_payload = {
@@ -952,10 +1044,17 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
         "objects_removed_in_all_changed_pairs": _universal_items(removed_object_counter, changed_pairs),
         "scene_change_summary": {
             "reference_frame_changed_pairs": reference_frame_changed_pairs,
+            "object_ids_changed_pairs": object_ids_changed_pairs,
+            "pairs_with_object_ids_count_delta": object_ids_count_delta_pairs,
+            "total_object_ids_count_delta": total_object_ids_count_delta,
             "object_groups_changed_pairs": object_groups_changed_pairs,
+            "pairs_with_object_groups_count_delta": object_groups_count_delta_pairs,
+            "total_object_groups_count_delta": total_object_groups_count_delta,
             "appearance_classes_changed_pairs": appearance_classes_changed_pairs,
             "object_states_changed_pairs": object_states_changed_pairs,
             "object_visibilities_changed_pairs": object_visibilities_changed_pairs,
+            "pairs_with_object_count_delta": object_count_delta_pairs,
+            "total_object_count_delta": total_object_count_delta,
             "pairs_with_object_distance_delta": object_distance_delta_pairs,
             "total_object_distance_delta": total_object_distance_delta,
             "object_distance_range_changed_pairs": object_distance_range_changed_pairs,
@@ -983,6 +1082,12 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "pairs_with_trajectory_speed_standard_deviation_delta": trajectory_speed_standard_deviation_delta_pairs,
             "total_object_trajectory_speed_standard_deviation_delta": total_object_trajectory_speed_standard_deviation_delta,
             "trajectory_speed_standard_deviation_range_changed_pairs": trajectory_speed_standard_deviation_range_changed_pairs,
+            "pairs_with_trajectory_average_acceleration_delta": trajectory_average_acceleration_delta_pairs,
+            "total_object_trajectory_average_acceleration_delta": total_object_trajectory_average_acceleration_delta,
+            "trajectory_average_acceleration_range_changed_pairs": trajectory_average_acceleration_range_changed_pairs,
+            "pairs_with_trajectory_peak_acceleration_delta": trajectory_peak_acceleration_delta_pairs,
+            "total_object_trajectory_peak_acceleration_delta": total_object_trajectory_peak_acceleration_delta,
+            "trajectory_peak_acceleration_range_changed_pairs": trajectory_peak_acceleration_range_changed_pairs,
             "pairs_with_trajectory_straightness_delta": trajectory_straightness_delta_pairs,
             "total_object_trajectory_straightness_delta": total_object_trajectory_straightness_delta,
             "trajectory_straightness_range_changed_pairs": trajectory_straightness_range_changed_pairs,
@@ -1018,6 +1123,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "total_camera_trajectory_peak_speed_delta": total_camera_trajectory_peak_speed_delta,
             "pairs_with_camera_trajectory_speed_standard_deviation_delta": camera_trajectory_speed_standard_deviation_delta_pairs,
             "total_camera_trajectory_speed_standard_deviation_delta": total_camera_trajectory_speed_standard_deviation_delta,
+            "pairs_with_camera_trajectory_average_acceleration_delta": camera_trajectory_average_acceleration_delta_pairs,
+            "total_camera_trajectory_average_acceleration_delta": total_camera_trajectory_average_acceleration_delta,
+            "pairs_with_camera_trajectory_peak_acceleration_delta": camera_trajectory_peak_acceleration_delta_pairs,
+            "total_camera_trajectory_peak_acceleration_delta": total_camera_trajectory_peak_acceleration_delta,
             "pairs_with_camera_trajectory_straightness_delta": camera_trajectory_straightness_delta_pairs,
             "total_camera_trajectory_straightness_delta": total_camera_trajectory_straightness_delta,
             "pairs_with_camera_trajectory_turn_angle_delta": camera_trajectory_turn_angle_delta_pairs,
@@ -1030,8 +1139,14 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "total_camera_trajectory_average_turn_angle_delta_degrees": total_camera_trajectory_average_turn_angle_delta_degrees,
             "pairs_with_camera_trajectory_turn_angle_standard_deviation_delta": camera_trajectory_turn_angle_standard_deviation_delta_pairs,
             "total_camera_trajectory_turn_angle_standard_deviation_delta_degrees": total_camera_trajectory_turn_angle_standard_deviation_delta_degrees,
+            "pairs_with_camera_trajectory_point_delta": camera_trajectory_point_delta_pairs,
+            "total_camera_trajectory_point_delta": total_camera_trajectory_point_delta,
+            "camera_present_changed_pairs": camera_present_changed_pairs,
             "framing_intent_changed_pairs": framing_intent_changed_pairs,
+            "camera_id_changed_pairs": camera_id_changed_pairs,
+            "camera_has_trajectory_changed_pairs": camera_has_trajectory_changed_pairs,
             "camera_trajectory_changed_pairs": camera_trajectory_changed_pairs,
+            "lighting_present_changed_pairs": lighting_present_changed_pairs,
             "pairs_with_light_count_delta": light_count_delta_pairs,
             "total_light_count_delta": total_light_count_delta,
             "pairs_with_light_intensity_total_delta": light_intensity_total_delta_pairs,
@@ -1046,6 +1161,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "light_temperature_range_changed_pairs": light_temperature_range_changed_pairs,
             "light_colors_changed_pairs": light_colors_changed_pairs,
             "light_ids_changed_pairs": light_ids_changed_pairs,
+            "pairs_with_light_ids_count_delta": light_ids_count_delta_pairs,
+            "total_light_ids_count_delta": total_light_ids_count_delta,
         },
     }
 
@@ -1069,6 +1186,8 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
             bool(scene_changes.get(key, False))
             for key in (
                 "reference_frame_changed",
+                "object_ids_changed",
+                "object_count_delta",
                 "object_groups_changed",
                 "appearance_classes_changed",
                 "object_states_changed",
@@ -1080,6 +1199,8 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "object_trajectory_average_speed_range_changed",
                 "object_trajectory_peak_speed_range_changed",
                 "object_trajectory_speed_standard_deviation_range_changed",
+                "object_trajectory_average_acceleration_range_changed",
+                "object_trajectory_peak_acceleration_range_changed",
                 "object_trajectory_straightness_range_changed",
                 "object_trajectory_turn_angle_range_degrees_changed",
                 "object_trajectory_peak_turn_angle_range_degrees_changed",
@@ -1087,8 +1208,12 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "object_trajectory_average_turn_angle_range_degrees_changed",
                 "object_trajectory_turn_angle_standard_deviation_range_degrees_changed",
                 "camera_changed",
+                "camera_present_changed",
                 "framing_intent_changed",
+                "camera_id_changed",
+                "camera_has_trajectory_changed",
                 "camera_trajectory_changed",
+                "lighting_present_changed",
                 "light_intensity_range_changed",
                 "light_temperature_range_changed",
                 "light_colors_changed",
@@ -1106,6 +1231,8 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "object_trajectory_average_speed_total_delta",
                 "object_trajectory_peak_speed_total_delta",
                 "object_trajectory_speed_standard_deviation_total_delta",
+                "object_trajectory_average_acceleration_total_delta",
+                "object_trajectory_peak_acceleration_total_delta",
                 "object_trajectory_straightness_total_delta",
                 "object_trajectory_turn_angle_total_degrees_delta",
                 "object_trajectory_peak_turn_angle_total_degrees_delta",
@@ -1118,6 +1245,8 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "camera_trajectory_average_speed_delta",
                 "camera_trajectory_peak_speed_delta",
                 "camera_trajectory_speed_standard_deviation_delta",
+                "camera_trajectory_average_acceleration_delta",
+                "camera_trajectory_peak_acceleration_delta",
                 "camera_trajectory_straightness_delta",
                 "camera_trajectory_turn_angle_degrees_delta",
                 "camera_trajectory_peak_turn_angle_degrees_delta",
@@ -1133,9 +1262,11 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
                 "positioned_objects_delta",
                 "objects_with_orientation_delta",
                 "objects_with_trajectory_delta",
+                "object_count_delta",
                 "object_trajectory_turn_count_total_delta",
                 "camera_trajectory_turn_count_delta",
                 "object_trajectory_point_count_delta",
+                "camera_trajectory_point_count_delta",
                 "light_count_delta",
                 "positioned_lights_delta",
                 "directional_lights_delta",

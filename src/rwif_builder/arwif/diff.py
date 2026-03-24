@@ -248,6 +248,14 @@ def diff_arwif_artifacts(left: str | Path, right: str | Path, *, allow_legacy: b
 
     left_oscillator_count = sum(len(state.units) for state in left_library.states)
     right_oscillator_count = sum(len(state.units) for state in right_library.states)
+    left_max_frequency_hz = max(
+        (unit.frequency_index for state in left_library.states for unit in state.units),
+        default=0,
+    )
+    right_max_frequency_hz = max(
+        (unit.frequency_index for state in right_library.states for unit in state.units),
+        default=0,
+    )
 
     return {
         "left": str(left_path),
@@ -263,6 +271,7 @@ def diff_arwif_artifacts(left: str | Path, right: str | Path, *, allow_legacy: b
         "spatial_changes": _spatial_changes(left_metadata, left_library.states, right_metadata, right_library.states),
         "state_count_delta": len(right_library.states) - len(left_library.states),
         "oscillator_count_delta": right_oscillator_count - left_oscillator_count,
+        "max_frequency_hz_delta": right_max_frequency_hz - left_max_frequency_hz,
         "added_states": added_states,
         "removed_states": removed_states,
         "changed_states": changed_states,
@@ -453,19 +462,29 @@ def _spatial_changes(
     return {
         "listener_anchor_changed": left_summary["listener_anchor"] != right_summary["listener_anchor"],
         "reference_frame_changed": left_summary["reference_frame"] != right_summary["reference_frame"],
+        "room_present_changed": left_summary["room_present"] != right_summary["room_present"],
         "room_changed": _room_mapping(left_metadata.get("room")) != _room_mapping(right_metadata.get("room")),
         "room_dimensions_changed": left_summary["room_dimensions"] != right_summary["room_dimensions"],
+        "geometry_reference_present_changed": (
+            left_summary["geometry_reference_present"] != right_summary["geometry_reference_present"]
+        ),
         "geometry_reference_changed": left_summary["geometry_reference_present"] != right_summary["geometry_reference_present"]
         or left_summary["room_geometry_id"] != right_summary["room_geometry_id"]
         or left_summary["room_geometry_class"] != right_summary["room_geometry_class"],
         "room_geometry_id_changed": left_summary["room_geometry_id"] != right_summary["room_geometry_id"],
         "room_geometry_class_changed": left_summary["room_geometry_class"] != right_summary["room_geometry_class"],
         "room_surface_profile_changed": left_summary["room_surface_profile"] != right_summary["room_surface_profile"],
+        "surface_treatment_present_changed": (
+            left_summary["surface_treatment_present"] != right_summary["surface_treatment_present"]
+        ),
         "surface_treatment_changed": left_summary["surface_treatment_present"] != right_summary["surface_treatment_present"]
         or left_summary["room_surface_absorption"] != right_summary["room_surface_absorption"]
         or left_summary["room_surface_diffusion"] != right_summary["room_surface_diffusion"],
         "room_surface_absorption_changed": left_summary["room_surface_absorption"] != right_summary["room_surface_absorption"],
         "room_surface_diffusion_changed": left_summary["room_surface_diffusion"] != right_summary["room_surface_diffusion"],
+        "reflection_policy_present_changed": (
+            left_summary["reflection_policy_present"] != right_summary["reflection_policy_present"]
+        ),
         "reflection_policy_changed": left_summary["reflection_policy_present"] != right_summary["reflection_policy_present"]
         or left_summary["room_reflection_style"] != right_summary["room_reflection_style"]
         or left_summary["room_early_reflections"] != right_summary["room_early_reflections"]
@@ -473,6 +492,9 @@ def _spatial_changes(
         "room_reflection_style_changed": left_summary["room_reflection_style"] != right_summary["room_reflection_style"],
         "room_early_reflections_changed": left_summary["room_early_reflections"] != right_summary["room_early_reflections"],
         "room_late_reverb_changed": left_summary["room_late_reverb"] != right_summary["room_late_reverb"],
+        "renderer_adaptation_present_changed": (
+            left_summary["renderer_adaptation_present"] != right_summary["renderer_adaptation_present"]
+        ),
         "renderer_adaptation_changed": left_summary["renderer_adaptation_present"] != right_summary["renderer_adaptation_present"]
         or left_summary["room_target_playback"] != right_summary["room_target_playback"]
         or left_summary["room_spatial_priority"] != right_summary["room_spatial_priority"]
@@ -482,12 +504,23 @@ def _spatial_changes(
         "room_downmix_policy_changed": left_summary["room_downmix_policy"] != right_summary["room_downmix_policy"],
         "listening_zones_changed": left_summary["listening_zone_ids"] != right_summary["listening_zone_ids"],
         "listening_zone_intents_changed": left_summary["listening_zone_intents"] != right_summary["listening_zone_intents"],
+        "listening_zone_intents_count_delta": (
+            len(right_summary["listening_zone_intents"]) - len(left_summary["listening_zone_intents"])
+        ),
         "listening_zone_count_delta": right_summary["listening_zone_count"] - left_summary["listening_zone_count"],
+        "listening_zone_ids_count_delta": len(right_summary["listening_zone_ids"]) - len(left_summary["listening_zone_ids"]),
+        "speaker_ids_changed": left_summary["speaker_ids"] != right_summary["speaker_ids"],
+        "speaker_ids_count_delta": len(right_summary["speaker_ids"]) - len(left_summary["speaker_ids"]),
         "speakers_changed": left_summary["speaker_ids"] != right_summary["speaker_ids"],
         "speaker_count_delta": right_summary["speaker_count"] - left_summary["speaker_count"],
         "speaker_channels_changed": left_summary["speaker_channels"] != right_summary["speaker_channels"],
+        "speaker_channels_count_delta": len(right_summary["speaker_channels"]) - len(left_summary["speaker_channels"]),
         "speaker_roles_changed": left_summary["speaker_roles"] != right_summary["speaker_roles"],
+        "speaker_roles_count_delta": len(right_summary["speaker_roles"]) - len(left_summary["speaker_roles"]),
         "speaker_coverage_intents_changed": left_summary["speaker_coverage_intents"] != right_summary["speaker_coverage_intents"],
+        "speaker_coverage_intents_count_delta": (
+            len(right_summary["speaker_coverage_intents"]) - len(left_summary["speaker_coverage_intents"])
+        ),
         "channel_layout_changed": left_summary["channel_layout"] != right_summary["channel_layout"],
         "active_channels_changed": left_summary["active_channels"] != right_summary["active_channels"],
         "states_with_channel_gains_delta": (
@@ -509,5 +542,6 @@ def _spatial_changes(
             right_summary["states_with_source_id"] - left_summary["states_with_source_id"]
         ),
         "source_groups_changed": left_summary["source_groups"] != right_summary["source_groups"],
+        "source_groups_count_delta": len(right_summary["source_groups"]) - len(left_summary["source_groups"]),
         "distance_models_changed": left_summary["distance_models"] != right_summary["distance_models"],
     }

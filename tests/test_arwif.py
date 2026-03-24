@@ -72,6 +72,7 @@ class ARWIFIntegrationTest(unittest.TestCase):
             self.assertTrue(review_report_path.exists())
             analysis_payload = review_payload["analysis"]
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["geometry_reference_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["geometry_reference_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_geometry_id_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_geometry_class_changed_pairs"], 1)
@@ -82,8 +83,14 @@ class ARWIFIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zone_intents_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_intents_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_intents_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_ids_count_delta"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_roles_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_coverage_intents_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_coverage_intents_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_coverage_intents_count_delta"], 0)
 
     def test_arwif_build_validate_and_render(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -318,6 +325,7 @@ states:
             self.assertIn("CE", diff_payload["changed_states"])
             self.assertIn("sample_rate_hz", diff_payload["metadata_changes"])
             self.assertEqual(diff_payload["oscillator_count_delta"], 1)
+            self.assertEqual(diff_payload["max_frequency_hz_delta"], 193)
             self.assertIn("channel_gains", diff_payload["state_changes"]["CE"]["metadata_changes"])
             self.assertEqual(
                 diff_payload["state_changes"]["CE"]["metadata_changes"]["channel_gains"]["right"]["R"],
@@ -2662,31 +2670,44 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
                 "--json",
             )
             self.assertEqual(diff_payload["change_summary"]["metadata_fields_changed"], 0)
+            self.assertFalse(diff_payload["spatial_changes"]["room_present_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_dimensions_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["geometry_reference_present_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["geometry_reference_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_geometry_id_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_geometry_class_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_surface_profile_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["surface_treatment_present_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["surface_treatment_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_surface_absorption_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_surface_diffusion_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["reflection_policy_present_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["reflection_policy_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_reflection_style_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_early_reflections_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_late_reverb_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["renderer_adaptation_present_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["renderer_adaptation_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_target_playback_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_spatial_priority_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["room_downmix_policy_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["listening_zone_intents_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_intents_count_delta"], 0)
             self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_ids_count_delta"], 0)
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_ids_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_ids_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
             self.assertFalse(diff_payload["spatial_changes"]["speaker_channels_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_channels_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speaker_roles_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_roles_count_delta"], 0)
             self.assertFalse(diff_payload["spatial_changes"]["speaker_coverage_intents_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_coverage_intents_count_delta"], 0)
             self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 0)
+            self.assertEqual(diff_payload["spatial_changes"]["source_groups_count_delta"], 0)
 
     def test_arwif_validate_spec_rejects_invalid_trajectory_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -3133,31 +3154,45 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
 
             analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
             self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_dimensions_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["geometry_reference_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["geometry_reference_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_geometry_id_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_geometry_class_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_profile_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["surface_treatment_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["surface_treatment_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_absorption_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_diffusion_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_reflection_style_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_early_reflections_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_late_reverb_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_target_playback_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_spatial_priority_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_downmix_policy_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zone_intents_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_intents_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_intents_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_roles_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_roles_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_ids_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speakers_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_channels_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_roles_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_roles_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_roles_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_coverage_intents_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_coverage_intents_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_coverage_intents_count_delta"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_count_delta"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_count_delta"], 1)
 
@@ -3297,6 +3332,813 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_source_id_state_delta"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["total_states_with_source_id_delta"], 0)
             self.assertEqual(analysis_payload["spatial_change_summary"]["source_groups_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_source_groups_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_source_groups_count_delta"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_geometry_reference_presence_changed_pairs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "geometry-reference-presence-left.yaml"
+            right_spec_path = tmp_dir / "geometry-reference-presence-right.yaml"
+            left_artifact_path = tmp_dir / "geometry-reference-presence-left.arwif"
+            right_artifact_path = tmp_dir / "geometry-reference-presence-right.arwif"
+            diff_report_path = tmp_dir / "geometry-reference-presence-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Geometry reference presence left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Geometry reference presence right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "  geometry_reference:",
+                        "    geometry_id: studio-a",
+                        "    geometry_class: shoebox",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(
+                repo_root,
+                "arwif-diff",
+                str(left_artifact_path),
+                str(right_artifact_path),
+                "--json",
+            )
+            self.assertFalse(diff_payload["spatial_changes"]["room_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["geometry_reference_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["geometry_reference_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_geometry_id_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_geometry_class_changed"])
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["geometry_reference_present_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["geometry_reference_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_geometry_id_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_geometry_class_changed_pairs"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_surface_treatment_presence_changed_pairs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "surface-treatment-presence-left.yaml"
+            right_spec_path = tmp_dir / "surface-treatment-presence-right.yaml"
+            left_artifact_path = tmp_dir / "surface-treatment-presence-left.arwif"
+            right_artifact_path = tmp_dir / "surface-treatment-presence-right.arwif"
+            diff_report_path = tmp_dir / "surface-treatment-presence-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Surface treatment presence left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Surface treatment presence right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "  surface_treatment:",
+                        "    absorption: balanced",
+                        "    diffusion: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["room_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["surface_treatment_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["surface_treatment_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_surface_absorption_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_surface_diffusion_changed"])
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["surface_treatment_present_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["surface_treatment_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_absorption_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_surface_diffusion_changed_pairs"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_reflection_policy_presence_changed_pairs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "reflection-policy-presence-left.yaml"
+            right_spec_path = tmp_dir / "reflection-policy-presence-right.yaml"
+            left_artifact_path = tmp_dir / "reflection-policy-presence-left.arwif"
+            right_artifact_path = tmp_dir / "reflection-policy-presence-right.arwif"
+            diff_report_path = tmp_dir / "reflection-policy-presence-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Reflection policy presence left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Reflection policy presence right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "  reflection_policy:",
+                        "    style: balanced",
+                        "    early_reflections: natural",
+                        "    late_reverb: controlled",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["room_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["reflection_policy_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["reflection_policy_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_reflection_style_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_early_reflections_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_late_reverb_changed"])
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_present_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["reflection_policy_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_reflection_style_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_early_reflections_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_late_reverb_changed_pairs"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_renderer_adaptation_presence_changed_pairs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "renderer-adaptation-presence-left.yaml"
+            right_spec_path = tmp_dir / "renderer-adaptation-presence-right.yaml"
+            left_artifact_path = tmp_dir / "renderer-adaptation-presence-left.arwif"
+            right_artifact_path = tmp_dir / "renderer-adaptation-presence-right.arwif"
+            diff_report_path = tmp_dir / "renderer-adaptation-presence-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Renderer adaptation presence left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Renderer adaptation presence right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "  renderer_adaptation_hints:",
+                        "    target_playback: headphones",
+                        "    spatial_priority: precision",
+                        "    downmix_policy: preserve_positions",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["room_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["renderer_adaptation_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["renderer_adaptation_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_target_playback_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_spatial_priority_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_downmix_policy_changed"])
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_present_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["renderer_adaptation_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_target_playback_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_spatial_priority_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_downmix_policy_changed_pairs"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_max_frequency_hz_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "max-frequency-left.arwif"
+            right_path = tmp_dir / "max-frequency-right.arwif"
+            diff_report_path = tmp_dir / "max-frequency-batch-diff.json"
+
+            save_wave_library(
+                left_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(220, 0.8), AtomicWaveUnit(330, 0.5)),
+                            label="base",
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Max frequency left",
+                    },
+                ),
+            )
+
+            save_wave_library(
+                right_path,
+                WaveLibrary(
+                    states=(
+                        WaveState(
+                            vector_length=512,
+                            units=(AtomicWaveUnit(220, 0.8), AtomicWaveUnit(440, 0.5)),
+                            label="base",
+                        ),
+                    ),
+                    metadata={
+                        "format": "arwif_audio",
+                        "arwif_version": 1,
+                        "frequency_unit": "hz",
+                        "playback_model": "continuous_oscillator_bank",
+                        "sample_rate_hz": 8000,
+                        "default_duration_seconds": 0.25,
+                        "title": "Max frequency right",
+                    },
+                ),
+            )
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_path), str(right_path), "--json")
+            self.assertEqual(diff_payload["oscillator_count_delta"], 0)
+            self.assertEqual(diff_payload["state_count_delta"], 0)
+            self.assertEqual(diff_payload["max_frequency_hz_delta"], 110)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_max_frequency_hz_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_max_frequency_hz_delta"], 110)
+
+    def test_arwif_batch_diff_analyze_tracks_intent_count_deltas(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "intent-count-left.yaml"
+            right_spec_path = tmp_dir / "intent-count-right.yaml"
+            left_artifact_path = tmp_dir / "intent-count-left.arwif"
+            right_artifact_path = tmp_dir / "intent-count-right.arwif"
+            diff_report_path = tmp_dir / "intent-count-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Intent count left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  listening_zones:",
+                        "    - zone_id: sweet-spot",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: 1.2",
+                        "        z: 0.0",
+                        "      radius_m: 1.5",
+                        "      intent: focused",
+                        "    - zone_id: couch",
+                        "      anchor:",
+                        "        x: 1.5",
+                        "        y: 1.2",
+                        "        z: -0.5",
+                        "      radius_m: 2.0",
+                        "      intent: focused",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Intent count right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  listening_zones:",
+                        "    - zone_id: sweet-spot",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: 1.2",
+                        "        z: 0.0",
+                        "      radius_m: 1.5",
+                        "      intent: focused",
+                        "    - zone_id: couch",
+                        "      anchor:",
+                        "        x: 1.5",
+                        "        y: 1.2",
+                        "        z: -0.5",
+                        "      radius_m: 2.0",
+                        "      intent: diffuse",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: wide",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["listening_zones_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["listening_zone_intents_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_intents_count_delta"], 1)
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 0)
+            self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["speaker_coverage_intents_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_coverage_intents_count_delta"], 1)
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 0)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zone_intents_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_intents_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_intents_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_coverage_intents_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_coverage_intents_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_coverage_intents_count_delta"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_speaker_roles_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "speaker-roles-count-left.yaml"
+            right_spec_path = tmp_dir / "speaker-roles-count-right.yaml"
+            left_artifact_path = tmp_dir / "speaker-roles-count-left.arwif"
+            right_artifact_path = tmp_dir / "speaker-roles-count-right.arwif"
+            diff_report_path = tmp_dir / "speaker-roles-count-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker roles count left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker roles count right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: surround",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["speaker_roles_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_roles_count_delta"], 1)
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_coverage_intents_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_coverage_intents_count_delta"], 0)
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 0)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_roles_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_roles_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_roles_count_delta"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_speaker_channels_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "speaker-channels-count-left.yaml"
+            right_spec_path = tmp_dir / "speaker-channels-count-right.yaml"
+            left_artifact_path = tmp_dir / "speaker-channels-count-left.arwif"
+            right_artifact_path = tmp_dir / "speaker-channels-count-right.arwif"
+            diff_report_path = tmp_dir / "speaker-channels-count-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker channels count left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker channels count right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertFalse(diff_payload["spatial_changes"]["speakers_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["speaker_channels_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_channels_count_delta"], 1)
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_roles_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_roles_count_delta"], 0)
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_coverage_intents_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_coverage_intents_count_delta"], 0)
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 0)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_channels_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_channels_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_channels_count_delta"], 1)
 
     def _run_json(self, repo_root: Path, *args: str, allow_failure: bool = False) -> dict[str, object]:
         result = subprocess.run(
@@ -3311,6 +4153,554 @@ class ARWIFObjectSpatialIntegrationTest(unittest.TestCase):
             self.fail(result.stderr or result.stdout)
         return json.loads(result.stdout)
 
+
+class ARWIFSpeakerSpatialIntegrationTest(unittest.TestCase):
+    def test_arwif_diff_reports_speaker_id_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "left-speaker-id.yaml"
+            right_spec_path = tmp_dir / "right-speaker-id.yaml"
+            left_artifact_path = tmp_dir / "left-speaker-id.arwif"
+            right_artifact_path = tmp_dir / "right-speaker-id.arwif"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker id left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker id right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-alt",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertTrue(diff_payload["spatial_changes"]["speaker_ids_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_ids_count_delta"], 0)
+            self.assertTrue(diff_payload["spatial_changes"]["speakers_changed"])
+            self.assertFalse(diff_payload["spatial_changes"]["speaker_roles_changed"])
+
+    def test_arwif_batch_diff_analysis_reports_speaker_id_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "left-batch-speaker-id.yaml"
+            right_spec_path = tmp_dir / "right-batch-speaker-id.yaml"
+            left_artifact_path = tmp_dir / "left-batch-speaker-id.arwif"
+            right_artifact_path = tmp_dir / "right-batch-speaker-id.arwif"
+            diff_report_path = tmp_dir / "speaker-id-batch-diff.json"
+            analysis_report_path = tmp_dir / "speaker-id-batch-analysis.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker id batch left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker id batch right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-alt",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_ids_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speakers_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_channels_count_delta"], 0)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_channels_count_delta"], 0)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_arwif_batch_diff_analyze_tracks_listening_zone_ids_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "listening-zone-ids-count-left.yaml"
+            right_spec_path = tmp_dir / "listening-zone-ids-count-right.yaml"
+            left_artifact_path = tmp_dir / "listening-zone-ids-count-left.arwif"
+            right_artifact_path = tmp_dir / "listening-zone-ids-count-right.arwif"
+            diff_report_path = tmp_dir / "listening-zone-ids-count-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Listening zone ids count left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  listening_zones:",
+                        "    - zone_id: nearfield",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: 0.0",
+                        "        z: 0.0",
+                        "      radius_m: 1.0",
+                        "      intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Listening zone ids count right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  listening_zones:",
+                        "    - zone_id: nearfield",
+                        "      anchor:",
+                        "        x: 0.0",
+                        "        y: 0.0",
+                        "        z: 0.0",
+                        "      radius_m: 1.0",
+                        "      intent: focused",
+                        "    - zone_id: audience",
+                        "      anchor:",
+                        "        x: 1.5",
+                        "        y: 0.0",
+                        "        z: -0.5",
+                        "      radius_m: 2.0",
+                        "      intent: diffuse",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertTrue(diff_payload["spatial_changes"]["listening_zones_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_ids_count_delta"], 1)
+            self.assertEqual(diff_payload["spatial_changes"]["listening_zone_count_delta"], 1)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["listening_zones_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_listening_zone_ids_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_listening_zone_ids_count_delta"], 1)
+
+    def test_arwif_batch_diff_analyze_tracks_speaker_ids_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "speaker-ids-count-left.yaml"
+            right_spec_path = tmp_dir / "speaker-ids-count-right.yaml"
+            left_artifact_path = tmp_dir / "speaker-ids-count-left.arwif"
+            right_artifact_path = tmp_dir / "speaker-ids-count-right.arwif"
+            diff_report_path = tmp_dir / "speaker-ids-count-batch-diff.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker ids count left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Speaker ids count right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "channel_layout: stereo",
+                        "room:",
+                        "  speakers:",
+                        "    - speaker_id: left-main",
+                        "      anchor:",
+                        "        x: -2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: L",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "    - speaker_id: right-main",
+                        "      anchor:",
+                        "        x: 2.5",
+                        "        y: 1.3",
+                        "        z: 2.0",
+                        "      channel: R",
+                        "      role: main",
+                        "      coverage_intent: focused",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertTrue(diff_payload["spatial_changes"]["speaker_ids_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_ids_count_delta"], 1)
+            self.assertTrue(diff_payload["spatial_changes"]["speakers_changed"])
+            self.assertEqual(diff_payload["spatial_changes"]["speaker_count_delta"], 1)
+
+            self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+
+            analysis_payload = self._run_json(repo_root, "arwif-batch-diff-analyze", str(diff_report_path), "--json")
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["speaker_ids_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["pairs_with_speaker_ids_count_delta"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["total_speaker_ids_count_delta"], 1)
+
+    def test_arwif_diff_reports_room_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "left-room-presence.yaml"
+            right_spec_path = tmp_dir / "right-room-presence.yaml"
+            left_artifact_path = tmp_dir / "left-room-presence.arwif"
+            right_artifact_path = tmp_dir / "right-room-presence.arwif"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Room presence left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Room presence right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(repo_root, "arwif-diff", str(left_artifact_path), str(right_artifact_path), "--json")
+            self.assertTrue(diff_payload["spatial_changes"]["room_present_changed"])
+            self.assertTrue(diff_payload["spatial_changes"]["room_changed"])
+
+    def test_arwif_batch_diff_analysis_reports_room_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_spec_path = tmp_dir / "left-batch-room-presence.yaml"
+            right_spec_path = tmp_dir / "right-batch-room-presence.yaml"
+            left_artifact_path = tmp_dir / "left-batch-room-presence.arwif"
+            right_artifact_path = tmp_dir / "right-batch-room-presence.arwif"
+            diff_report_path = tmp_dir / "room-presence-batch-diff.json"
+            analysis_report_path = tmp_dir / "room-presence-batch-analysis.json"
+
+            left_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Room presence batch left",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_spec_path.write_text(
+                "\n".join(
+                    [
+                        "title: Room presence batch right",
+                        "sample_rate_hz: 8000",
+                        "default_duration_seconds: 0.25",
+                        "room:",
+                        "  dimensions:",
+                        "    width_m: 6.0",
+                        "    depth_m: 8.0",
+                        "    height_m: 3.0",
+                        "states:",
+                        "  - label: base",
+                        "    oscillators:",
+                        "      - hz: 220",
+                        "        amplitude: 0.5",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            self._run_json(repo_root, "arwif-build", "--spec", str(left_spec_path), "--output", str(left_artifact_path), "--json")
+            self._run_json(repo_root, "arwif-build", "--spec", str(right_spec_path), "--output", str(right_artifact_path), "--json")
+
+            diff_payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff",
+                "--left",
+                str(left_artifact_path),
+                "--right",
+                str(right_artifact_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def _run_json(self, repo_root: Path, *args: str, allow_failure: bool = False) -> dict[str, object]:
+        result = subprocess.run(
+            [sys.executable, "-m", "rwif_builder.cli", *args],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": str(repo_root / "src")},
+        )
+        if result.returncode != 0 and not allow_failure:
+            self.fail(result.stderr or result.stdout)
+        return json.loads(result.stdout)
 
 if __name__ == "__main__":
     unittest.main()

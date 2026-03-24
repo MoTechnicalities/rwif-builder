@@ -576,6 +576,7 @@ def batch_diff_arwif_artifacts(
     incompatible_pairs = 0
     total_metadata_fields_changed = 0
     total_changed_states = 0
+    total_max_frequency_hz_delta = 0
 
     for pair_index, (left_artifact, right_artifact) in enumerate(zip(left_artifacts, right_artifacts, strict=True)):
         payload = diff_arwif_artifacts(left_artifact, right_artifact, allow_legacy=allow_legacy)
@@ -588,6 +589,7 @@ def batch_diff_arwif_artifacts(
         removed_states = int(summary.get("removed_states", 0))
         oscillator_count_delta = int(payload.get("oscillator_count_delta", 0))
         state_count_delta = int(payload.get("state_count_delta", 0))
+        max_frequency_hz_delta = int(payload.get("max_frequency_hz_delta", 0))
 
         pair_changed = any(
             (
@@ -597,6 +599,7 @@ def batch_diff_arwif_artifacts(
                 removed_states,
                 oscillator_count_delta,
                 state_count_delta,
+                max_frequency_hz_delta,
             )
         )
         payload["pair_changed"] = pair_changed
@@ -613,6 +616,7 @@ def batch_diff_arwif_artifacts(
 
         total_metadata_fields_changed += metadata_fields_changed
         total_changed_states += changed_states
+        total_max_frequency_hz_delta += max_frequency_hz_delta
         results.append(payload)
 
     payload = {
@@ -625,6 +629,7 @@ def batch_diff_arwif_artifacts(
         "allow_legacy": allow_legacy,
         "total_metadata_fields_changed": total_metadata_fields_changed,
         "total_changed_states": total_changed_states,
+        "total_max_frequency_hz_delta": total_max_frequency_hz_delta,
         "results": results,
     }
 
@@ -710,33 +715,53 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     channel_layout_changed_pairs = 0
     listener_anchor_changed_pairs = 0
     reference_frame_changed_pairs = 0
+    room_present_changed_pairs = 0
     room_changed_pairs = 0
     room_dimensions_changed_pairs = 0
+    geometry_reference_present_changed_pairs = 0
     geometry_reference_changed_pairs = 0
     room_geometry_id_changed_pairs = 0
     room_geometry_class_changed_pairs = 0
     room_surface_profile_changed_pairs = 0
+    surface_treatment_present_changed_pairs = 0
     surface_treatment_changed_pairs = 0
     room_surface_absorption_changed_pairs = 0
     room_surface_diffusion_changed_pairs = 0
+    reflection_policy_present_changed_pairs = 0
     reflection_policy_changed_pairs = 0
     room_reflection_style_changed_pairs = 0
     room_early_reflections_changed_pairs = 0
     room_late_reverb_changed_pairs = 0
+    renderer_adaptation_present_changed_pairs = 0
     renderer_adaptation_changed_pairs = 0
     room_target_playback_changed_pairs = 0
     room_spatial_priority_changed_pairs = 0
     room_downmix_policy_changed_pairs = 0
     listening_zones_changed_pairs = 0
     listening_zone_intents_changed_pairs = 0
+    listening_zone_intents_count_delta_pairs = 0
+    total_listening_zone_intents_count_delta = 0
     listening_zone_delta_pairs = 0
     total_listening_zone_count_delta = 0
+    listening_zone_ids_count_delta_pairs = 0
+    total_listening_zone_ids_count_delta = 0
+    speaker_ids_changed_pairs = 0
+    speaker_ids_count_delta_pairs = 0
+    total_speaker_ids_count_delta = 0
     speakers_changed_pairs = 0
     speaker_channels_changed_pairs = 0
+    speaker_channels_count_delta_pairs = 0
+    total_speaker_channels_count_delta = 0
     speaker_roles_changed_pairs = 0
+    speaker_roles_count_delta_pairs = 0
+    total_speaker_roles_count_delta = 0
     speaker_coverage_intents_changed_pairs = 0
+    speaker_coverage_intents_count_delta_pairs = 0
+    total_speaker_coverage_intents_count_delta = 0
     speaker_count_delta_pairs = 0
     total_speaker_count_delta = 0
+    max_frequency_hz_delta_pairs = 0
+    total_max_frequency_hz_delta = 0
     active_channels_changed_pairs = 0
     channel_gains_delta_pairs = 0
     total_states_with_channel_gains_delta = 0
@@ -754,6 +779,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     source_id_state_delta_pairs = 0
     total_states_with_source_id_delta = 0
     source_groups_changed_pairs = 0
+    source_groups_count_delta_pairs = 0
+    total_source_groups_count_delta = 0
     distance_models_changed_pairs = 0
 
     changed_pairs = 0
@@ -794,16 +821,25 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             removed_state_counter[state_name] += 1
             removed_state_pair_indexes.setdefault(state_name, []).append(pair_index)
 
+        max_frequency_hz_delta = int(raw_result.get("max_frequency_hz_delta", 0) or 0)
+        total_max_frequency_hz_delta += max_frequency_hz_delta
+        if max_frequency_hz_delta != 0:
+            max_frequency_hz_delta_pairs += 1
+
         spatial_changes = raw_result.get("spatial_changes")
         if isinstance(spatial_changes, dict):
             if bool(spatial_changes.get("listener_anchor_changed", False)):
                 listener_anchor_changed_pairs += 1
             if bool(spatial_changes.get("reference_frame_changed", False)):
                 reference_frame_changed_pairs += 1
+            if bool(spatial_changes.get("room_present_changed", False)):
+                room_present_changed_pairs += 1
             if bool(spatial_changes.get("room_changed", False)):
                 room_changed_pairs += 1
             if bool(spatial_changes.get("room_dimensions_changed", False)):
                 room_dimensions_changed_pairs += 1
+            if bool(spatial_changes.get("geometry_reference_present_changed", False)):
+                geometry_reference_present_changed_pairs += 1
             if bool(spatial_changes.get("geometry_reference_changed", False)):
                 geometry_reference_changed_pairs += 1
             if bool(spatial_changes.get("room_geometry_id_changed", False)):
@@ -812,12 +848,16 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 room_geometry_class_changed_pairs += 1
             if bool(spatial_changes.get("room_surface_profile_changed", False)):
                 room_surface_profile_changed_pairs += 1
+            if bool(spatial_changes.get("surface_treatment_present_changed", False)):
+                surface_treatment_present_changed_pairs += 1
             if bool(spatial_changes.get("surface_treatment_changed", False)):
                 surface_treatment_changed_pairs += 1
             if bool(spatial_changes.get("room_surface_absorption_changed", False)):
                 room_surface_absorption_changed_pairs += 1
             if bool(spatial_changes.get("room_surface_diffusion_changed", False)):
                 room_surface_diffusion_changed_pairs += 1
+            if bool(spatial_changes.get("reflection_policy_present_changed", False)):
+                reflection_policy_present_changed_pairs += 1
             if bool(spatial_changes.get("reflection_policy_changed", False)):
                 reflection_policy_changed_pairs += 1
             if bool(spatial_changes.get("room_reflection_style_changed", False)):
@@ -826,6 +866,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 room_early_reflections_changed_pairs += 1
             if bool(spatial_changes.get("room_late_reverb_changed", False)):
                 room_late_reverb_changed_pairs += 1
+            if bool(spatial_changes.get("renderer_adaptation_present_changed", False)):
+                renderer_adaptation_present_changed_pairs += 1
             if bool(spatial_changes.get("renderer_adaptation_changed", False)):
                 renderer_adaptation_changed_pairs += 1
             if bool(spatial_changes.get("room_target_playback_changed", False)):
@@ -838,18 +880,46 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 listening_zones_changed_pairs += 1
             if bool(spatial_changes.get("listening_zone_intents_changed", False)):
                 listening_zone_intents_changed_pairs += 1
+            listening_zone_intents_count_delta = int(spatial_changes.get("listening_zone_intents_count_delta", 0) or 0)
+            total_listening_zone_intents_count_delta += listening_zone_intents_count_delta
+            if listening_zone_intents_count_delta != 0:
+                listening_zone_intents_count_delta_pairs += 1
             listening_zone_count_delta = int(spatial_changes.get("listening_zone_count_delta", 0) or 0)
             total_listening_zone_count_delta += listening_zone_count_delta
             if listening_zone_count_delta != 0:
                 listening_zone_delta_pairs += 1
+            listening_zone_ids_count_delta = int(spatial_changes.get("listening_zone_ids_count_delta", 0) or 0)
+            total_listening_zone_ids_count_delta += listening_zone_ids_count_delta
+            if listening_zone_ids_count_delta != 0:
+                listening_zone_ids_count_delta_pairs += 1
+            if bool(spatial_changes.get("speaker_ids_changed", False)):
+                speaker_ids_changed_pairs += 1
+            speaker_ids_count_delta = int(spatial_changes.get("speaker_ids_count_delta", 0) or 0)
+            total_speaker_ids_count_delta += speaker_ids_count_delta
+            if speaker_ids_count_delta != 0:
+                speaker_ids_count_delta_pairs += 1
             if bool(spatial_changes.get("speakers_changed", False)):
                 speakers_changed_pairs += 1
             if bool(spatial_changes.get("speaker_channels_changed", False)):
                 speaker_channels_changed_pairs += 1
+            speaker_channels_count_delta = int(spatial_changes.get("speaker_channels_count_delta", 0) or 0)
+            total_speaker_channels_count_delta += speaker_channels_count_delta
+            if speaker_channels_count_delta != 0:
+                speaker_channels_count_delta_pairs += 1
             if bool(spatial_changes.get("speaker_roles_changed", False)):
                 speaker_roles_changed_pairs += 1
+            speaker_roles_count_delta = int(spatial_changes.get("speaker_roles_count_delta", 0) or 0)
+            total_speaker_roles_count_delta += speaker_roles_count_delta
+            if speaker_roles_count_delta != 0:
+                speaker_roles_count_delta_pairs += 1
             if bool(spatial_changes.get("speaker_coverage_intents_changed", False)):
                 speaker_coverage_intents_changed_pairs += 1
+            speaker_coverage_intents_count_delta = int(
+                spatial_changes.get("speaker_coverage_intents_count_delta", 0) or 0
+            )
+            total_speaker_coverage_intents_count_delta += speaker_coverage_intents_count_delta
+            if speaker_coverage_intents_count_delta != 0:
+                speaker_coverage_intents_count_delta_pairs += 1
             speaker_count_delta = int(spatial_changes.get("speaker_count_delta", 0) or 0)
             total_speaker_count_delta += speaker_count_delta
             if speaker_count_delta != 0:
@@ -890,6 +960,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
                 source_id_state_delta_pairs += 1
             if bool(spatial_changes.get("source_groups_changed", False)):
                 source_groups_changed_pairs += 1
+            source_groups_count_delta = int(spatial_changes.get("source_groups_count_delta", 0) or 0)
+            total_source_groups_count_delta += source_groups_count_delta
+            if source_groups_count_delta != 0:
+                source_groups_count_delta_pairs += 1
             if bool(spatial_changes.get("distance_models_changed", False)):
                 distance_models_changed_pairs += 1
 
@@ -912,33 +986,53 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
         "spatial_change_summary": {
             "listener_anchor_changed_pairs": listener_anchor_changed_pairs,
             "reference_frame_changed_pairs": reference_frame_changed_pairs,
+            "room_present_changed_pairs": room_present_changed_pairs,
             "room_changed_pairs": room_changed_pairs,
             "room_dimensions_changed_pairs": room_dimensions_changed_pairs,
+            "geometry_reference_present_changed_pairs": geometry_reference_present_changed_pairs,
             "geometry_reference_changed_pairs": geometry_reference_changed_pairs,
             "room_geometry_id_changed_pairs": room_geometry_id_changed_pairs,
             "room_geometry_class_changed_pairs": room_geometry_class_changed_pairs,
             "room_surface_profile_changed_pairs": room_surface_profile_changed_pairs,
+            "surface_treatment_present_changed_pairs": surface_treatment_present_changed_pairs,
             "surface_treatment_changed_pairs": surface_treatment_changed_pairs,
             "room_surface_absorption_changed_pairs": room_surface_absorption_changed_pairs,
             "room_surface_diffusion_changed_pairs": room_surface_diffusion_changed_pairs,
+            "reflection_policy_present_changed_pairs": reflection_policy_present_changed_pairs,
             "reflection_policy_changed_pairs": reflection_policy_changed_pairs,
             "room_reflection_style_changed_pairs": room_reflection_style_changed_pairs,
             "room_early_reflections_changed_pairs": room_early_reflections_changed_pairs,
             "room_late_reverb_changed_pairs": room_late_reverb_changed_pairs,
+            "renderer_adaptation_present_changed_pairs": renderer_adaptation_present_changed_pairs,
             "renderer_adaptation_changed_pairs": renderer_adaptation_changed_pairs,
             "room_target_playback_changed_pairs": room_target_playback_changed_pairs,
             "room_spatial_priority_changed_pairs": room_spatial_priority_changed_pairs,
             "room_downmix_policy_changed_pairs": room_downmix_policy_changed_pairs,
             "listening_zones_changed_pairs": listening_zones_changed_pairs,
             "listening_zone_intents_changed_pairs": listening_zone_intents_changed_pairs,
+            "pairs_with_listening_zone_intents_count_delta": listening_zone_intents_count_delta_pairs,
+            "total_listening_zone_intents_count_delta": total_listening_zone_intents_count_delta,
             "pairs_with_listening_zone_count_delta": listening_zone_delta_pairs,
             "total_listening_zone_count_delta": total_listening_zone_count_delta,
+            "pairs_with_listening_zone_ids_count_delta": listening_zone_ids_count_delta_pairs,
+            "total_listening_zone_ids_count_delta": total_listening_zone_ids_count_delta,
+            "speaker_ids_changed_pairs": speaker_ids_changed_pairs,
+            "pairs_with_speaker_ids_count_delta": speaker_ids_count_delta_pairs,
+            "total_speaker_ids_count_delta": total_speaker_ids_count_delta,
             "speakers_changed_pairs": speakers_changed_pairs,
             "speaker_channels_changed_pairs": speaker_channels_changed_pairs,
+            "pairs_with_speaker_channels_count_delta": speaker_channels_count_delta_pairs,
+            "total_speaker_channels_count_delta": total_speaker_channels_count_delta,
             "speaker_roles_changed_pairs": speaker_roles_changed_pairs,
+            "pairs_with_speaker_roles_count_delta": speaker_roles_count_delta_pairs,
+            "total_speaker_roles_count_delta": total_speaker_roles_count_delta,
             "speaker_coverage_intents_changed_pairs": speaker_coverage_intents_changed_pairs,
+            "pairs_with_speaker_coverage_intents_count_delta": speaker_coverage_intents_count_delta_pairs,
+            "total_speaker_coverage_intents_count_delta": total_speaker_coverage_intents_count_delta,
             "pairs_with_speaker_count_delta": speaker_count_delta_pairs,
             "total_speaker_count_delta": total_speaker_count_delta,
+            "pairs_with_max_frequency_hz_delta": max_frequency_hz_delta_pairs,
+            "total_max_frequency_hz_delta": total_max_frequency_hz_delta,
             "channel_layout_changed_pairs": channel_layout_changed_pairs,
             "active_channels_changed_pairs": active_channels_changed_pairs,
             "pairs_with_channel_gain_count_delta": channel_gains_delta_pairs,
@@ -957,6 +1051,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "pairs_with_source_id_state_delta": source_id_state_delta_pairs,
             "total_states_with_source_id_delta": total_states_with_source_id_delta,
             "source_groups_changed_pairs": source_groups_changed_pairs,
+            "pairs_with_source_groups_count_delta": source_groups_count_delta_pairs,
+            "total_source_groups_count_delta": total_source_groups_count_delta,
             "distance_models_changed_pairs": distance_models_changed_pairs,
         },
     }
@@ -977,7 +1073,7 @@ def _infer_pair_changed(result: dict[str, Any]) -> bool:
             return True
     return any(
         int(result.get(key, 0) or 0)
-        for key in ("state_count_delta", "oscillator_count_delta")
+        for key in ("state_count_delta", "oscillator_count_delta", "max_frequency_hz_delta")
     )
 
 

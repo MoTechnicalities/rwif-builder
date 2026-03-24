@@ -199,6 +199,12 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_speed_standard_deviation_total"], 0.0)
             self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_speed_standard_deviation_range"]["min"], 0.0)
             self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_speed_standard_deviation_range"]["max"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_average_acceleration_total"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_average_acceleration_range"]["min"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_average_acceleration_range"]["max"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_peak_acceleration_total"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_peak_acceleration_range"]["min"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_peak_acceleration_range"]["max"], 0.0)
             self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_straightness_total"], 1.0)
             self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_straightness_range"]["min"], 1.0)
             self.assertAlmostEqual(payload["scene_summary"]["object_trajectory_straightness_range"]["max"], 1.0)
@@ -225,6 +231,7 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_average_speed"])
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_peak_speed"])
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_speed_standard_deviation"])
+            self.assertIsNone(payload["scene_summary"]["camera_trajectory_average_acceleration"])
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_straightness"])
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_turn_angle_degrees"])
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_peak_turn_angle_degrees"])
@@ -232,6 +239,7 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_average_turn_angle_degrees"])
             self.assertIsNone(payload["scene_summary"]["camera_trajectory_turn_angle_standard_deviation_degrees"])
             self.assertEqual(payload["scene_summary"]["camera_framing_intent"], "subject-focused")
+            self.assertTrue(payload["scene_summary"]["lighting_present"])
             self.assertEqual(payload["scene_summary"]["light_count"], 1)
             self.assertEqual(payload["scene_summary"]["light_intensity_total"], 1.25)
             self.assertEqual(payload["scene_summary"]["light_intensity_range"], {"min": 1.25, "max": 1.25})
@@ -444,7 +452,10 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertIn("object.bench", payload["added_objects"])
             self.assertIn("object.tree", payload["changed_objects"])
             self.assertTrue(payload["scene_changes"]["reference_frame_changed"])
+            self.assertEqual(payload["scene_changes"]["object_count_delta"], 1)
+            self.assertTrue(payload["scene_changes"]["object_ids_changed"])
             self.assertTrue(payload["scene_changes"]["object_groups_changed"])
+            self.assertEqual(payload["scene_changes"]["object_groups_count_delta"], 2)
             self.assertTrue(payload["scene_changes"]["camera_changed"])
             self.assertAlmostEqual(payload["scene_changes"]["object_distance_from_origin_total_delta"], 1.753368262458999)
             self.assertTrue(payload["scene_changes"]["object_distance_from_origin_range_changed"])
@@ -479,15 +490,21 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_average_speed_delta"], 0.0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_peak_speed_delta"], 0.0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_speed_standard_deviation_delta"], 0.0)
+            self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_average_acceleration_delta"], 0.0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_straightness_delta"], 0.0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_turn_angle_degrees_delta"], 0.0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_peak_turn_angle_degrees_delta"], 0.0)
             self.assertEqual(payload["scene_changes"]["camera_trajectory_turn_count_delta"], 0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_average_turn_angle_degrees_delta"], 0.0)
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_turn_angle_standard_deviation_degrees_delta"], 0.0)
+            self.assertEqual(payload["scene_changes"]["camera_trajectory_point_count_delta"], 0)
+            self.assertFalse(payload["scene_changes"]["camera_present_changed"])
             self.assertTrue(payload["scene_changes"]["framing_intent_changed"])
+            self.assertFalse(payload["scene_changes"]["camera_id_changed"])
+            self.assertFalse(payload["scene_changes"]["camera_has_trajectory_changed"])
             self.assertTrue(payload["scene_changes"]["object_states_changed"])
             self.assertTrue(payload["scene_changes"]["object_visibilities_changed"])
+            self.assertFalse(payload["scene_changes"]["lighting_present_changed"])
             self.assertEqual(payload["scene_changes"]["light_count_delta"], 0)
             self.assertEqual(payload["scene_changes"]["light_intensity_total_delta"], 0.5)
             self.assertTrue(payload["scene_changes"]["light_intensity_range_changed"])
@@ -497,6 +514,7 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertFalse(payload["scene_changes"]["light_temperature_range_changed"])
             self.assertTrue(payload["scene_changes"]["light_colors_changed"])
             self.assertTrue(payload["scene_changes"]["light_ids_changed"])
+            self.assertEqual(payload["scene_changes"]["light_ids_count_delta"], 0)
             self.assertIn("position", payload["object_changes"]["object.tree"]["field_changes"])
             self.assertIn("state", payload["object_changes"]["object.tree"]["field_changes"])
             self.assertIn("visibility", payload["object_changes"]["object.tree"]["field_changes"])
@@ -1250,6 +1268,9 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["metadata_field_frequencies"][0]["field"], "reference_frame")
             self.assertEqual(analysis_payload["changed_object_frequencies"][0]["object"], "object.alpha")
             self.assertEqual(analysis_payload["scene_change_summary"]["reference_frame_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["object_ids_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_object_count_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_object_count_delta"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["camera_changed_pairs"], 2)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_object_distance_delta"], 1)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_object_distance_delta"], 1.0)
@@ -1268,6 +1289,8 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_peak_speed_delta"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_speed_standard_deviation_delta"], 0)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_speed_standard_deviation_delta"], 0.0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_average_acceleration_delta"], 0)
+            self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_average_acceleration_delta"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_straightness_delta"], 0)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_straightness_delta"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_turn_angle_delta"], 0)
@@ -1280,6 +1303,9 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_average_turn_angle_delta_degrees"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_turn_angle_standard_deviation_delta"], 0)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_turn_angle_standard_deviation_delta_degrees"], 0.0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_point_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_point_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_trajectory_duration_delta"], 0)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_object_trajectory_duration_delta"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["trajectory_duration_range_changed_pairs"], 0)
@@ -1305,8 +1331,11 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_object_trajectory_turn_angle_delta_degrees"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["trajectory_turn_angle_range_changed_pairs"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["framing_intent_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_id_changed_pairs"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_has_trajectory_changed_pairs"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["object_states_changed_pairs"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["object_visibilities_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["lighting_present_changed_pairs"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_intensity_total_delta"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["total_light_intensity_delta"], 0.0)
             self.assertEqual(analysis_payload["scene_change_summary"]["light_intensity_range_changed_pairs"], 0)
@@ -2791,6 +2820,384 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["scene_change_summary"]["trajectory_speed_standard_deviation_range_changed_pairs"], 1)
             self.assertTrue(analysis_report_path.exists())
 
+    def test_vrwif_diff_reports_object_trajectory_average_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-object-trajectory-average-acceleration-scene.yaml"
+            right_path = tmp_dir / "right-object-trajectory-average-acceleration-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object.trajectory-average-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 2.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object.trajectory-average-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 4.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertAlmostEqual(payload["scene_changes"]["object_trajectory_average_acceleration_total_delta"], 2.0)
+            self.assertTrue(payload["scene_changes"]["object_trajectory_average_acceleration_range_changed"])
+
+    def test_vrwif_batch_diff_analysis_reports_object_trajectory_average_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-object-trajectory-average-acceleration.yaml"
+            right_path = tmp_dir / "right-batch-object-trajectory-average-acceleration.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-object-trajectory-average-acceleration-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-object-trajectory-average-acceleration-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-trajectory-average-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 2.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-trajectory-average-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 4.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_trajectory_average_acceleration_delta"], 1)
+            self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_object_trajectory_average_acceleration_delta"], 2.0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["trajectory_average_acceleration_range_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_diff_reports_object_trajectory_peak_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-object-trajectory-peak-acceleration-scene.yaml"
+            right_path = tmp_dir / "right-object-trajectory-peak-acceleration-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object.trajectory-peak-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 2.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object.trajectory-peak-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 4.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertAlmostEqual(payload["scene_changes"]["object_trajectory_peak_acceleration_total_delta"], 2.0)
+            self.assertTrue(payload["scene_changes"]["object_trajectory_peak_acceleration_range_changed"])
+
+    def test_vrwif_batch_diff_analysis_reports_object_trajectory_peak_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-object-trajectory-peak-acceleration.yaml"
+            right_path = tmp_dir / "right-batch-object-trajectory-peak-acceleration.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-object-trajectory-peak-acceleration-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-object-trajectory-peak-acceleration-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-trajectory-peak-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 2.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-trajectory-peak-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "    trajectory:",
+                        "      - offset_seconds: 0.0",
+                        "        position:",
+                        "          x: 0.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 1.0",
+                        "        position:",
+                        "          x: 1.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                        "      - offset_seconds: 2.0",
+                        "        position:",
+                        "          x: 4.0",
+                        "          y: 0.0",
+                        "          z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_trajectory_peak_acceleration_delta"], 1)
+            self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_object_trajectory_peak_acceleration_delta"], 2.0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["trajectory_peak_acceleration_range_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
     def test_vrwif_diff_reports_object_trajectory_straightness_drift(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -3999,6 +4406,8 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_average_speed"], 0.5590169943749475)
             self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_peak_speed"], 0.5590169943749475)
             self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_speed_standard_deviation"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_average_acceleration"], 0.0)
+            self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_peak_acceleration"], 0.0)
             self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_straightness"], 1.0)
             self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_turn_angle_degrees"], 0.0)
             self.assertAlmostEqual(payload["scene_summary"]["camera_trajectory_peak_turn_angle_degrees"], 0.0)
@@ -4097,6 +4506,277 @@ class VRWIFValidationTest(unittest.TestCase):
             payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_duration_delta"], 2.5)
             self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
+
+    def test_vrwif_diff_reports_camera_trajectory_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-camera-trajectory-presence-scene.yaml"
+            right_path = tmp_dir / "right-camera-trajectory-presence-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-presence-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-presence-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(payload["scene_changes"]["camera_has_trajectory_changed"])
+            self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
+            self.assertEqual(payload["scene_changes"]["camera_trajectory_point_count_delta"], 2)
+
+    def test_vrwif_diff_reports_camera_id_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-camera-id-scene.yaml"
+            right_path = tmp_dir / "right-camera-id-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.id-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.alpha",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.id-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.beta",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(payload["scene_changes"]["camera_id_changed"])
+            self.assertTrue(payload["scene_changes"]["camera_changed"])
+            self.assertFalse(payload["scene_changes"]["camera_has_trajectory_changed"])
+
+    def test_vrwif_diff_reports_object_count_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-object-count-scene.yaml"
+            right_path = tmp_dir / "right-object-count-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object-count-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object-count-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "  - object_id: object.extra-one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "  - object_id: object.extra-two",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertEqual(payload["scene_changes"]["object_count_delta"], 2)
+            self.assertEqual(payload["change_summary"]["added_objects"], 2)
+
+    def test_vrwif_diff_reports_object_id_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-object-ids-scene.yaml"
+            right_path = tmp_dir / "right-object-ids-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object-ids-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: object-ids-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.beta",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(payload["scene_changes"]["object_ids_changed"])
+            self.assertEqual(payload["scene_changes"]["object_ids_count_delta"], 0)
+            self.assertEqual(payload["change_summary"]["added_objects"], 1)
+            self.assertEqual(payload["change_summary"]["removed_objects"], 1)
 
     def test_vrwif_diff_reports_camera_trajectory_path_length_drift(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -4479,6 +5159,210 @@ class VRWIFValidationTest(unittest.TestCase):
 
             payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
             self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_speed_standard_deviation_delta"], 1.0)
+            self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
+
+    def test_vrwif_diff_reports_camera_trajectory_average_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-camera-trajectory-average-acceleration-scene.yaml"
+            right_path = tmp_dir / "right-camera-trajectory-average-acceleration-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-average-acceleration-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 2.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-average-acceleration-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 4.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_average_acceleration_delta"], 2.0)
+            self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
+
+    def test_vrwif_diff_reports_camera_trajectory_peak_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-camera-trajectory-peak-acceleration-scene.yaml"
+            right_path = tmp_dir / "right-camera-trajectory-peak-acceleration-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-peak-acceleration-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 2.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-peak-acceleration-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 4.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertAlmostEqual(payload["scene_changes"]["camera_trajectory_peak_acceleration_delta"], 2.0)
             self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
 
     def test_vrwif_diff_reports_camera_trajectory_displacement_drift(self) -> None:
@@ -5184,6 +6068,108 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["scene_changes"]["camera_trajectory_turn_count_delta"], 2)
             self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
 
+    def test_vrwif_diff_reports_camera_trajectory_point_count_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-camera-trajectory-point-count-scene.yaml"
+            right_path = tmp_dir / "right-camera-trajectory-point-count-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-point-count-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.trajectory-point-count-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 2.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 3.0",
+                        "      position:",
+                        "        x: 3.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertEqual(payload["scene_changes"]["camera_trajectory_point_count_delta"], 2)
+            self.assertTrue(payload["scene_changes"]["camera_trajectory_changed"])
+
     def test_vrwif_batch_diff_analysis_reports_camera_trajectory_duration_drift(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -5298,6 +6284,645 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue(analysis_payload["is_valid"], analysis_payload)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_duration_delta"], 1)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_duration_delta"], 2.5)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_camera_trajectory_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-camera-trajectory-presence.yaml"
+            right_path = tmp_dir / "right-batch-camera-trajectory-presence.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-camera-trajectory-presence-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-camera-trajectory-presence-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-presence",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-presence",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_has_trajectory_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_camera_id_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-camera-id.yaml"
+            right_path = tmp_dir / "right-batch-camera-id.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-camera-id-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-camera-id-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-id",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.alpha",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-id",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.beta",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_id_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_object_count_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-object-count.yaml"
+            right_path = tmp_dir / "right-batch-object-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-object-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-object-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "  - object_id: object.extra-one",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "  - object_id: object.extra-two",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_object_count_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_object_count_delta"], 2)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_object_id_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-object-ids.yaml"
+            right_path = tmp_dir / "right-batch-object-ids.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-object-ids-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-object-ids-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-ids",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-ids",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.beta",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["object_ids_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_object_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_object_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_ids_count_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_light_ids_count_delta"], 0)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_tracks_object_groups_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-object-groups-count.yaml"
+            right_path = tmp_dir / "right-batch-object-groups-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-object-groups-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-object-groups-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-groups-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-groups-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - set",
+                        "      - foreground",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(diff_payload["scene_changes"]["object_groups_changed"])
+            self.assertEqual(diff_payload["scene_changes"]["object_groups_count_delta"], 1)
+            self.assertEqual(diff_payload["scene_changes"]["object_count_delta"], 0)
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["object_groups_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_object_groups_count_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_object_groups_count_delta"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_tracks_object_ids_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-object-ids-count.yaml"
+            right_path = tmp_dir / "right-batch-object-ids-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-object-ids-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-object-ids-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-ids-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.object-ids-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.alpha",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "  - object_id: object.beta",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(diff_payload["scene_changes"]["object_ids_changed"])
+            self.assertEqual(diff_payload["scene_changes"]["object_ids_count_delta"], 1)
+            self.assertEqual(diff_payload["scene_changes"]["object_count_delta"], 1)
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["object_ids_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_object_ids_count_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_object_ids_count_delta"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_tracks_light_ids_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-light-ids-count.yaml"
+            right_path = tmp_dir / "right-batch-light-ids-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-light-ids-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-light-ids-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.light-ids-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "lighting:",
+                        "  - light_id: key",
+                        "    kind: point",
+                        "    intensity: 1.0",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 3.0",
+                        "      z: -1.0",
+                        "    color: warm",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.light-ids-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "lighting:",
+                        "  - light_id: key",
+                        "    kind: point",
+                        "    intensity: 1.0",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 3.0",
+                        "      z: -1.0",
+                        "    color: warm",
+                        "  - light_id: fill",
+                        "    kind: directional",
+                        "    intensity: 0.5",
+                        "    direction:",
+                        "      x: -1.0",
+                        "      y: -1.0",
+                        "      z: 0.0",
+                        "    color: cool",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(diff_payload["scene_changes"]["light_ids_changed"])
+            self.assertEqual(diff_payload["scene_changes"]["light_ids_count_delta"], 1)
+            self.assertEqual(diff_payload["scene_changes"]["light_count_delta"], 1)
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["light_ids_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_ids_count_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_light_ids_count_delta"], 1)
             self.assertTrue(analysis_report_path.exists())
 
     def test_vrwif_batch_diff_analysis_reports_camera_trajectory_path_length_drift(self) -> None:
@@ -5777,6 +7402,258 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue(analysis_payload["is_valid"], analysis_payload)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_speed_standard_deviation_delta"], 1)
             self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_speed_standard_deviation_delta"], 1.0)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_camera_trajectory_average_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-camera-trajectory-average-acceleration.yaml"
+            right_path = tmp_dir / "right-batch-camera-trajectory-average-acceleration.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-camera-trajectory-average-acceleration-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-camera-trajectory-average-acceleration-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-average-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 2.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-average-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 4.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_average_acceleration_delta"], 1)
+            self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_average_acceleration_delta"], 2.0)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_camera_trajectory_peak_acceleration_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-camera-trajectory-peak-acceleration.yaml"
+            right_path = tmp_dir / "right-batch-camera-trajectory-peak-acceleration.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-camera-trajectory-peak-acceleration-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-camera-trajectory-peak-acceleration-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-peak-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 2.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-peak-acceleration",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 4.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_peak_acceleration_delta"], 1)
+            self.assertAlmostEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_peak_acceleration_delta"], 2.0)
             self.assertTrue(analysis_report_path.exists())
 
     def test_vrwif_batch_diff_analysis_reports_camera_trajectory_displacement_drift(self) -> None:
@@ -6387,6 +8264,132 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertTrue(analysis_payload["is_valid"], analysis_payload)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_turn_count_delta"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_turn_count_delta"], 2)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_reports_camera_trajectory_point_count_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-camera-trajectory-point-count.yaml"
+            right_path = tmp_dir / "right-batch-camera-trajectory-point-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-camera-trajectory-point-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-camera-trajectory-point-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-point-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-trajectory-point-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.moving",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                        "  trajectory:",
+                        "    - offset_seconds: 0.0",
+                        "      position:",
+                        "        x: 0.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 1.0",
+                        "      position:",
+                        "        x: 1.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 2.0",
+                        "      position:",
+                        "        x: 2.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                        "    - offset_seconds: 3.0",
+                        "      position:",
+                        "        x: 3.0",
+                        "        y: 1.0",
+                        "        z: -4.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_camera_trajectory_point_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_camera_trajectory_point_delta"], 2)
             self.assertTrue(analysis_report_path.exists())
 
     def test_vrwif_batch_diff_analysis_reports_camera_trajectory_average_turn_angle_drift(self) -> None:
@@ -7200,6 +9203,291 @@ class VRWIFValidationTest(unittest.TestCase):
         if result.returncode != 0 and not allow_failure:
             self.fail(result.stderr or result.stdout)
         return json.loads(result.stdout)
+
+
+if __name__ == "__main__":
+    def test_vrwif_diff_reports_camera_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-camera-presence-scene.yaml"
+            right_path = tmp_dir / "right-camera-presence-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.presence-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: camera.presence-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.present",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(payload["scene_changes"]["camera_present_changed"])
+            self.assertTrue(payload["scene_changes"]["camera_changed"])
+            self.assertFalse(payload["scene_changes"]["camera_id_changed"])
+
+    def test_vrwif_batch_diff_analysis_reports_camera_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-camera-presence.yaml"
+            right_path = tmp_dir / "right-batch-camera-presence.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-camera-presence-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-camera-presence-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-presence",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.camera-presence",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "camera:",
+                        "  camera_id: cam.present",
+                        "  position:",
+                        "    x: 0.0",
+                        "    y: 1.0",
+                        "    z: -4.0",
+                        "  orientation:",
+                        "    x: 0.0",
+                        "    y: 0.0",
+                        "    z: 1.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["camera_present_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_diff_reports_lighting_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-lighting-presence-scene.yaml"
+            right_path = tmp_dir / "right-lighting-presence-scene.yaml"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: lighting.presence-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: lighting.presence-diff",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "lighting:",
+                        "  - light_id: key.light",
+                        "    intensity: 1.0",
+                        "    color: warm",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 2.0",
+                        "      z: 3.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(payload["scene_changes"]["lighting_present_changed"])
+            self.assertEqual(payload["scene_changes"]["light_count_delta"], 1)
+
+    def test_vrwif_batch_diff_analysis_reports_lighting_presence_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-lighting-presence.yaml"
+            right_path = tmp_dir / "right-batch-lighting-presence.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-lighting-presence-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-lighting-presence-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.lighting-presence",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.lighting-presence",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "lighting:",
+                        "  - light_id: key.light",
+                        "    intensity: 1.0",
+                        "    color: warm",
+                        "    position:",
+                        "      x: 1.0",
+                        "      y: 2.0",
+                        "      z: 3.0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["lighting_present_changed_pairs"], 1)
+            self.assertTrue(analysis_report_path.exists())
 
 
 if __name__ == "__main__":

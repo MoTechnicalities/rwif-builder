@@ -128,7 +128,11 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
     right_summary = dict(right_payload.get("scene_summary") or {})
     return {
         "reference_frame_changed": left_summary.get("reference_frame") != right_summary.get("reference_frame"),
+        "object_count_delta": int(right_summary.get("object_count", 0) or 0) - int(left_summary.get("object_count", 0) or 0),
+        "object_ids_changed": left_summary.get("object_ids") != right_summary.get("object_ids"),
+        "object_ids_count_delta": len(right_summary.get("object_ids") or []) - len(left_summary.get("object_ids") or []),
         "object_groups_changed": left_summary.get("object_groups") != right_summary.get("object_groups"),
+        "object_groups_count_delta": len(right_summary.get("object_groups") or []) - len(left_summary.get("object_groups") or []),
         "appearance_classes_changed": left_summary.get("appearance_classes") != right_summary.get("appearance_classes"),
         "object_states_changed": left_summary.get("object_states") != right_summary.get("object_states"),
         "object_visibilities_changed": left_summary.get("object_visibilities") != right_summary.get("object_visibilities"),
@@ -165,6 +169,18 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
         - float(left_summary.get("object_trajectory_speed_standard_deviation_total", 0.0) or 0.0),
         "object_trajectory_speed_standard_deviation_range_changed": left_summary.get("object_trajectory_speed_standard_deviation_range")
         != right_summary.get("object_trajectory_speed_standard_deviation_range"),
+        "object_trajectory_average_acceleration_total_delta": float(
+            right_summary.get("object_trajectory_average_acceleration_total", 0.0) or 0.0
+        )
+        - float(left_summary.get("object_trajectory_average_acceleration_total", 0.0) or 0.0),
+        "object_trajectory_average_acceleration_range_changed": left_summary.get("object_trajectory_average_acceleration_range")
+        != right_summary.get("object_trajectory_average_acceleration_range"),
+        "object_trajectory_peak_acceleration_total_delta": float(
+            right_summary.get("object_trajectory_peak_acceleration_total", 0.0) or 0.0
+        )
+        - float(left_summary.get("object_trajectory_peak_acceleration_total", 0.0) or 0.0),
+        "object_trajectory_peak_acceleration_range_changed": left_summary.get("object_trajectory_peak_acceleration_range")
+        != right_summary.get("object_trajectory_peak_acceleration_range"),
         "object_trajectory_straightness_total_delta": float(right_summary.get("object_trajectory_straightness_total", 0.0) or 0.0)
         - float(left_summary.get("object_trajectory_straightness_total", 0.0) or 0.0),
         "object_trajectory_straightness_range_changed": left_summary.get("object_trajectory_straightness_range")
@@ -207,6 +223,14 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
             right_summary.get("camera_trajectory_speed_standard_deviation", 0.0) or 0.0
         )
         - float(left_summary.get("camera_trajectory_speed_standard_deviation", 0.0) or 0.0),
+        "camera_trajectory_average_acceleration_delta": float(
+            right_summary.get("camera_trajectory_average_acceleration", 0.0) or 0.0
+        )
+        - float(left_summary.get("camera_trajectory_average_acceleration", 0.0) or 0.0),
+        "camera_trajectory_peak_acceleration_delta": float(
+            right_summary.get("camera_trajectory_peak_acceleration", 0.0) or 0.0
+        )
+        - float(left_summary.get("camera_trajectory_peak_acceleration", 0.0) or 0.0),
         "camera_trajectory_straightness_delta": float(right_summary.get("camera_trajectory_straightness", 0.0) or 0.0)
         - float(left_summary.get("camera_trajectory_straightness", 0.0) or 0.0),
         "camera_trajectory_turn_angle_degrees_delta": float(right_summary.get("camera_trajectory_turn_angle_degrees", 0.0) or 0.0)
@@ -221,8 +245,14 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
             right_summary.get("camera_trajectory_turn_angle_standard_deviation_degrees", 0.0) or 0.0
         )
         - float(left_summary.get("camera_trajectory_turn_angle_standard_deviation_degrees", 0.0) or 0.0),
+        "camera_trajectory_point_count_delta": int(right_summary.get("camera_trajectory_point_count", 0) or 0)
+        - int(left_summary.get("camera_trajectory_point_count", 0) or 0),
+        "camera_present_changed": left_summary.get("camera_present") != right_summary.get("camera_present"),
         "framing_intent_changed": left_summary.get("camera_framing_intent") != right_summary.get("camera_framing_intent"),
+        "camera_id_changed": (left_payload.get("camera") or {}).get("camera_id") != (right_payload.get("camera") or {}).get("camera_id"),
+        "camera_has_trajectory_changed": left_summary.get("camera_has_trajectory") != right_summary.get("camera_has_trajectory"),
         "camera_trajectory_changed": (left_payload.get("camera") or {}).get("trajectory") != (right_payload.get("camera") or {}).get("trajectory"),
+        "lighting_present_changed": left_summary.get("lighting_present") != right_summary.get("lighting_present"),
         "light_count_delta": int(right_summary.get("light_count", 0)) - int(left_summary.get("light_count", 0)),
         "light_intensity_total_delta": float(right_summary.get("light_intensity_total", 0.0) or 0.0)
         - float(left_summary.get("light_intensity_total", 0.0) or 0.0),
@@ -235,4 +265,5 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
         != right_summary.get("light_temperature_range_kelvin"),
         "light_colors_changed": left_summary.get("light_colors") != right_summary.get("light_colors"),
         "light_ids_changed": left_summary.get("light_ids") != right_summary.get("light_ids"),
+        "light_ids_count_delta": len(right_summary.get("light_ids") or []) - len(left_summary.get("light_ids") or []),
     }

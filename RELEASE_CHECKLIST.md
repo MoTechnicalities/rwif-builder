@@ -5,10 +5,12 @@
 1. Confirm `git status --short` is empty.
 2. Run the local smoke path:
    - `python -m unittest tests.test_diff_patch tests.test_cli_init`
-3. Build a sample artifact and validate it.
-4. Re-read [docs/RWIF_DEEP_DIVE.md](docs/RWIF_DEEP_DIVE.md) and [README.md](README.md) so public claims still match reality.
-5. Confirm the default hashing path works without optional transformer dependencies.
-6. If the release mentions transformer support, confirm the optional install path is documented correctly.
+3. Build source and wheel distributions:
+    - `python -m build`
+4. Build a sample artifact and validate it.
+5. Re-read [docs/RWIF_DEEP_DIVE.md](docs/RWIF_DEEP_DIVE.md) and [README.md](README.md) so public claims still match reality.
+6. Confirm the default hashing path works without optional transformer dependencies.
+7. If the release mentions transformer support, confirm the optional install path is documented correctly.
 
 ## Tag Preparation
 

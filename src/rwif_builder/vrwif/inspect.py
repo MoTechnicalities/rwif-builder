@@ -334,6 +334,92 @@ def _trajectory_speed_standard_deviation(trajectory: list[dict[str, Any]]) -> fl
     return math.sqrt(variance)
 
 
+def _trajectory_average_acceleration(trajectory: list[dict[str, Any]]) -> float | None:
+    if not trajectory:
+        return None
+    keyframes = [
+        keyframe
+        for keyframe in trajectory
+        if isinstance(keyframe, dict)
+        and isinstance(keyframe.get("position"), dict)
+        and isinstance(keyframe.get("offset_seconds"), (int, float))
+    ]
+    if len(keyframes) < 3:
+        return 0.0 if keyframes else None
+
+    segment_speeds_with_midpoints: list[tuple[float, float]] = []
+    for left_keyframe, right_keyframe in zip(keyframes, keyframes[1:]):
+        left_offset = float(left_keyframe.get("offset_seconds", 0.0))
+        right_offset = float(right_keyframe.get("offset_seconds", 0.0))
+        duration = right_offset - left_offset
+        if duration <= 0.0:
+            continue
+        left_position = left_keyframe.get("position") or {}
+        right_position = right_keyframe.get("position") or {}
+        distance = math.sqrt(
+            sum(
+                (float(right_position.get(axis, 0.0)) - float(left_position.get(axis, 0.0))) ** 2
+                for axis in ("x", "y", "z")
+            )
+        )
+        segment_speeds_with_midpoints.append((distance / duration, left_offset + (duration / 2.0)))
+
+    accelerations = _trajectory_acceleration_values(segment_speeds_with_midpoints)
+
+    if not accelerations:
+        return 0.0
+    return sum(accelerations) / len(accelerations)
+
+
+def _trajectory_peak_acceleration(trajectory: list[dict[str, Any]]) -> float | None:
+    if not trajectory:
+        return None
+    keyframes = [
+        keyframe
+        for keyframe in trajectory
+        if isinstance(keyframe, dict)
+        and isinstance(keyframe.get("position"), dict)
+        and isinstance(keyframe.get("offset_seconds"), (int, float))
+    ]
+    if len(keyframes) < 3:
+        return 0.0 if keyframes else None
+
+    segment_speeds_with_midpoints: list[tuple[float, float]] = []
+    for left_keyframe, right_keyframe in zip(keyframes, keyframes[1:]):
+        left_offset = float(left_keyframe.get("offset_seconds", 0.0))
+        right_offset = float(right_keyframe.get("offset_seconds", 0.0))
+        duration = right_offset - left_offset
+        if duration <= 0.0:
+            continue
+        left_position = left_keyframe.get("position") or {}
+        right_position = right_keyframe.get("position") or {}
+        distance = math.sqrt(
+            sum(
+                (float(right_position.get(axis, 0.0)) - float(left_position.get(axis, 0.0))) ** 2
+                for axis in ("x", "y", "z")
+            )
+        )
+        segment_speeds_with_midpoints.append((distance / duration, left_offset + (duration / 2.0)))
+
+    accelerations = _trajectory_acceleration_values(segment_speeds_with_midpoints)
+    return max(accelerations, default=0.0)
+
+
+def _trajectory_acceleration_values(segment_speeds_with_midpoints: list[tuple[float, float]]) -> list[float]:
+    if len(segment_speeds_with_midpoints) < 2:
+        return []
+    accelerations: list[float] = []
+    for (left_speed, left_midpoint), (right_speed, right_midpoint) in zip(
+        segment_speeds_with_midpoints,
+        segment_speeds_with_midpoints[1:],
+    ):
+        midpoint_delta = right_midpoint - left_midpoint
+        if midpoint_delta <= 0.0:
+            continue
+        accelerations.append(abs(right_speed - left_speed) / midpoint_delta)
+    return accelerations
+
+
 def _trajectory_straightness(trajectory: list[dict[str, Any]]) -> float | None:
     path_length = _trajectory_path_length(trajectory)
     if path_length is None:
@@ -464,6 +550,36 @@ def _object_trajectory_speed_standard_deviation_range(object_summaries: list[dic
     }
 
 
+def _object_trajectory_average_acceleration_range(object_summaries: list[dict[str, Any]]) -> dict[str, float] | None:
+    average_accelerations = [
+        average_acceleration
+        for summary in object_summaries
+        for average_acceleration in [_trajectory_average_acceleration(summary.get("trajectory") or [])]
+        if average_acceleration is not None
+    ]
+    if not average_accelerations:
+        return None
+    return {
+        "min": min(average_accelerations),
+        "max": max(average_accelerations),
+    }
+
+
+def _object_trajectory_peak_acceleration_range(object_summaries: list[dict[str, Any]]) -> dict[str, float] | None:
+    peak_accelerations = [
+        peak_acceleration
+        for summary in object_summaries
+        for peak_acceleration in [_trajectory_peak_acceleration(summary.get("trajectory") or [])]
+        if peak_acceleration is not None
+    ]
+    if not peak_accelerations:
+        return None
+    return {
+        "min": min(peak_accelerations),
+        "max": max(peak_accelerations),
+    }
+
+
 def _object_trajectory_straightness_range(object_summaries: list[dict[str, Any]]) -> dict[str, float] | None:
     straightness_values = [
         straightness
@@ -591,6 +707,8 @@ def _scene_summary(
     object_trajectory_average_speed_range = _object_trajectory_average_speed_range(object_summaries)
     object_trajectory_peak_speed_range = _object_trajectory_peak_speed_range(object_summaries)
     object_trajectory_speed_standard_deviation_range = _object_trajectory_speed_standard_deviation_range(object_summaries)
+    object_trajectory_average_acceleration_range = _object_trajectory_average_acceleration_range(object_summaries)
+    object_trajectory_peak_acceleration_range = _object_trajectory_peak_acceleration_range(object_summaries)
     object_trajectory_straightness_range = _object_trajectory_straightness_range(object_summaries)
     object_trajectory_turn_angle_range_degrees = _object_trajectory_turn_angle_range_degrees(object_summaries)
     object_trajectory_peak_turn_angle_range_degrees = _object_trajectory_peak_turn_angle_range_degrees(object_summaries)
@@ -606,6 +724,8 @@ def _scene_summary(
     camera_trajectory_average_speed = _trajectory_average_speed(camera_summary.get("trajectory") or [])
     camera_trajectory_peak_speed = _trajectory_peak_speed(camera_summary.get("trajectory") or [])
     camera_trajectory_speed_standard_deviation = _trajectory_speed_standard_deviation(camera_summary.get("trajectory") or [])
+    camera_trajectory_average_acceleration = _trajectory_average_acceleration(camera_summary.get("trajectory") or [])
+    camera_trajectory_peak_acceleration = _trajectory_peak_acceleration(camera_summary.get("trajectory") or [])
     camera_trajectory_straightness = _trajectory_straightness(camera_summary.get("trajectory") or [])
     camera_trajectory_turn_angle_degrees = _trajectory_turn_angle_degrees(camera_summary.get("trajectory") or [])
     camera_trajectory_peak_turn_angle_degrees = _trajectory_peak_turn_angle_degrees(camera_summary.get("trajectory") or [])
@@ -700,6 +820,20 @@ def _scene_summary(
             if speed_standard_deviation is not None
         ),
         "object_trajectory_speed_standard_deviation_range": object_trajectory_speed_standard_deviation_range,
+        "object_trajectory_average_acceleration_total": sum(
+            average_acceleration
+            for summary in object_summaries
+            for average_acceleration in [_trajectory_average_acceleration(summary.get("trajectory") or [])]
+            if average_acceleration is not None
+        ),
+        "object_trajectory_average_acceleration_range": object_trajectory_average_acceleration_range,
+        "object_trajectory_peak_acceleration_total": sum(
+            peak_acceleration
+            for summary in object_summaries
+            for peak_acceleration in [_trajectory_peak_acceleration(summary.get("trajectory") or [])]
+            if peak_acceleration is not None
+        ),
+        "object_trajectory_peak_acceleration_range": object_trajectory_peak_acceleration_range,
         "object_trajectory_straightness_total": sum(
             straightness
             for summary in object_summaries
@@ -752,6 +886,8 @@ def _scene_summary(
         "camera_trajectory_average_speed": camera_trajectory_average_speed,
         "camera_trajectory_peak_speed": camera_trajectory_peak_speed,
         "camera_trajectory_speed_standard_deviation": camera_trajectory_speed_standard_deviation,
+        "camera_trajectory_average_acceleration": camera_trajectory_average_acceleration,
+        "camera_trajectory_peak_acceleration": camera_trajectory_peak_acceleration,
         "camera_trajectory_straightness": camera_trajectory_straightness,
         "camera_trajectory_turn_angle_degrees": camera_trajectory_turn_angle_degrees,
         "camera_trajectory_peak_turn_angle_degrees": camera_trajectory_peak_turn_angle_degrees,
@@ -760,6 +896,7 @@ def _scene_summary(
         "camera_trajectory_turn_angle_standard_deviation_degrees": camera_trajectory_turn_angle_standard_deviation_degrees,
         "camera_trajectory_point_count": len(camera_summary.get("trajectory", [])),
         "camera_framing_intent": camera_summary.get("framing_intent"),
+        "lighting_present": bool(lighting_summaries),
         "light_count": len(lighting_summaries),
         "light_intensity_total": sum(
             float(summary["intensity"])

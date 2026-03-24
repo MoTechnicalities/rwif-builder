@@ -28,7 +28,7 @@ It is a build pipeline and inspection toolkit for RWIF artifacts.
 
 ## MVP Scope
 
-Version `0.1.0` is aimed at these workflows:
+The current `0.1.x` line is aimed at these workflows:
 
 - ingest local Markdown, text, and directory trees first
 - normalize records into one internal schema
@@ -104,7 +104,7 @@ rwif vrwif-normalize
 rwif vrwif-validate-spec
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-diff-analyze`, `vrwif-batch-inspect`, `vrwif-batch-normalize`, `vrwif-batch-normalize-analyze`, `vrwif-batch-review`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, `vrwif-normalize`, and `vrwif-validate-spec`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-diff-analyze`, `vrwif-batch-inspect`, `vrwif-batch-normalize`, `vrwif-batch-normalize-analyze`, `vrwif-batch-normalize-review`, `vrwif-batch-review`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, `vrwif-normalize`, and `vrwif-validate-spec`.
 
 ## Configuration
 
@@ -191,7 +191,31 @@ VRWIF scene summaries now also expose derived camera-trajectory peak speed, so c
 
 VRWIF scene summaries now also expose total object-trajectory speed standard deviation plus the derived variability range, so per-segment motion consistency drift is visible in inspect and batch review without adding animation-specific schema.
 
+VRWIF scene summaries now also expose total object-trajectory average acceleration plus the derived acceleration range, so speed-change intensity drift is visible in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose total object-trajectory peak acceleration plus the derived peak-acceleration range, so the sharpest speed-change drift is visible in inspect and batch review without adding animation-specific schema.
+
 VRWIF scene summaries now also expose derived camera-trajectory speed standard deviation, so camera motion consistency drift is visible alongside average-speed and peak-speed changes in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory average acceleration, so camera speed-change intensity drift is visible alongside average-speed, peak-speed, and speed-variability changes in inspect and batch review without adding animation-specific schema.
+
+VRWIF scene summaries now also expose derived camera-trajectory peak acceleration, so the sharpest camera speed-change drift is visible alongside average acceleration in inspect and batch review without adding animation-specific schema.
+
+VRWIF diff and batch review now also expose camera trajectory point-count drift, so keyframe-density changes remain visible alongside the existing object-side trajectory point-count signal.
+
+VRWIF diff and batch review now also expose direct object-count drift plus object-id and object-group roster deltas, so scene composition changes, stable object-identity growth, and grouping breadth are visible as first-class signals instead of only through added and removed object lists.
+
+VRWIF diff and batch review now also expose light-id roster deltas, so lighting identity growth and shrinkage are visible as first-class review signals instead of only through broader light-count or lighting-id churn changes.
+
+VRWIF diff and batch review now also expose object-id churn, so scene identity changes are visible with the same first-class signal already used for lighting identities.
+
+VRWIF diff and batch review now also expose camera trajectory-presence drift, so static-to-moving camera changes are distinguishable from broader keyframe edits.
+
+VRWIF diff and batch review now also expose camera-id churn, so camera identity changes are distinguishable from broader framing, position, and trajectory edits.
+
+VRWIF diff and batch review now also expose camera-presence drift, so camera add and remove transitions are distinguishable from camera-id churn and broader camera payload edits.
+
+VRWIF inspect, diff, and batch review now also expose lighting-presence drift, so lighting add and remove transitions are distinguishable from light-count and lighting-identity edits.
 
 VRWIF scene summaries now also expose total object-trajectory straightness plus the derived straightness range, so path-directness drift is visible in inspect and batch review without adding animation-specific schema.
 
@@ -304,6 +328,10 @@ The current ARWIF toolchain now spans three early spatial layers:
 - an initial Level 3 room-aware slice via top-level `room` metadata for room dimensions, geometry reference, surface profile, surface treatment, reflection policy, renderer adaptation hints, listening zones with compact zone intent, and speaker placement, including compact speaker role and coverage intent, which the current toolchain validates, preserves, inspects, diffs, exports, and summarizes through batch review
 
 `rwif arwif-inspect` now also exposes preserved non-reserved library metadata and derived `realm_references`, while `rwif arwif-inspect` and `rwif arwif-diff` continue to expose compact spatial summaries so channel-aware, object-spatial, and initial room-aware revisions including geometry reference, surface treatment, reflection policy, renderer adaptation hints, listening zones including intent, and speaker placement role and coverage can be reviewed at a glance instead of only through raw metadata blocks.
+
+`rwif arwif-diff` and `rwif arwif-batch-diff-analyze` now also expose speaker-id churn as a narrower spatial-review signal, so stable channel and role layouts can still distinguish physical speaker identity swaps from broader speaker-count or speaker-role edits.
+
+`rwif arwif-diff` and `rwif arwif-batch-diff-analyze` now also expose room-presence drift, geometry-reference presence drift, surface-treatment presence drift, reflection-policy presence drift, renderer-adaptation presence drift, max-frequency drift, intent-diversity deltas for listening zones and speaker coverage, listening-zone roster deltas, speaker-channel roster deltas, speaker-role diversity drift, speaker-id roster deltas, and source-group roster deltas, so room-context add and remove transitions, spectral-bandwidth changes, intent diversification, listening-zone roster growth, speaker-binding growth, role diversification, physical-speaker roster growth, and source-routing growth are distinguishable from broader room-geometry, treatment, reflection, renderer-hint, and count edits.
 
 Reference example:
 

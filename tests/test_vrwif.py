@@ -515,6 +515,7 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(payload["scene_changes"]["lights_with_temperature_delta"], 0)
             self.assertFalse(payload["scene_changes"]["light_temperature_range_changed"])
             self.assertTrue(payload["scene_changes"]["light_colors_changed"])
+            self.assertEqual(payload["scene_changes"]["light_colors_count_delta"], 0)
             self.assertTrue(payload["scene_changes"]["light_ids_changed"])
             self.assertEqual(payload["scene_changes"]["light_ids_count_delta"], 0)
             self.assertIn("position", payload["object_changes"]["object.tree"]["field_changes"])
@@ -1349,6 +1350,8 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_temperature_delta"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["light_temperature_range_changed_pairs"], 0)
             self.assertEqual(analysis_payload["scene_change_summary"]["light_colors_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_colors_count_delta"], 0)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_light_colors_count_delta"], 0)
             self.assertEqual(analysis_payload["objects_changed_in_all_changed_pairs"], [])
             self.assertEqual(analysis_payload["analysis_input"], str(diff_report_path))
             self.assertTrue(analysis_report_path.exists())
@@ -7016,6 +7019,112 @@ class VRWIFValidationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["scene_change_summary"]["appearance_classes_changed_pairs"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_appearance_classes_count_delta"], 1)
             self.assertEqual(analysis_payload["scene_change_summary"]["total_appearance_classes_count_delta"], 1)
+            self.assertTrue(analysis_report_path.exists())
+
+    def test_vrwif_batch_diff_analysis_tracks_light_colors_count_delta(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-batch-light-colors-count.yaml"
+            right_path = tmp_dir / "right-batch-light-colors-count.yaml"
+            diff_report_path = tmp_dir / "vrwif-batch-light-colors-count-diff.json"
+            analysis_report_path = tmp_dir / "vrwif-batch-light-colors-count-analysis.json"
+
+            left_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.light-colors-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "lighting:",
+                        "  - light_id: key",
+                        "    kind: point",
+                        "    intensity: 1.0",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 3.0",
+                        "      z: -1.0",
+                        "    color: warm",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            right_path.write_text(
+                "\n".join(
+                    [
+                        "scene_id: batch.light-colors-count",
+                        "reference_frame: scene",
+                        "objects:",
+                        "  - object_id: object.anchor",
+                        "    object_groups:",
+                        "      - set",
+                        "    appearance_class: prop",
+                        "    position:",
+                        "      x: 0.0",
+                        "      y: 0.0",
+                        "      z: 0.0",
+                        "lighting:",
+                        "  - light_id: key",
+                        "    kind: point",
+                        "    intensity: 1.0",
+                        "    position:",
+                        "      x: 2.0",
+                        "      y: 3.0",
+                        "      z: -1.0",
+                        "    color: warm",
+                        "  - light_id: fill",
+                        "    kind: directional",
+                        "    intensity: 0.5",
+                        "    direction:",
+                        "      x: -1.0",
+                        "      y: -1.0",
+                        "      z: 0.0",
+                        "    color: cool",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            diff_payload = self._run_json(repo_root, "vrwif-diff", str(left_path), str(right_path), "--json")
+            self.assertTrue(diff_payload["scene_changes"]["light_colors_changed"])
+            self.assertEqual(diff_payload["scene_changes"]["light_colors_count_delta"], 1)
+            self.assertEqual(diff_payload["scene_changes"]["light_ids_count_delta"], 1)
+
+            diff_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff",
+                "--left",
+                str(left_path),
+                "--right",
+                str(right_path),
+                "--output",
+                str(diff_report_path),
+                "--json",
+            )
+            self.assertTrue(diff_payload["is_valid"], diff_payload)
+
+            analysis_payload = self._run_json(
+                repo_root,
+                "vrwif-batch-diff-analyze",
+                str(diff_report_path),
+                "--output",
+                str(analysis_report_path),
+                "--json",
+            )
+            self.assertTrue(analysis_payload["is_valid"], analysis_payload)
+            self.assertEqual(analysis_payload["scene_change_summary"]["light_colors_changed_pairs"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["pairs_with_light_colors_count_delta"], 1)
+            self.assertEqual(analysis_payload["scene_change_summary"]["total_light_colors_count_delta"], 1)
             self.assertTrue(analysis_report_path.exists())
 
     def test_vrwif_batch_diff_analysis_reports_camera_trajectory_path_length_drift(self) -> None:

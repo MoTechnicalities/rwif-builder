@@ -80,6 +80,7 @@ This can include:
 
 - source locations
 - color and temperature
+- light-color diversity growth or shrinkage across revisions
 - intensity behavior
 - contrast goals
 - atmospheric emphasis
@@ -211,6 +212,7 @@ The current inspect and diff path also:
 - summarizes total light intensity plus the min/max scene intensity range
 - summarizes positioned lights separately from directional lights
 - summarizes how many lights carry explicit `temperature_kelvin` values plus the min/max scene temperature range when present
+- summarizes light-color roster diversity growth or shrinkage across revisions
 - treats light-temperature coverage drift and light-temperature range drift as first-class scene-review signals in pairwise and batch analysis
 - sorts object groups for stable review output
 - sorts trajectories by `offset_seconds`

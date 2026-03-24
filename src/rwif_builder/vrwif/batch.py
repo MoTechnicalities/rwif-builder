@@ -667,6 +667,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
     total_lights_with_temperature_delta = 0
     light_temperature_range_changed_pairs = 0
     light_colors_changed_pairs = 0
+    light_colors_count_delta_pairs = 0
+    total_light_colors_count_delta = 0
     light_ids_changed_pairs = 0
     light_ids_count_delta_pairs = 0
     total_light_ids_count_delta = 0
@@ -1026,6 +1028,10 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
 
             if bool(scene_changes.get("light_colors_changed", False)):
                 light_colors_changed_pairs += 1
+            light_colors_count_delta = int(scene_changes.get("light_colors_count_delta", 0) or 0)
+            total_light_colors_count_delta += light_colors_count_delta
+            if light_colors_count_delta != 0:
+                light_colors_count_delta_pairs += 1
             if bool(scene_changes.get("light_ids_changed", False)):
                 light_ids_changed_pairs += 1
             light_ids_count_delta = int(scene_changes.get("light_ids_count_delta", 0) or 0)
@@ -1168,6 +1174,8 @@ def _analyze_batch_diff_payload(report_document: dict[str, Any], *, analysis_inp
             "total_lights_with_temperature_delta": total_lights_with_temperature_delta,
             "light_temperature_range_changed_pairs": light_temperature_range_changed_pairs,
             "light_colors_changed_pairs": light_colors_changed_pairs,
+            "pairs_with_light_colors_count_delta": light_colors_count_delta_pairs,
+            "total_light_colors_count_delta": total_light_colors_count_delta,
             "light_ids_changed_pairs": light_ids_changed_pairs,
             "pairs_with_light_ids_count_delta": light_ids_count_delta_pairs,
             "total_light_ids_count_delta": total_light_ids_count_delta,

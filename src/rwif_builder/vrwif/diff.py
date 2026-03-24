@@ -266,6 +266,7 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
         "light_temperature_range_changed": left_summary.get("light_temperature_range_kelvin")
         != right_summary.get("light_temperature_range_kelvin"),
         "light_colors_changed": left_summary.get("light_colors") != right_summary.get("light_colors"),
+        "light_colors_count_delta": len(right_summary.get("light_colors") or []) - len(left_summary.get("light_colors") or []),
         "light_ids_changed": left_summary.get("light_ids") != right_summary.get("light_ids"),
         "light_ids_count_delta": len(right_summary.get("light_ids") or []) - len(left_summary.get("light_ids") or []),
     }

@@ -53,6 +53,7 @@ This can include:
 
 - identity
 - stable identity growth or shrinkage across revisions
+- state diversity growth or shrinkage across revisions
 - position and transform
 - appearance class
 - appearance-class diversity growth or shrinkage across revisions

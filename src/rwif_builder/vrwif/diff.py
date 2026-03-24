@@ -137,6 +137,8 @@ def _scene_changes(left_payload: dict[str, Any], right_payload: dict[str, Any]) 
         "appearance_classes_count_delta": len(right_summary.get("appearance_classes") or [])
         - len(left_summary.get("appearance_classes") or []),
         "object_states_changed": left_summary.get("object_states") != right_summary.get("object_states"),
+        "object_states_count_delta": len(right_summary.get("object_states") or [])
+        - len(left_summary.get("object_states") or []),
         "object_visibilities_changed": left_summary.get("object_visibilities") != right_summary.get("object_visibilities"),
         "object_distance_from_origin_total_delta": float(right_summary.get("object_distance_from_origin_total", 0.0) or 0.0)
         - float(left_summary.get("object_distance_from_origin_total", 0.0) or 0.0),

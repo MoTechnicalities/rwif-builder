@@ -5954,6 +5954,108 @@ class ARWIFSpeakerSpatialIntegrationTest(unittest.TestCase):
             self.assertFalse(payload["is_valid"])
             self.assertIn("source_hypotheses[0].confidence", payload["errors"][0])
 
+    def test_arwif_validate_analysis_rejects_invalid_observation_layer_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-observation-layers.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.observation-layers",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {
+                            "basic_observation_summary": {
+                                "transition_motif_summary": {
+                                    "recurring_motif_count": 1,
+                                    "motif_occurrence_count": 1,
+                                    "motif_signature_counts": {"steady": 1},
+                                    "motif_signatures": ["steady"],
+                                    "motifs": [
+                                        {
+                                            "motif_id": "transition_motif.01",
+                                            "signature": "steady",
+                                            "section_transition_indexes": ["0"],
+                                        }
+                                    ],
+                                }
+                            }
+                        },
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-validate-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn(
+                "observation_layers.basic_observation_summary.transition_motif_summary.motifs[0].section_transition_indexes[0]",
+                payload["errors"][0],
+            )
+
+    def test_arwif_inspect_analysis_rejects_invalid_provenance_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-provenance.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.provenance",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {
+                            "input_file_hash": "hash-valid",
+                            "decode_backend": "wave",
+                            "preprocessing_steps": ["decode"],
+                            "analysis_parameters": {
+                                "start_seconds": -0.1,
+                            },
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("provenance.analysis_parameters.start_seconds", payload["errors"][0])
+
     def test_arwif_inspect_analysis_rejects_invalid_component_layer_shape(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp_dir_str:

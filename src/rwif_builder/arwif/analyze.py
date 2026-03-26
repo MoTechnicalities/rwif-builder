@@ -93,12 +93,12 @@ def _validate_analysis_document_mapping(
     try:
         analysis_metadata = _mapping_value(document.get("analysis_metadata"), section="analysis_metadata")
         observed_audio = _mapping_value(document.get("observed_audio"), section="observed_audio")
-        observation_layers = _mapping_value(document.get("observation_layers"), section="observation_layers")
+        observation_layers = _validate_observation_layers(document.get("observation_layers"))
         source_hypotheses = _validate_source_hypotheses(document.get("source_hypotheses"))
         component_layers = _validate_component_layers(document.get("component_layers"))
         reconstruction = _validate_reconstruction(document.get("reconstruction"))
         uncertainty_notes = _mapping_value(document.get("uncertainty_notes"), section="uncertainty_notes")
-        provenance = _mapping_value(document.get("provenance"), section="provenance")
+        provenance = _validate_provenance(document.get("provenance"))
         attention_contract = _validate_attention_contract(document.get("attention_contract"))
         interpretation_layers = _validate_interpretation_layers(document.get("interpretation_layers"))
         transformation_intent = _validate_transformation_intent(document.get("transformation_intent"))
@@ -4602,6 +4602,511 @@ def _validate_transformation_intent(value: Any) -> dict[str, Any]:
     return transformation_intent
 
 
+def _validate_observation_layers(value: Any) -> dict[str, Any]:
+    observation_layers = _mapping_value(value, section="observation_layers")
+    normalized_observation_layers: dict[str, Any] = {}
+    for layer_name, layer_value in observation_layers.items():
+        if not isinstance(layer_name, str) or not layer_name:
+            raise ValueError("analysis document section 'observation_layers' must use non-empty string keys")
+        if layer_name == "basic_observation_summary":
+            normalized_observation_layers[layer_name] = _validate_basic_observation_summary(layer_value)
+            continue
+        if layer_name == "onset_map":
+            normalized_observation_layers[layer_name] = _validate_onset_map(layer_value)
+            continue
+        if layer_name == "section_boundaries":
+            normalized_observation_layers[layer_name] = _validate_section_boundaries(layer_value)
+            continue
+        if layer_name == "section_candidates":
+            normalized_observation_layers[layer_name] = _validate_section_candidates(layer_value)
+            continue
+        if layer_name == "section_transitions":
+            normalized_observation_layers[layer_name] = _validate_section_transitions(layer_value)
+            continue
+        if layer_name in {"transient_events", "pitch_contours"}:
+            normalized_observation_layers[layer_name] = _list_value(layer_value, section=f"observation_layers.{layer_name}")
+            continue
+        normalized_observation_layers[layer_name] = layer_value
+    return normalized_observation_layers
+
+
+def _validate_basic_observation_summary(value: Any) -> dict[str, Any]:
+    basic_observation_summary = _mapping_value(value, section="observation_layers.basic_observation_summary")
+    section = "observation_layers.basic_observation_summary"
+    for field in ("peak_amplitude", "rms_amplitude"):
+        _validate_optional_non_negative_number_field(basic_observation_summary, section=section, field=field)
+    for field in (
+        "estimated_onset_count",
+        "section_boundary_count",
+        "section_candidate_count",
+        "section_transition_count",
+        "frame_count",
+    ):
+        _validate_optional_non_negative_integer_field(basic_observation_summary, section=section, field=field)
+
+    spectral_extent_summary = _validate_spectral_extent_summary(
+        basic_observation_summary.get("spectral_extent_summary"),
+        section=f"{section}.spectral_extent_summary",
+    )
+    if "spectral_extent_summary" in basic_observation_summary or spectral_extent_summary:
+        basic_observation_summary["spectral_extent_summary"] = spectral_extent_summary
+
+    channel_energy_summary = _validate_number_mapping(
+        basic_observation_summary.get("channel_energy_summary"),
+        section=f"{section}.channel_energy_summary",
+        allow_empty=True,
+    )
+    if "channel_energy_summary" in basic_observation_summary or channel_energy_summary:
+        basic_observation_summary["channel_energy_summary"] = channel_energy_summary
+
+    nested_validators = {
+        "section_profile_summary": _validate_section_profile_summary,
+        "transition_profile_summary": _validate_transition_profile_summary,
+        "transition_motif_summary": _validate_transition_motif_summary,
+        "transition_motif_sequence_summary": _validate_transition_motif_sequence_summary,
+        "transition_motif_chain_summary": _validate_transition_motif_chain_summary,
+        "transition_motif_phrase_summary": _validate_transition_motif_phrase_summary,
+        "transition_motif_phrase_family_summary": _validate_transition_motif_phrase_family_summary,
+        "transition_motif_phrase_archetype_summary": _validate_transition_motif_phrase_archetype_summary,
+        "transition_motif_phrase_contour_summary": _validate_transition_motif_phrase_contour_summary,
+        "transition_motif_phrase_sweep_summary": _validate_transition_motif_phrase_sweep_summary,
+        "transition_motif_phrase_gesture_summary": _validate_transition_motif_phrase_gesture_summary,
+        "transition_motif_phrase_mobility_summary": _validate_transition_motif_phrase_mobility_summary,
+    }
+    for field, validator in nested_validators.items():
+        nested_mapping = validator(basic_observation_summary.get(field), section=f"{section}.{field}")
+        if field in basic_observation_summary or nested_mapping:
+            basic_observation_summary[field] = nested_mapping
+    return basic_observation_summary
+
+
+def _validate_spectral_extent_summary(value: Any, *, section: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    spectral_extent_summary = _mapping_value(value, section=section)
+    _validate_optional_non_negative_number_field(spectral_extent_summary, section=section, field="low_hz")
+    _validate_optional_non_negative_number_field(spectral_extent_summary, section=section, field="high_hz")
+    low_hz = spectral_extent_summary.get("low_hz")
+    high_hz = spectral_extent_summary.get("high_hz")
+    if isinstance(low_hz, (int, float)) and isinstance(high_hz, (int, float)) and high_hz < low_hz:
+        raise ValueError(f"analysis document section '{section}.high_hz' must be greater than or equal to low_hz")
+    return spectral_extent_summary
+
+
+def _validate_section_profile_summary(value: Any, *, section: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    section_profile_summary = _mapping_value(value, section=section)
+    for field in ("average_duration_seconds", "longest_duration_seconds"):
+        _validate_optional_non_negative_number_field(section_profile_summary, section=section, field=field)
+    for field in ("dominant_energy_band", "opening_energy_band", "closing_energy_band"):
+        _validate_optional_string_field(section_profile_summary, section=section, field=field)
+    for field in ("energy_band_counts", "duration_band_counts", "position_band_counts"):
+        counts = _validate_count_mapping(section_profile_summary.get(field), section=f"{section}.{field}", allow_empty=True)
+        if field in section_profile_summary or counts:
+            section_profile_summary[field] = counts
+    return section_profile_summary
+
+
+def _validate_transition_profile_summary(value: Any, *, section: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    transition_profile_summary = _mapping_value(value, section=section)
+    for field in ("average_abs_energy_delta", "largest_abs_energy_delta"):
+        _validate_optional_non_negative_number_field(transition_profile_summary, section=section, field=field)
+    for field in ("dominant_transition_kind", "opening_transition_kind", "closing_transition_kind"):
+        _validate_optional_string_field(transition_profile_summary, section=section, field=field)
+    transition_kind_counts = _validate_count_mapping(
+        transition_profile_summary.get("transition_kind_counts"),
+        section=f"{section}.transition_kind_counts",
+        allow_empty=True,
+    )
+    if "transition_kind_counts" in transition_profile_summary or transition_kind_counts:
+        transition_profile_summary["transition_kind_counts"] = transition_kind_counts
+    return transition_profile_summary
+
+
+def _validate_transition_motif_summary(value: Any, *, section: str) -> dict[str, Any]:
+    return _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_motif_count",
+        occurrence_count_field="motif_occurrence_count",
+        signature_counts_field="motif_signature_counts",
+        signatures_field="motif_signatures",
+        dominant_signature_field="dominant_motif_signature",
+        items_field="motifs",
+        item_id_field="motif_id",
+    )
+
+
+def _validate_transition_motif_sequence_summary(value: Any, *, section: str) -> dict[str, Any]:
+    return _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_sequence_count",
+        occurrence_count_field="sequence_occurrence_count",
+        signature_counts_field="sequence_signature_counts",
+        signatures_field="sequence_signatures",
+        dominant_signature_field="dominant_sequence_signature",
+        items_field="sequences",
+        item_id_field="sequence_id",
+    )
+
+
+def _validate_transition_motif_chain_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_chain_count",
+        occurrence_count_field="chain_occurrence_count",
+        signature_counts_field="chain_signature_counts",
+        signatures_field="chain_signatures",
+        dominant_signature_field="dominant_chain_signature",
+        items_field="chains",
+        item_id_field="chain_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="chain_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_phrase_count",
+        occurrence_count_field="phrase_occurrence_count",
+        signature_counts_field="phrase_signature_counts",
+        signatures_field="phrase_signatures",
+        dominant_signature_field="dominant_phrase_signature",
+        items_field="phrases",
+        item_id_field="phrase_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_family_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_family_count",
+        occurrence_count_field="family_occurrence_count",
+        signature_counts_field="family_signature_counts",
+        signatures_field="family_signatures",
+        dominant_signature_field="dominant_family_signature",
+        items_field="families",
+        item_id_field="family_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_archetype_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_archetype_count",
+        occurrence_count_field="archetype_occurrence_count",
+        signature_counts_field="archetype_signature_counts",
+        signatures_field="archetype_signatures",
+        dominant_signature_field="dominant_archetype_signature",
+        items_field="archetypes",
+        item_id_field="archetype_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_contour_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_contour_count",
+        occurrence_count_field="contour_occurrence_count",
+        signature_counts_field="contour_signature_counts",
+        signatures_field="contour_signatures",
+        dominant_signature_field="dominant_contour_signature",
+        items_field="contours",
+        item_id_field="contour_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_sweep_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_sweep_count",
+        occurrence_count_field="sweep_occurrence_count",
+        signature_counts_field="sweep_signature_counts",
+        signatures_field="sweep_signatures",
+        dominant_signature_field="dominant_sweep_signature",
+        items_field="sweeps",
+        item_id_field="sweep_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_gesture_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_gesture_count",
+        occurrence_count_field="gesture_occurrence_count",
+        signature_counts_field="gesture_signature_counts",
+        signatures_field="gesture_signatures",
+        dominant_signature_field="dominant_gesture_signature",
+        items_field="gestures",
+        item_id_field="gesture_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_motif_phrase_mobility_summary(value: Any, *, section: str) -> dict[str, Any]:
+    summary = _validate_transition_signature_summary(
+        value,
+        section=section,
+        recurring_count_field="recurring_mobility_count",
+        occurrence_count_field="mobility_occurrence_count",
+        signature_counts_field="mobility_signature_counts",
+        signatures_field="mobility_signatures",
+        dominant_signature_field="dominant_mobility_signature",
+        items_field="mobilities",
+        item_id_field="mobility_id",
+    )
+    _validate_optional_non_negative_integer_field(summary, section=section, field="min_phrase_length")
+    _validate_optional_non_negative_integer_field(summary, section=section, field="max_phrase_length")
+    return summary
+
+
+def _validate_transition_signature_summary(
+    value: Any,
+    *,
+    section: str,
+    recurring_count_field: str,
+    occurrence_count_field: str,
+    signature_counts_field: str,
+    signatures_field: str,
+    dominant_signature_field: str,
+    items_field: str,
+    item_id_field: str,
+) -> dict[str, Any]:
+    if value is None:
+        return {}
+    summary = _mapping_value(value, section=section)
+    _validate_optional_non_negative_integer_field(summary, section=section, field=recurring_count_field)
+    _validate_optional_non_negative_integer_field(summary, section=section, field=occurrence_count_field)
+    signature_counts = _validate_count_mapping(
+        summary.get(signature_counts_field),
+        section=f"{section}.{signature_counts_field}",
+        allow_empty=True,
+    )
+    if signature_counts_field in summary or signature_counts:
+        summary[signature_counts_field] = signature_counts
+    _validate_optional_string_list_field(summary, section=section, field=signatures_field)
+    _validate_optional_string_field(summary, section=section, field=dominant_signature_field)
+    items = _validate_transition_signature_items(
+        summary.get(items_field),
+        section=f"{section}.{items_field}",
+        item_id_field=item_id_field,
+    )
+    if items_field in summary or items:
+        summary[items_field] = items
+    return summary
+
+
+def _validate_transition_signature_items(value: Any, *, section: str, item_id_field: str) -> list[dict[str, Any]]:
+    items = _list_value(value, section=section)
+    normalized_items: list[dict[str, Any]] = []
+    for index, item in enumerate(items):
+        item_section = f"{section}[{index}]"
+        if not isinstance(item, dict):
+            raise ValueError(f"analysis document section '{item_section}' must be a mapping")
+        normalized_item = dict(item)
+        _validate_required_string_field(normalized_item, section=item_section, field=item_id_field)
+        _validate_required_string_field(normalized_item, section=item_section, field="signature")
+        _validate_optional_non_negative_integer_field(normalized_item, section=item_section, field="occurrence_count")
+        for field in (
+            "left_signature",
+            "right_signature",
+            "transition_kind",
+            "from_energy_band",
+            "to_energy_band",
+            "duration_trend",
+            "dominant_energy_direction",
+            "dominant_duration_direction",
+        ):
+            _validate_optional_string_field(normalized_item, section=item_section, field=field)
+        for field in (
+            "motif_signatures",
+            "member_phrase_ids",
+            "member_phrase_signatures",
+            "member_family_ids",
+            "member_family_signatures",
+        ):
+            _validate_optional_string_list_field(normalized_item, section=item_section, field=field)
+        for field in (
+            "chain_length",
+            "phrase_length",
+            "min_phrase_length",
+            "max_phrase_length",
+            "member_phrase_count",
+            "member_family_count",
+        ):
+            _validate_optional_non_negative_integer_field(normalized_item, section=item_section, field=field)
+        _validate_optional_non_negative_integer_list_field(normalized_item, section=item_section, field="section_transition_indexes")
+        _validate_optional_non_negative_number_list_field(normalized_item, section=item_section, field="boundary_offsets_seconds")
+        for field in (
+            "section_transition_index_pairs",
+            "section_transition_index_chains",
+            "section_transition_index_phrases",
+        ):
+            _validate_optional_non_negative_integer_matrix_field(normalized_item, section=item_section, field=field)
+        for field in (
+            "boundary_offset_pairs_seconds",
+            "boundary_offset_chains_seconds",
+            "boundary_offset_phrases_seconds",
+        ):
+            _validate_optional_non_negative_number_matrix_field(normalized_item, section=item_section, field=field)
+        time_bounds = _validate_time_bounds(normalized_item.get("time_bounds"), section=f"{item_section}.time_bounds")
+        if "time_bounds" in normalized_item or time_bounds:
+            normalized_item["time_bounds"] = time_bounds
+        normalized_items.append(normalized_item)
+    return normalized_items
+
+
+def _validate_onset_map(value: Any) -> list[dict[str, Any]]:
+    onset_map = _list_value(value, section="observation_layers.onset_map")
+    normalized_onset_map: list[dict[str, Any]] = []
+    for index, onset in enumerate(onset_map):
+        section = f"observation_layers.onset_map[{index}]"
+        if not isinstance(onset, dict):
+            raise ValueError(f"analysis document section '{section}' must be a mapping")
+        normalized_onset = dict(onset)
+        _validate_optional_non_negative_number_field(normalized_onset, section=section, field="offset_seconds")
+        _validate_optional_non_negative_number_field(normalized_onset, section=section, field="strength")
+        normalized_onset_map.append(normalized_onset)
+    return normalized_onset_map
+
+
+def _validate_section_boundaries(value: Any) -> list[dict[str, Any]]:
+    section_boundaries = _list_value(value, section="observation_layers.section_boundaries")
+    normalized_section_boundaries: list[dict[str, Any]] = []
+    for index, boundary in enumerate(section_boundaries):
+        section = f"observation_layers.section_boundaries[{index}]"
+        if not isinstance(boundary, dict):
+            raise ValueError(f"analysis document section '{section}' must be a mapping")
+        normalized_boundary = dict(boundary)
+        _validate_optional_non_negative_number_field(normalized_boundary, section=section, field="offset_seconds")
+        _validate_optional_non_negative_number_field(normalized_boundary, section=section, field="confidence")
+        _validate_optional_string_field(normalized_boundary, section=section, field="energy_transition")
+        normalized_section_boundaries.append(normalized_boundary)
+    return normalized_section_boundaries
+
+
+def _validate_section_candidates(value: Any) -> list[dict[str, Any]]:
+    section_candidates = _list_value(value, section="observation_layers.section_candidates")
+    normalized_section_candidates: list[dict[str, Any]] = []
+    for index, candidate in enumerate(section_candidates):
+        section = f"observation_layers.section_candidates[{index}]"
+        if not isinstance(candidate, dict):
+            raise ValueError(f"analysis document section '{section}' must be a mapping")
+        normalized_candidate = dict(candidate)
+        _validate_optional_non_negative_integer_field(normalized_candidate, section=section, field="section_index")
+        for field in ("start_seconds", "end_seconds", "duration_seconds", "rms_amplitude", "relative_energy"):
+            _validate_optional_non_negative_number_field(normalized_candidate, section=section, field=field)
+        start_seconds = normalized_candidate.get("start_seconds")
+        end_seconds = normalized_candidate.get("end_seconds")
+        if isinstance(start_seconds, (int, float)) and isinstance(end_seconds, (int, float)) and end_seconds < start_seconds:
+            raise ValueError(f"analysis document section '{section}.end_seconds' must be greater than or equal to start_seconds")
+        for field in ("energy_band", "duration_band", "position_band"):
+            _validate_optional_string_field(normalized_candidate, section=section, field=field)
+        normalized_section_candidates.append(normalized_candidate)
+    return normalized_section_candidates
+
+
+def _validate_section_transitions(value: Any) -> list[dict[str, Any]]:
+    section_transitions = _list_value(value, section="observation_layers.section_transitions")
+    normalized_section_transitions: list[dict[str, Any]] = []
+    for index, transition in enumerate(section_transitions):
+        section = f"observation_layers.section_transitions[{index}]"
+        if not isinstance(transition, dict):
+            raise ValueError(f"analysis document section '{section}' must be a mapping")
+        normalized_transition = dict(transition)
+        for field in ("from_section_index", "to_section_index"):
+            _validate_optional_non_negative_integer_field(normalized_transition, section=section, field=field)
+        _validate_optional_non_negative_number_field(normalized_transition, section=section, field="boundary_offset_seconds")
+        for field in ("from_energy_band", "to_energy_band", "transition_kind"):
+            _validate_optional_string_field(normalized_transition, section=section, field=field)
+        _validate_optional_number_field(normalized_transition, section=section, field="energy_delta")
+        _validate_optional_number_field(normalized_transition, section=section, field="duration_delta_seconds")
+        normalized_section_transitions.append(normalized_transition)
+    return normalized_section_transitions
+
+
+def _validate_provenance(value: Any) -> dict[str, Any]:
+    provenance = _mapping_value(value, section="provenance")
+    _validate_optional_string_field(provenance, section="provenance", field="input_file_hash")
+    _validate_optional_string_field(provenance, section="provenance", field="decode_backend")
+    _validate_optional_string_field(provenance, section="provenance", field="decode_path")
+    _validate_optional_string_list_field(provenance, section="provenance", field="preprocessing_steps")
+    _validate_optional_string_list_field(provenance, section="provenance", field="related_artifacts")
+    analysis_parameters = provenance.get("analysis_parameters")
+    if analysis_parameters is not None:
+        if not isinstance(analysis_parameters, dict):
+            raise ValueError("analysis document section 'provenance.analysis_parameters' must be a mapping")
+        _validate_optional_non_negative_number_field(analysis_parameters, section="provenance.analysis_parameters", field="start_seconds")
+        _validate_optional_non_negative_number_field(analysis_parameters, section="provenance.analysis_parameters", field="duration_seconds")
+        _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="channel_mode")
+        _validate_optional_non_negative_integer_field(analysis_parameters, section="provenance.analysis_parameters", field="target_sample_rate_hz")
+        _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="analysis_profile")
+    return provenance
+
+
+def _validate_count_mapping(value: Any, *, section: str, allow_empty: bool = False) -> dict[str, int]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"analysis document section '{section}' must be a mapping of non-empty string keys to non-negative integers")
+    counts: dict[str, int] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not key:
+            raise ValueError(f"analysis document section '{section}' must use non-empty string keys")
+        if not isinstance(item, int) or item < 0:
+            raise ValueError(f"analysis document section '{section}.{key}' must be a non-negative integer")
+        counts[key] = item
+    if not counts and not allow_empty:
+        return {}
+    return counts
+
+
+def _validate_number_mapping(value: Any, *, section: str, allow_empty: bool = False) -> dict[str, float | int]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"analysis document section '{section}' must be a mapping of non-empty string keys to non-negative numbers")
+    normalized_mapping: dict[str, float | int] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not key:
+            raise ValueError(f"analysis document section '{section}' must use non-empty string keys")
+        if not isinstance(item, (int, float)) or isinstance(item, bool) or float(item) < 0.0:
+            raise ValueError(f"analysis document section '{section}.{key}' must be a non-negative number")
+        normalized_mapping[key] = item
+    if not normalized_mapping and not allow_empty:
+        return {}
+    return normalized_mapping
+
+
 def _validate_source_hypotheses(value: Any) -> list[dict[str, Any]]:
     source_hypotheses = _list_value(value, section="source_hypotheses")
     normalized_source_hypotheses: list[dict[str, Any]] = []
@@ -4751,6 +5256,14 @@ def _validate_optional_non_negative_number_field(mapping: dict[str, Any], *, sec
         raise ValueError(f"analysis document section '{section}.{field}' must be a non-negative number")
 
 
+def _validate_optional_number_field(mapping: dict[str, Any], *, section: str, field: str) -> None:
+    value = mapping.get(field)
+    if value is None:
+        return
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ValueError(f"analysis document section '{section}.{field}' must be a number")
+
+
 def _validate_optional_confidence_field(mapping: dict[str, Any], *, section: str, field: str) -> None:
     value = mapping.get(field)
     if value is None:
@@ -4783,6 +5296,42 @@ def _validate_optional_non_negative_number_list_field(mapping: dict[str, Any], *
             raise ValueError(
                 f"analysis document section '{section}.{field}[{index}]' must be a non-negative number"
             )
+
+
+def _validate_optional_non_negative_integer_matrix_field(mapping: dict[str, Any], *, section: str, field: str) -> None:
+    value = mapping.get(field)
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ValueError(f"analysis document section '{section}.{field}' must be a list of non-negative integer lists")
+    for index, item in enumerate(value):
+        if not isinstance(item, list):
+            raise ValueError(
+                f"analysis document section '{section}.{field}[{index}]' must be a list of non-negative integers"
+            )
+        for nested_index, nested_item in enumerate(item):
+            if not isinstance(nested_item, int) or nested_item < 0:
+                raise ValueError(
+                    f"analysis document section '{section}.{field}[{index}][{nested_index}]' must be a non-negative integer"
+                )
+
+
+def _validate_optional_non_negative_number_matrix_field(mapping: dict[str, Any], *, section: str, field: str) -> None:
+    value = mapping.get(field)
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ValueError(f"analysis document section '{section}.{field}' must be a list of non-negative number lists")
+    for index, item in enumerate(value):
+        if not isinstance(item, list):
+            raise ValueError(
+                f"analysis document section '{section}.{field}[{index}]' must be a list of non-negative numbers"
+            )
+        for nested_index, nested_item in enumerate(item):
+            if not isinstance(nested_item, (int, float)) or isinstance(nested_item, bool) or float(nested_item) < 0.0:
+                raise ValueError(
+                    f"analysis document section '{section}.{field}[{index}][{nested_index}]' must be a non-negative number"
+                )
 
 
 def _count_component_groups(component_layers: dict[str, Any]) -> int:

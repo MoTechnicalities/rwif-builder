@@ -33,6 +33,9 @@ from .arwif.importing import import_arwif_artifact
 from .arwif.inspect import inspect_arwif_artifact
 from .arwif.normalize import normalize_arwif_artifact
 from .arwif.render import render_arwif_to_wav
+from .arwif.separate import DEFAULT_SEPARATION_DEVICE
+from .arwif.separate import DEFAULT_SEPARATION_MODEL
+from .arwif.separate import VALID_SEPARATION_TARGETS
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
 from .mrwif.batch import batch_diff_mrwif_specs
@@ -233,6 +236,26 @@ def build_parser() -> argparse.ArgumentParser:
         default="basic-observation",
         help="Analysis profile to apply",
     )
+    arwif_analyze_audio_parser.add_argument(
+        "--separate-stem",
+        dest="separation_target",
+        choices=VALID_SEPARATION_TARGETS,
+        help="Optionally run Demucs stem separation first and analyze the selected target stem",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--separation-model",
+        default=DEFAULT_SEPARATION_MODEL,
+        help="Demucs model name to use when --separate-stem is supplied",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--separation-output-dir",
+        help="Optional root directory for Demucs separation artifacts",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--separation-device",
+        default=DEFAULT_SEPARATION_DEVICE,
+        help="Device string to pass to Demucs when --separate-stem is supplied",
+    )
     arwif_analyze_audio_parser.add_argument("--source-id", help="Optional stable identifier for the analyzed recording")
     arwif_analyze_audio_parser.add_argument("--query-text", help="Optional task or question guiding analysis attention")
     arwif_analyze_audio_parser.add_argument(
@@ -313,6 +336,26 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("basic-observation",),
         default="basic-observation",
         help="Analysis profile to apply",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--separate-stem",
+        dest="separation_target",
+        choices=VALID_SEPARATION_TARGETS,
+        help="Optionally run Demucs stem separation for each input and analyze the selected target stem",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--separation-model",
+        default=DEFAULT_SEPARATION_MODEL,
+        help="Demucs model name to use when --separate-stem is supplied",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--separation-output-dir",
+        help="Optional root directory for Demucs separation artifacts",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--separation-device",
+        default=DEFAULT_SEPARATION_DEVICE,
+        help="Device string to pass to Demucs when --separate-stem is supplied",
     )
     arwif_batch_analyze_audio_parser.add_argument("--query-text", help="Optional task or question guiding analysis attention")
     arwif_batch_analyze_audio_parser.add_argument(
@@ -1060,6 +1103,10 @@ def handle_arwif_analyze_audio(args: argparse.Namespace) -> int:
             render_goal=args.render_goal,
             transformation_operations=args.transformation_operations,
             primary_output=args.primary_output,
+            separation_target=args.separation_target,
+            separation_model=args.separation_model,
+            separation_output_dir=Path(args.separation_output_dir) if args.separation_output_dir else None,
+            separation_device=args.separation_device,
         )
     except ValueError as exc:
         return _print_error_payload(
@@ -1096,6 +1143,10 @@ def handle_arwif_batch_analyze_audio(args: argparse.Namespace) -> int:
         render_goal=args.render_goal,
         transformation_operations=args.transformation_operations,
         primary_output=args.primary_output,
+        separation_target=args.separation_target,
+        separation_model=args.separation_model,
+        separation_output_dir=Path(args.separation_output_dir) if args.separation_output_dir else None,
+        separation_device=args.separation_device,
         output=Path(args.output) if args.output else None,
     )
     _print_payload(payload, args.json)

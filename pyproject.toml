@@ -18,6 +18,11 @@ dependencies = [
 rwif = "rwif_builder.cli:main"
 
 [project.optional-dependencies]
+audio-separation = [
+  "torch>=2.10,<2.11",
+  "torchaudio>=2.10,<2.11",
+  "demucs>=4.0,<5",
+]
 transformers = [
   "torch>=2.2",
   "transformers>=4.39",

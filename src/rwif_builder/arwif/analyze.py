@@ -14,6 +14,11 @@ from typing import Any
 import numpy as np
 import yaml
 
+from .separate import DEFAULT_SEPARATION_DEVICE
+from .separate import DEFAULT_SEPARATION_MODEL
+from .separate import VALID_SEPARATION_TARGETS
+from .separate import run_stem_separation
+
 ANALYSIS_VERSION = "0.1-draft"
 ANALYZER_ID = "rwif-builder"
 VALID_ANALYSIS_PROFILES = {"basic-observation"}
@@ -164,6 +169,10 @@ def analyze_audio_input(
     render_goal: str | None = None,
     transformation_operations: list[str] | None = None,
     primary_output: str | None = None,
+    separation_target: str | None = None,
+    separation_model: str = DEFAULT_SEPARATION_MODEL,
+    separation_output_dir: str | Path | None = None,
+    separation_device: str = DEFAULT_SEPARATION_DEVICE,
 ) -> dict[str, Any]:
     input_path = Path(input_audio)
     output_path = Path(output) if output is not None else None
@@ -187,6 +196,12 @@ def analyze_audio_input(
         raise ValueError("target_sample_rate_hz must be positive when provided")
     if source_id is not None and not source_id.strip():
         raise ValueError("source_id must be non-empty when provided")
+    normalized_separation_target = _normalized_optional_string(separation_target)
+    normalized_separation_model = _normalized_optional_string(separation_model) or DEFAULT_SEPARATION_MODEL
+    normalized_separation_device = _normalized_optional_string(separation_device) or DEFAULT_SEPARATION_DEVICE
+    if normalized_separation_target is not None and normalized_separation_target not in VALID_SEPARATION_TARGETS:
+        allowed = ", ".join(VALID_SEPARATION_TARGETS)
+        raise ValueError(f"separation_target must be one of: {allowed}")
 
     normalized_query_text = _normalized_optional_string(query_text)
     normalized_render_goal = _normalized_optional_string(render_goal)
@@ -216,10 +231,40 @@ def analyze_audio_input(
         key: value for key, value in transformation_intent.items() if value is not None and value != []
     }
 
-    decoded = _decode_audio(input_path)
+    analysis_input_path = input_path
+    preprocessing_context: dict[str, Any] = {}
+    stem_separation: dict[str, Any] = {}
+    if normalized_separation_target is not None:
+        separation_result = run_stem_separation(
+            input_path,
+            target_stem=normalized_separation_target,
+            model_name=normalized_separation_model,
+            output_dir=separation_output_dir,
+            device=normalized_separation_device,
+        )
+        analysis_input_path = separation_result.analyzed_audio_path
+        preprocessing_context = {
+            "separation_target": separation_result.target_stem,
+            "separation_model": separation_result.model_name,
+            "separation_device": separation_result.device,
+        }
+        stem_separation = {
+            "target_stem": separation_result.target_stem,
+            "model_name": separation_result.model_name,
+            "device": separation_result.device,
+            "output_root": str(separation_result.output_root),
+            "analyzed_audio_path": str(separation_result.analyzed_audio_path),
+            "related_artifacts": list(separation_result.related_artifacts),
+        }
+
+    decoded = _decode_audio(analysis_input_path)
     samples = decoded["samples"]
     sample_rate_hz = int(decoded["sample_rate_hz"])
     warnings = list(decoded["warnings"])
+    if stem_separation:
+        warnings.append(
+            f"analyzed Demucs-separated '{stem_separation['target_stem']}' stem rendered by model {stem_separation['model_name']}"
+        )
 
     samples = _slice_audio(samples, sample_rate_hz, start_seconds, duration_seconds)
     if samples.size == 0:
@@ -321,6 +366,25 @@ def analyze_audio_input(
         transition_motif_phrase_gesture_summary=transition_motif_phrase_gesture_summary,
         transition_motif_phrase_mobility_summary=transition_motif_phrase_mobility_summary,
     )
+    if stem_separation:
+        source_hypotheses = _augment_source_hypotheses_with_stem_separation(
+            source_hypotheses,
+            stem_separation=stem_separation,
+            analyzed_duration_seconds=analyzed_duration_seconds,
+            onset_map=onset_map,
+            section_candidates=section_candidates,
+            section_transitions=section_transitions,
+            transition_motif_summary=transition_motif_summary,
+            transition_motif_sequence_summary=transition_motif_sequence_summary,
+            transition_motif_chain_summary=transition_motif_chain_summary,
+            transition_motif_phrase_summary=transition_motif_phrase_summary,
+            transition_motif_phrase_family_summary=transition_motif_phrase_family_summary,
+            transition_motif_phrase_archetype_summary=transition_motif_phrase_archetype_summary,
+            transition_motif_phrase_contour_summary=transition_motif_phrase_contour_summary,
+            transition_motif_phrase_sweep_summary=transition_motif_phrase_sweep_summary,
+            transition_motif_phrase_gesture_summary=transition_motif_phrase_gesture_summary,
+            transition_motif_phrase_mobility_summary=transition_motif_phrase_mobility_summary,
+        )
     interpretation_layers = _build_initial_interpretation_layers(
         source_hypotheses=source_hypotheses,
         attention_contract=attention_contract,
@@ -339,7 +403,8 @@ def analyze_audio_input(
             },
         },
         "observed_audio": {
-            "path_hint": str(input_path),
+            "path_hint": str(analysis_input_path),
+            "source_path_hint": str(input_path),
             "duration_seconds": analyzed_duration_seconds,
             "sample_rate_hz": sample_rate_hz,
             "channel_count": samples.shape[1],
@@ -371,7 +436,13 @@ def analyze_audio_input(
         "provenance": {
             "input_file_hash": _sha256_file(input_path),
             "decode_backend": decoded["decode_backend"],
-            "preprocessing_steps": _preprocessing_steps(decoded["decode_backend"], channel_mode, target_sample_rate_hz),
+            "decode_path": str(analysis_input_path),
+            "preprocessing_steps": _preprocessing_steps(
+                decoded["decode_backend"],
+                channel_mode,
+                target_sample_rate_hz,
+                separation_context=preprocessing_context,
+            ),
             "analysis_parameters": {
                 "start_seconds": start_seconds,
                 "duration_seconds": duration_seconds,
@@ -381,6 +452,16 @@ def analyze_audio_input(
             },
         },
     }
+    if stem_separation:
+        analysis_document["provenance"]["related_artifacts"] = list(stem_separation["related_artifacts"])
+        analysis_document["provenance"]["stem_separation"] = dict(stem_separation)
+        analysis_document["provenance"]["analysis_parameters"].update(
+            {
+                "separation_target": stem_separation["target_stem"],
+                "separation_model": stem_separation["model_name"],
+                "separation_device": stem_separation["device"],
+            }
+        )
     if attention_contract:
         analysis_document["attention_contract"] = attention_contract
     if interpretation_layers:
@@ -403,6 +484,7 @@ def analyze_audio_input(
             "codec": decoded["codec"],
             "channel_mode": channel_mode,
             "decode_backend": decoded["decode_backend"],
+            "path_used_for_analysis": str(analysis_input_path),
             "original_sample_rate_hz": decoded["original_sample_rate_hz"],
             "original_channel_count": decoded["original_channel_count"],
         },
@@ -413,6 +495,7 @@ def analyze_audio_input(
         "observation_summary": observation_summary,
         "source_hypothesis_count": len(source_hypotheses),
         "source_hypothesis_classes": _source_hypothesis_classes(source_hypotheses),
+        "stem_separation": dict(stem_separation),
         "warnings": list(warnings),
         "is_valid": True,
     }
@@ -439,6 +522,7 @@ def analyze_audio_input(
             "decoded_audio": dict(payload["decoded_audio"]),
             "analysis_window": dict(payload["analysis_window"]),
             "observation_summary": dict(payload["observation_summary"]),
+            "stem_separation": dict(payload["stem_separation"]),
             "observation_preview": {
                 "onset_map_count": len(onset_map),
                 "section_boundary_count": len(section_boundaries),
@@ -760,6 +844,8 @@ def inspect_analysis_document(path: str | Path) -> dict[str, Any]:
             "decode_backend": provenance.get("decode_backend"),
             "input_file_hash_present": isinstance(provenance.get("input_file_hash"), str) and bool(provenance.get("input_file_hash")),
             "preprocessing_step_count": len(_string_list(provenance.get("preprocessing_steps"))),
+            "separation_target": _mapping_optional(provenance.get("stem_separation")).get("target_stem"),
+            "related_artifact_count": len(_string_list(provenance.get("related_artifacts"))),
         },
         "basic_observation_summary": basic_observation_summary,
         "is_valid": True,
@@ -3621,6 +3707,160 @@ def _build_source_hypotheses(
     return hypotheses
 
 
+def _augment_source_hypotheses_with_stem_separation(
+    source_hypotheses: list[dict[str, Any]],
+    *,
+    stem_separation: dict[str, Any],
+    analyzed_duration_seconds: float,
+    onset_map: list[dict[str, Any]],
+    section_candidates: list[dict[str, Any]],
+    section_transitions: list[dict[str, Any]],
+    transition_motif_summary: dict[str, Any],
+    transition_motif_sequence_summary: dict[str, Any],
+    transition_motif_chain_summary: dict[str, Any],
+    transition_motif_phrase_summary: dict[str, Any],
+    transition_motif_phrase_family_summary: dict[str, Any],
+    transition_motif_phrase_archetype_summary: dict[str, Any],
+    transition_motif_phrase_contour_summary: dict[str, Any],
+    transition_motif_phrase_sweep_summary: dict[str, Any],
+    transition_motif_phrase_gesture_summary: dict[str, Any],
+    transition_motif_phrase_mobility_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    target_stem = _normalized_optional_string(stem_separation.get("target_stem"))
+    if target_stem is None:
+        return source_hypotheses
+
+    source_class, role = _stem_source_class_and_role(target_stem)
+    if source_class in _source_hypothesis_classes(source_hypotheses):
+        return source_hypotheses
+
+    linked_section_indexes = [
+        int(candidate.get("section_index", 0) or 0)
+        for candidate in section_candidates
+        if isinstance(candidate, dict)
+    ]
+    linked_transition_indexes = list(range(len(section_transitions)))
+    linked_onset_offsets_seconds = [
+        float(entry.get("offset_seconds", 0.0) or 0.0)
+        for entry in onset_map
+        if isinstance(entry, dict)
+    ]
+    linked_transition_motifs = _source_hypothesis_linked_transition_motifs(
+        transition_motif_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_sequences = _source_hypothesis_linked_transition_motif_sequences(
+        transition_motif_sequence_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_chains = _source_hypothesis_linked_transition_motif_chains(
+        transition_motif_chain_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrases = _source_hypothesis_linked_transition_motif_phrases(
+        transition_motif_phrase_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrase_families = _source_hypothesis_linked_transition_motif_phrase_families(
+        transition_motif_phrase_family_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrase_archetypes = _source_hypothesis_linked_transition_motif_phrase_archetypes(
+        transition_motif_phrase_archetype_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrase_contours = _source_hypothesis_linked_transition_motif_phrase_contours(
+        transition_motif_phrase_contour_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrase_sweeps = _source_hypothesis_linked_transition_motif_phrase_sweeps(
+        transition_motif_phrase_sweep_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrase_gestures = _source_hypothesis_linked_transition_motif_phrase_gestures(
+        transition_motif_phrase_gesture_summary,
+        linked_transition_indexes,
+    )
+    linked_transition_motif_phrase_mobilities = _source_hypothesis_linked_transition_motif_phrase_mobilities(
+        transition_motif_phrase_mobility_summary,
+        linked_transition_indexes,
+    )
+
+    stem_hypothesis = {
+        "source_id": f"hypothesis.{source_class}.01",
+        "source_class": source_class,
+        "role": role,
+        "confidence": 0.94,
+        "confidence_band": "high",
+        "hypothesis_origin": "stem-separated-target",
+        "time_bounds": {
+            "start_seconds": 0.0,
+            "end_seconds": _round_float(analyzed_duration_seconds),
+            "duration_seconds": _round_float(analyzed_duration_seconds),
+        },
+        "linked_observations": {
+            "section_indexes": linked_section_indexes,
+            "transition_indexes": linked_transition_indexes,
+            "transition_motif_ids": [entry["motif_id"] for entry in linked_transition_motifs],
+            "transition_motif_signatures": [entry["signature"] for entry in linked_transition_motifs],
+            "transition_motif_reference_count": len(linked_transition_motifs),
+            "transition_motif_sequence_ids": [entry["sequence_id"] for entry in linked_transition_motif_sequences],
+            "transition_motif_sequence_signatures": [entry["signature"] for entry in linked_transition_motif_sequences],
+            "transition_motif_sequence_reference_count": len(linked_transition_motif_sequences),
+            "transition_motif_chain_ids": [entry["chain_id"] for entry in linked_transition_motif_chains],
+            "transition_motif_chain_signatures": [entry["signature"] for entry in linked_transition_motif_chains],
+            "transition_motif_chain_reference_count": len(linked_transition_motif_chains),
+            "transition_motif_phrase_ids": [entry["phrase_id"] for entry in linked_transition_motif_phrases],
+            "transition_motif_phrase_signatures": [entry["signature"] for entry in linked_transition_motif_phrases],
+            "transition_motif_phrase_reference_count": len(linked_transition_motif_phrases),
+            "transition_motif_phrase_family_ids": [entry["family_id"] for entry in linked_transition_motif_phrase_families],
+            "transition_motif_phrase_family_signatures": [entry["signature"] for entry in linked_transition_motif_phrase_families],
+            "transition_motif_phrase_family_reference_count": len(linked_transition_motif_phrase_families),
+            "transition_motif_phrase_archetype_ids": [entry["archetype_id"] for entry in linked_transition_motif_phrase_archetypes],
+            "transition_motif_phrase_archetype_signatures": [entry["signature"] for entry in linked_transition_motif_phrase_archetypes],
+            "transition_motif_phrase_archetype_reference_count": len(linked_transition_motif_phrase_archetypes),
+            "transition_motif_phrase_contour_ids": [entry["contour_id"] for entry in linked_transition_motif_phrase_contours],
+            "transition_motif_phrase_contour_signatures": [entry["signature"] for entry in linked_transition_motif_phrase_contours],
+            "transition_motif_phrase_contour_reference_count": len(linked_transition_motif_phrase_contours),
+            "transition_motif_phrase_sweep_ids": [entry["sweep_id"] for entry in linked_transition_motif_phrase_sweeps],
+            "transition_motif_phrase_sweep_signatures": [entry["signature"] for entry in linked_transition_motif_phrase_sweeps],
+            "transition_motif_phrase_sweep_reference_count": len(linked_transition_motif_phrase_sweeps),
+            "transition_motif_phrase_gesture_ids": [entry["gesture_id"] for entry in linked_transition_motif_phrase_gestures],
+            "transition_motif_phrase_gesture_signatures": [entry["signature"] for entry in linked_transition_motif_phrase_gestures],
+            "transition_motif_phrase_gesture_reference_count": len(linked_transition_motif_phrase_gestures),
+            "transition_motif_phrase_mobility_ids": [entry["mobility_id"] for entry in linked_transition_motif_phrase_mobilities],
+            "transition_motif_phrase_mobility_signatures": [entry["signature"] for entry in linked_transition_motif_phrase_mobilities],
+            "transition_motif_phrase_mobility_reference_count": len(linked_transition_motif_phrase_mobilities),
+            "onset_offsets_seconds_preview": [_round_float(offset) for offset in linked_onset_offsets_seconds[:8]],
+            "onset_reference_count": len(linked_onset_offsets_seconds),
+        },
+        "supporting_observations": [
+            f"Demucs semantic source separation isolated the {target_stem} stem before observation analysis",
+            "the observation summaries are computed from the separated target stem audio",
+        ],
+        "evidence": {
+            "separation_target": target_stem,
+            "separation_model": stem_separation.get("model_name"),
+            "separation_device": stem_separation.get("device"),
+            "related_artifact_count": len(_string_list(stem_separation.get("related_artifacts"))),
+        },
+        "ambiguity_notes": [
+            "Stem separation is model-based and may still contain bleed from other sources.",
+        ],
+    }
+    return [stem_hypothesis, *source_hypotheses]
+
+
+def _stem_source_class_and_role(target_stem: str) -> tuple[str, str]:
+    mapping = {
+        "bass": ("bass_line", "isolated_stem"),
+        "drums": ("drum_kit", "isolated_stem"),
+        "other": ("accompaniment_bed", "isolated_stem"),
+        "vocals": ("foreground_call_stream", "isolated_stem"),
+    }
+    return mapping.get(target_stem, (target_stem, "isolated_stem"))
+
+
 def _source_hypothesis_time_bounds(
     *,
     duration_seconds: float,
@@ -4145,8 +4385,26 @@ def _channel_labels(channel_count: int) -> list[str]:
     return [f"channel_{index + 1}" for index in range(channel_count)]
 
 
-def _preprocessing_steps(decode_backend: str, channel_mode: str, target_sample_rate_hz: int | None) -> list[str]:
-    steps = [f"decode audio using {decode_backend}", f"apply channel mode {channel_mode}"]
+def _preprocessing_steps(
+    decode_backend: str,
+    channel_mode: str,
+    target_sample_rate_hz: int | None,
+    *,
+    separation_context: dict[str, Any] | None = None,
+) -> list[str]:
+    normalized_separation_context = separation_context if isinstance(separation_context, dict) else {}
+    steps: list[str] = []
+    separation_target = _normalized_optional_string(normalized_separation_context.get("separation_target"))
+    separation_model = _normalized_optional_string(normalized_separation_context.get("separation_model"))
+    separation_device = _normalized_optional_string(normalized_separation_context.get("separation_device"))
+    if separation_target is not None:
+        step = f"separate target stem {separation_target} using Demucs"
+        if separation_model is not None:
+            step += f" model {separation_model}"
+        if separation_device is not None:
+            step += f" on {separation_device}"
+        steps.append(step)
+    steps.extend([f"decode audio using {decode_backend}", f"apply channel mode {channel_mode}"])
     if target_sample_rate_hz is not None:
         steps.append(f"resample audio to {target_sample_rate_hz} Hz")
     steps.append("compute basic observation summaries")
@@ -5070,6 +5328,19 @@ def _validate_provenance(value: Any) -> dict[str, Any]:
         _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="channel_mode")
         _validate_optional_non_negative_integer_field(analysis_parameters, section="provenance.analysis_parameters", field="target_sample_rate_hz")
         _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="analysis_profile")
+        _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="separation_target")
+        _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="separation_model")
+        _validate_optional_string_field(analysis_parameters, section="provenance.analysis_parameters", field="separation_device")
+    stem_separation = provenance.get("stem_separation")
+    if stem_separation is not None:
+        if not isinstance(stem_separation, dict):
+            raise ValueError("analysis document section 'provenance.stem_separation' must be a mapping")
+        _validate_optional_string_field(stem_separation, section="provenance.stem_separation", field="target_stem")
+        _validate_optional_string_field(stem_separation, section="provenance.stem_separation", field="model_name")
+        _validate_optional_string_field(stem_separation, section="provenance.stem_separation", field="device")
+        _validate_optional_string_field(stem_separation, section="provenance.stem_separation", field="output_root")
+        _validate_optional_string_field(stem_separation, section="provenance.stem_separation", field="analyzed_audio_path")
+        _validate_optional_string_list_field(stem_separation, section="provenance.stem_separation", field="related_artifacts")
     return provenance
 
 

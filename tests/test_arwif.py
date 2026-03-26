@@ -8,8 +8,12 @@ import tempfile
 import unittest
 import wave
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
+
+from rwif_builder.arwif.analyze import analyze_audio_input
+from rwif_builder.arwif.separate import StemSeparationResult
 
 from rwif_builder.writer.rwif_writer import AtomicWaveUnit
 from rwif_builder.writer.rwif_writer import WaveLibrary
@@ -5078,6 +5082,83 @@ class ARWIFSpeakerSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(report_document["attention_contract"], payload["attention_contract"])
             self.assertEqual(report_document["interpretation_layers"], payload["interpretation_layers"])
             self.assertEqual(report_document["transformation_intent"], payload["transformation_intent"])
+
+    def test_arwif_analyze_audio_can_analyze_demucs_separated_stem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            source_wav_path = tmp_dir / "source.wav"
+            separated_wav_path = tmp_dir / "drums.wav"
+            analysis_output_path = tmp_dir / "analysis-output.yaml"
+            report_output_path = tmp_dir / "analysis-report.json"
+
+            sample_rate_hz = 4000
+            frame_count = int(sample_rate_hz * 0.5)
+            for wav_path, frequency_hz, amplitude in (
+                (source_wav_path, 220.0, 0.2),
+                (separated_wav_path, 110.0, 0.55),
+            ):
+                with wave.open(str(wav_path), "wb") as handle:
+                    handle.setnchannels(1)
+                    handle.setsampwidth(2)
+                    handle.setframerate(sample_rate_hz)
+                    frame_bytes = bytearray()
+                    for frame_index in range(frame_count):
+                        sample = int(
+                            round(
+                                amplitude
+                                * 32767.0
+                                * math.sin(2.0 * math.pi * frequency_hz * (frame_index / float(sample_rate_hz)))
+                            )
+                        )
+                        frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                    handle.writeframes(bytes(frame_bytes))
+
+            with patch("rwif_builder.arwif.analyze.run_stem_separation") as mock_run_stem_separation:
+                mock_run_stem_separation.return_value = StemSeparationResult(
+                    target_stem="drums",
+                    model_name="htdemucs",
+                    device="cpu",
+                    output_root=tmp_dir / "stems",
+                    analyzed_audio_path=separated_wav_path,
+                    related_artifacts=(str(separated_wav_path), str(tmp_dir / "stems" / "no_drums.wav")),
+                )
+
+                payload = analyze_audio_input(
+                    source_wav_path,
+                    output=analysis_output_path,
+                    report=report_output_path,
+                    query_text="Find the drum solo section and isolate only that section.",
+                    attention_targets=["drum_kit"],
+                    retain_targets=["drum_kit"],
+                    separation_target="drums",
+                    separation_model="htdemucs",
+                    separation_output_dir=tmp_dir / "stems",
+                    separation_device="cpu",
+                )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["stem_separation"]["target_stem"], "drums")
+            self.assertEqual(payload["decoded_audio"]["path_used_for_analysis"], str(separated_wav_path))
+            self.assertIn("drum_kit", payload["source_hypothesis_classes"])
+            self.assertEqual(
+                payload["interpretation_layers"]["scene_hypotheses"][0]["attention_targets_matched_source_classes"],
+                ["drum_kit"],
+            )
+
+            analysis_document = yaml.safe_load(analysis_output_path.read_text(encoding="utf-8"))
+            self.assertEqual(analysis_document["observed_audio"]["path_hint"], str(separated_wav_path))
+            self.assertEqual(analysis_document["observed_audio"]["source_path_hint"], str(source_wav_path))
+            self.assertEqual(analysis_document["provenance"]["decode_path"], str(separated_wav_path))
+            self.assertEqual(analysis_document["provenance"]["stem_separation"]["target_stem"], "drums")
+            self.assertEqual(analysis_document["provenance"]["analysis_parameters"]["separation_target"], "drums")
+            self.assertIn(
+                "separate target stem drums using Demucs model htdemucs on cpu",
+                analysis_document["provenance"]["preprocessing_steps"],
+            )
+            self.assertEqual(analysis_document["source_hypotheses"][0]["hypothesis_origin"], "stem-separated-target")
+
+            report_document = json.loads(report_output_path.read_text(encoding="utf-8"))
+            self.assertEqual(report_document["stem_separation"]["target_stem"], "drums")
 
     def test_arwif_batch_analyze_audio_persists_per_input_outputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

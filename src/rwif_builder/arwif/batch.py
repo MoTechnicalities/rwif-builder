@@ -19,6 +19,8 @@ from .importing import import_arwif_artifact
 from .inspect import inspect_arwif_artifact
 from .normalize import normalize_arwif_artifact
 from .render import render_arwif_to_wav
+from .separate import DEFAULT_SEPARATION_DEVICE
+from .separate import DEFAULT_SEPARATION_MODEL
 from .validation import validate_arwif_artifact
 from .validation import validate_arwif_spec
 
@@ -43,6 +45,10 @@ def batch_analyze_audio_inputs(
     render_goal: str | None = None,
     transformation_operations: list[str] | None = None,
     primary_output: str | None = None,
+    separation_target: str | None = None,
+    separation_model: str = DEFAULT_SEPARATION_MODEL,
+    separation_output_dir: str | Path | None = None,
+    separation_device: str = DEFAULT_SEPARATION_DEVICE,
     output: str | Path | None = None,
 ) -> dict[str, Any]:
     if not input_audio_paths:
@@ -109,6 +115,10 @@ def batch_analyze_audio_inputs(
                 render_goal=render_goal,
                 transformation_operations=transformation_operations,
                 primary_output=primary_output,
+                separation_target=separation_target,
+                separation_model=separation_model,
+                separation_output_dir=separation_output_dir,
+                separation_device=separation_device,
             )
         except ValueError as exc:
             payload = {

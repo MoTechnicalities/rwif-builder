@@ -8,6 +8,10 @@ from typing import Any
 import yaml
 
 from ..writer.rwif_writer import load_wave_library
+from .analyze import analyze_audio_input
+from .analyze import diff_analysis_documents
+from .analyze import inspect_analysis_document
+from .analyze import validate_analysis_document
 from .build import build_arwif_artifact
 from .diff import diff_arwif_artifacts
 from .export import export_arwif_artifact
@@ -17,6 +21,1863 @@ from .normalize import normalize_arwif_artifact
 from .render import render_arwif_to_wav
 from .validation import validate_arwif_artifact
 from .validation import validate_arwif_spec
+
+
+def batch_analyze_audio_inputs(
+    input_audio_paths: list[str | Path],
+    *,
+    analysis_dir: str | Path | None = None,
+    report_dir: str | Path | None = None,
+    analysis_format: str = "yaml",
+    report_format: str = "json",
+    start_seconds: float = 0.0,
+    duration_seconds: float | None = None,
+    channel_mode: str = "preserve",
+    target_sample_rate_hz: int | None = None,
+    analysis_profile: str = "basic-observation",
+    query_text: str | None = None,
+    attention_targets: list[str] | None = None,
+    retain_targets: list[str] | None = None,
+    suppress_targets: list[str] | None = None,
+    answer_expectations: list[str] | None = None,
+    render_goal: str | None = None,
+    transformation_operations: list[str] | None = None,
+    primary_output: str | None = None,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not input_audio_paths:
+        raise ValueError("at least one input audio path must be provided")
+    if analysis_format not in {"json", "yaml"}:
+        raise ValueError("analysis_format must be yaml or json")
+    if report_format not in {"json", "yaml"}:
+        raise ValueError("report_format must be yaml or json")
+
+    analysis_dir_path = Path(analysis_dir) if analysis_dir is not None else None
+    report_dir_path = Path(report_dir) if report_dir is not None else None
+    if analysis_dir_path is not None:
+        analysis_dir_path.mkdir(parents=True, exist_ok=True)
+    if report_dir_path is not None:
+        report_dir_path.mkdir(parents=True, exist_ok=True)
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_duration_seconds = 0.0
+    total_frame_count = 0
+    total_estimated_onset_count = 0
+    total_section_boundary_count = 0
+    total_section_candidate_count = 0
+    total_section_transition_count = 0
+    total_section_energy_band_counts: Counter[str] = Counter()
+    total_section_duration_band_counts: Counter[str] = Counter()
+    total_section_position_band_counts: Counter[str] = Counter()
+    total_transition_kind_counts: Counter[str] = Counter()
+    max_channel_count = 0
+    decode_backends: set[str] = set()
+
+    analysis_suffix = ".json" if analysis_format == "json" else ".yaml"
+    report_suffix = ".json" if report_format == "json" else ".yaml"
+
+    for input_audio in input_audio_paths:
+        input_path = Path(input_audio)
+        analysis_output_path = (
+            analysis_dir_path / f"{input_path.stem}.analysis{analysis_suffix}"
+            if analysis_dir_path is not None
+            else None
+        )
+        report_output_path = (
+            report_dir_path / f"{input_path.stem}.report{report_suffix}"
+            if report_dir_path is not None
+            else None
+        )
+
+        try:
+            payload = analyze_audio_input(
+                input_path,
+                output=analysis_output_path,
+                report=report_output_path,
+                start_seconds=start_seconds,
+                duration_seconds=duration_seconds,
+                channel_mode=channel_mode,
+                target_sample_rate_hz=target_sample_rate_hz,
+                analysis_profile=analysis_profile,
+                query_text=query_text,
+                attention_targets=attention_targets,
+                retain_targets=retain_targets,
+                suppress_targets=suppress_targets,
+                answer_expectations=answer_expectations,
+                render_goal=render_goal,
+                transformation_operations=transformation_operations,
+                primary_output=primary_output,
+            )
+        except ValueError as exc:
+            payload = {
+                "command": "arwif-analyze-audio",
+                "input_audio": str(input_path),
+                "analysis_profile": analysis_profile,
+                "analysis_document_output": str(analysis_output_path) if analysis_output_path is not None else None,
+                "report_output": str(report_output_path) if report_output_path is not None else None,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            }
+            invalid_count += 1
+        else:
+            valid_count += 1
+            total_duration_seconds += float(payload.get("analysis_window", {}).get("duration_seconds", 0.0) or 0.0)
+            observation_summary = payload.get("observation_summary") if isinstance(payload.get("observation_summary"), dict) else {}
+            total_frame_count += int(observation_summary.get("frame_count", 0) or 0)
+            total_estimated_onset_count += int(observation_summary.get("estimated_onset_count", 0) or 0)
+            total_section_boundary_count += int(observation_summary.get("section_boundary_count", 0) or 0)
+            total_section_candidate_count += int(observation_summary.get("section_candidate_count", 0) or 0)
+            total_section_transition_count += int(observation_summary.get("section_transition_count", 0) or 0)
+            section_profile_summary = observation_summary.get("section_profile_summary") if isinstance(observation_summary.get("section_profile_summary"), dict) else {}
+            transition_profile_summary = observation_summary.get("transition_profile_summary") if isinstance(observation_summary.get("transition_profile_summary"), dict) else {}
+            total_section_energy_band_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (section_profile_summary.get("energy_band_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            total_section_duration_band_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (section_profile_summary.get("duration_band_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            total_section_position_band_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (section_profile_summary.get("position_band_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            total_transition_kind_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_profile_summary.get("transition_kind_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            decoded_audio = payload.get("decoded_audio") if isinstance(payload.get("decoded_audio"), dict) else {}
+            max_channel_count = max(max_channel_count, int(decoded_audio.get("channel_count", 0) or 0))
+            decode_backend = decoded_audio.get("decode_backend")
+            if isinstance(decode_backend, str) and decode_backend:
+                decode_backends.add(decode_backend)
+
+        results.append(payload)
+
+    payload = {
+        "audio_inputs_processed": len(input_audio_paths),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "analysis_profile": analysis_profile,
+        "analysis_dir": str(analysis_dir_path) if analysis_dir_path is not None else None,
+        "report_dir": str(report_dir_path) if report_dir_path is not None else None,
+        "analysis_format": analysis_format if analysis_dir_path is not None else None,
+        "report_format": report_format if report_dir_path is not None else None,
+        "attention_contract": {
+            "query_text": query_text,
+            "attention_targets": attention_targets or [],
+            "retain_targets": retain_targets or [],
+            "suppress_targets": suppress_targets or [],
+            "answer_expectations": answer_expectations or [],
+            "render_goal": render_goal,
+        },
+        "transformation_intent": {
+            "operations": transformation_operations or [],
+            "primary_output": primary_output,
+        },
+        "total_duration_seconds": total_duration_seconds,
+        "total_frame_count": total_frame_count,
+        "total_estimated_onset_count": total_estimated_onset_count,
+        "total_section_boundary_count": total_section_boundary_count,
+        "total_section_candidate_count": total_section_candidate_count,
+        "total_section_transition_count": total_section_transition_count,
+        "total_section_energy_band_counts": dict(sorted(total_section_energy_band_counts.items())),
+        "total_section_duration_band_counts": dict(sorted(total_section_duration_band_counts.items())),
+        "total_section_position_band_counts": dict(sorted(total_section_position_band_counts.items())),
+        "total_transition_kind_counts": dict(sorted(total_transition_kind_counts.items())),
+        "max_channel_count": max_channel_count,
+        "decode_backends": sorted(decode_backends),
+        "results": results,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        aggregate_format = _resolve_auxiliary_format(output_path, label="batch audio analysis output")
+        _write_auxiliary_document(output_path, payload, aggregate_format)
+        payload["report_output"] = str(output_path)
+        payload["aggregate_report_format"] = aggregate_format
+
+    return payload
+
+
+def batch_inspect_analysis_documents(
+    analysis_document_paths: list[str | Path],
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not analysis_document_paths:
+        raise ValueError("at least one analysis document path must be provided")
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_onset_map_count = 0
+    total_section_boundary_count = 0
+    total_section_candidate_count = 0
+    total_section_transition_count = 0
+    total_source_hypothesis_count = 0
+    total_recurring_transition_motif_count = 0
+    total_recurring_transition_motif_sequence_count = 0
+    total_recurring_transition_motif_chain_count = 0
+    total_recurring_transition_motif_phrase_count = 0
+    total_recurring_transition_motif_phrase_family_count = 0
+    total_recurring_transition_motif_phrase_archetype_count = 0
+    total_recurring_transition_motif_phrase_contour_count = 0
+    total_recurring_transition_motif_phrase_sweep_count = 0
+    total_recurring_transition_motif_phrase_gesture_count = 0
+    total_recurring_transition_motif_phrase_mobility_count = 0
+    total_source_hypothesis_linked_transition_motif_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_sequence_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_chain_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_family_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_archetype_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_contour_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_sweep_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_gesture_signature_count = 0
+    total_source_hypothesis_linked_transition_motif_phrase_mobility_signature_count = 0
+    total_component_group_count = 0
+    total_uncertainty_warning_count = 0
+    documents_with_attention_contract = 0
+    documents_with_transformation_intent = 0
+    documents_with_interpretation_layers = 0
+    total_interpretation_hypothesis_count = 0
+    highest_stable_transition_motif_abstraction_layer_counts: Counter[str] = Counter()
+    analysis_profile_counts: Counter[str] = Counter()
+    codec_counts: Counter[str] = Counter()
+    decode_backend_counts: Counter[str] = Counter()
+    observation_layer_name_counts: Counter[str] = Counter()
+    interpretation_layer_name_counts: Counter[str] = Counter()
+    dominant_section_energy_band_counts: Counter[str] = Counter()
+    dominant_transition_kind_counts: Counter[str] = Counter()
+    dominant_transition_motif_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_sequence_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_chain_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_family_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_archetype_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_contour_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_sweep_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_gesture_signature_counts: Counter[str] = Counter()
+    dominant_transition_motif_phrase_mobility_signature_counts: Counter[str] = Counter()
+    source_hypothesis_class_counts: Counter[str] = Counter()
+    source_hypothesis_role_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_sequence_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_chain_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_family_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_archetype_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_contour_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_sweep_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_gesture_signature_counts: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_mobility_signature_counts: Counter[str] = Counter()
+    attention_target_counts: Counter[str] = Counter()
+    retain_target_counts: Counter[str] = Counter()
+    suppress_target_counts: Counter[str] = Counter()
+    answer_expectation_counts: Counter[str] = Counter()
+    render_goal_counts: Counter[str] = Counter()
+    transformation_operation_counts: Counter[str] = Counter()
+    transformation_primary_output_counts: Counter[str] = Counter()
+    total_section_energy_band_counts: Counter[str] = Counter()
+    total_section_duration_band_counts: Counter[str] = Counter()
+    total_section_position_band_counts: Counter[str] = Counter()
+    total_transition_kind_counts: Counter[str] = Counter()
+    transition_motif_signature_counts: Counter[str] = Counter()
+    transition_motif_sequence_signature_counts: Counter[str] = Counter()
+    transition_motif_chain_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_family_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_archetype_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_contour_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_sweep_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_gesture_signature_counts: Counter[str] = Counter()
+    transition_motif_phrase_mobility_signature_counts: Counter[str] = Counter()
+
+    for analysis_document in analysis_document_paths:
+        document_path = Path(analysis_document)
+        try:
+            payload = inspect_analysis_document(document_path)
+        except ValueError as exc:
+            payload = {
+                "command": "arwif-inspect-analysis",
+                "analysis_document": str(document_path),
+                "is_valid": False,
+                "message": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            }
+            invalid_count += 1
+        else:
+            valid_count += 1
+            total_onset_map_count += int(payload.get("onset_map_count", 0) or 0)
+            total_section_boundary_count += int(payload.get("section_boundary_count", 0) or 0)
+            total_section_candidate_count += int(payload.get("section_candidate_count", 0) or 0)
+            total_section_transition_count += int(payload.get("section_transition_count", 0) or 0)
+            total_source_hypothesis_count += int(payload.get("source_hypothesis_count", 0) or 0)
+            transition_motif_summary = payload.get("transition_motif_summary") if isinstance(payload.get("transition_motif_summary"), dict) else {}
+            total_recurring_transition_motif_count += int(transition_motif_summary.get("recurring_motif_count", 0) or 0)
+            transition_motif_sequence_summary = (
+                payload.get("transition_motif_sequence_summary")
+                if isinstance(payload.get("transition_motif_sequence_summary"), dict)
+                else {}
+            )
+            transition_motif_chain_summary = (
+                payload.get("transition_motif_chain_summary")
+                if isinstance(payload.get("transition_motif_chain_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_summary = (
+                payload.get("transition_motif_phrase_summary")
+                if isinstance(payload.get("transition_motif_phrase_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_family_summary = (
+                payload.get("transition_motif_phrase_family_summary")
+                if isinstance(payload.get("transition_motif_phrase_family_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_archetype_summary = (
+                payload.get("transition_motif_phrase_archetype_summary")
+                if isinstance(payload.get("transition_motif_phrase_archetype_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_contour_summary = (
+                payload.get("transition_motif_phrase_contour_summary")
+                if isinstance(payload.get("transition_motif_phrase_contour_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_sweep_summary = (
+                payload.get("transition_motif_phrase_sweep_summary")
+                if isinstance(payload.get("transition_motif_phrase_sweep_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_gesture_summary = (
+                payload.get("transition_motif_phrase_gesture_summary")
+                if isinstance(payload.get("transition_motif_phrase_gesture_summary"), dict)
+                else {}
+            )
+            transition_motif_phrase_mobility_summary = (
+                payload.get("transition_motif_phrase_mobility_summary")
+                if isinstance(payload.get("transition_motif_phrase_mobility_summary"), dict)
+                else {}
+            )
+            total_recurring_transition_motif_sequence_count += int(
+                transition_motif_sequence_summary.get("recurring_sequence_count", 0) or 0
+            )
+            total_recurring_transition_motif_chain_count += int(
+                transition_motif_chain_summary.get("recurring_chain_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_count += int(
+                transition_motif_phrase_summary.get("recurring_phrase_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_family_count += int(
+                transition_motif_phrase_family_summary.get("recurring_family_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_archetype_count += int(
+                transition_motif_phrase_archetype_summary.get("recurring_archetype_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_contour_count += int(
+                transition_motif_phrase_contour_summary.get("recurring_contour_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_sweep_count += int(
+                transition_motif_phrase_sweep_summary.get("recurring_sweep_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_gesture_count += int(
+                transition_motif_phrase_gesture_summary.get("recurring_gesture_count", 0) or 0
+            )
+            total_recurring_transition_motif_phrase_mobility_count += int(
+                transition_motif_phrase_mobility_summary.get("recurring_mobility_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_sequence_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_sequence_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_chain_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_chain_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_family_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_family_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_archetype_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_archetype_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_contour_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_contour_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_sweep_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_sweep_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_gesture_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_gesture_signature_count", 0) or 0
+            )
+            total_source_hypothesis_linked_transition_motif_phrase_mobility_signature_count += int(
+                payload.get("source_hypothesis_linked_transition_motif_phrase_mobility_signature_count", 0) or 0
+            )
+            total_component_group_count += int(payload.get("component_group_count", 0) or 0)
+            total_uncertainty_warning_count += int(payload.get("uncertainty_warning_count", 0) or 0)
+            attention_contract = payload.get("attention_contract") if isinstance(payload.get("attention_contract"), dict) else {}
+            interpretation_layer_names = [
+                name for name in payload.get("interpretation_layer_names", []) if isinstance(name, str) and name
+            ]
+            transformation_intent = payload.get("transformation_intent") if isinstance(payload.get("transformation_intent"), dict) else {}
+            interpretation_hypothesis_count = int(payload.get("interpretation_hypothesis_count", 0) or 0)
+            if any(attention_contract.values()):
+                documents_with_attention_contract += 1
+            if interpretation_layer_names or interpretation_hypothesis_count > 0:
+                documents_with_interpretation_layers += 1
+            if transformation_intent:
+                documents_with_transformation_intent += 1
+            total_interpretation_hypothesis_count += interpretation_hypothesis_count
+            highest_stable_transition_motif_abstraction_layer = (
+                payload.get("highest_stable_transition_motif_abstraction_layer")
+                if isinstance(payload.get("highest_stable_transition_motif_abstraction_layer"), dict)
+                else {}
+            )
+            frontier_layer = highest_stable_transition_motif_abstraction_layer.get("layer")
+            if isinstance(frontier_layer, str) and frontier_layer:
+                highest_stable_transition_motif_abstraction_layer_counts.update([frontier_layer])
+            source_hypothesis_class_counts.update(
+                source_hypothesis_class
+                for source_hypothesis_class in payload.get("source_hypothesis_classes", [])
+                if isinstance(source_hypothesis_class, str) and source_hypothesis_class
+            )
+            source_hypothesis_role_counts.update(
+                source_hypothesis_role
+                for source_hypothesis_role in payload.get("source_hypothesis_roles", [])
+                if isinstance(source_hypothesis_role, str) and source_hypothesis_role
+            )
+            source_hypothesis_linked_transition_motif_signature_counts.update(
+                source_hypothesis_linked_transition_motif_signature
+                for source_hypothesis_linked_transition_motif_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_signature, str)
+                and source_hypothesis_linked_transition_motif_signature
+            )
+            source_hypothesis_linked_transition_motif_sequence_signature_counts.update(
+                source_hypothesis_linked_transition_motif_sequence_signature
+                for source_hypothesis_linked_transition_motif_sequence_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_sequence_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_sequence_signature, str)
+                and source_hypothesis_linked_transition_motif_sequence_signature
+            )
+            source_hypothesis_linked_transition_motif_chain_signature_counts.update(
+                source_hypothesis_linked_transition_motif_chain_signature
+                for source_hypothesis_linked_transition_motif_chain_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_chain_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_chain_signature, str)
+                and source_hypothesis_linked_transition_motif_chain_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_signature
+                for source_hypothesis_linked_transition_motif_phrase_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_family_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_family_signature
+                for source_hypothesis_linked_transition_motif_phrase_family_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_family_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_family_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_family_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_archetype_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_archetype_signature
+                for source_hypothesis_linked_transition_motif_phrase_archetype_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_archetype_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_archetype_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_archetype_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_contour_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_contour_signature
+                for source_hypothesis_linked_transition_motif_phrase_contour_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_contour_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_contour_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_contour_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_sweep_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_sweep_signature
+                for source_hypothesis_linked_transition_motif_phrase_sweep_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_sweep_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_sweep_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_sweep_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_gesture_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_gesture_signature
+                for source_hypothesis_linked_transition_motif_phrase_gesture_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_gesture_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_gesture_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_gesture_signature
+            )
+            source_hypothesis_linked_transition_motif_phrase_mobility_signature_counts.update(
+                source_hypothesis_linked_transition_motif_phrase_mobility_signature
+                for source_hypothesis_linked_transition_motif_phrase_mobility_signature in payload.get(
+                    "source_hypothesis_linked_transition_motif_phrase_mobility_signatures", []
+                )
+                if isinstance(source_hypothesis_linked_transition_motif_phrase_mobility_signature, str)
+                and source_hypothesis_linked_transition_motif_phrase_mobility_signature
+            )
+
+            analysis_profile = payload.get("analysis_profile")
+            if isinstance(analysis_profile, str) and analysis_profile:
+                analysis_profile_counts.update([analysis_profile])
+
+            observed_audio = payload.get("observed_audio") if isinstance(payload.get("observed_audio"), dict) else {}
+            codec = observed_audio.get("codec")
+            if isinstance(codec, str) and codec:
+                codec_counts.update([codec])
+
+            provenance_summary = payload.get("provenance_summary") if isinstance(payload.get("provenance_summary"), dict) else {}
+            decode_backend = provenance_summary.get("decode_backend")
+            if isinstance(decode_backend, str) and decode_backend:
+                decode_backend_counts.update([decode_backend])
+
+            observation_layer_name_counts.update(
+                name for name in payload.get("observation_layer_names", []) if isinstance(name, str) and name
+            )
+            interpretation_layer_name_counts.update(interpretation_layer_names)
+            attention_target_counts.update(
+                target
+                for target in attention_contract.get("attention_targets", [])
+                if isinstance(target, str) and target
+            )
+            retain_target_counts.update(
+                target
+                for target in attention_contract.get("retain_targets", [])
+                if isinstance(target, str) and target
+            )
+            suppress_target_counts.update(
+                target
+                for target in attention_contract.get("suppress_targets", [])
+                if isinstance(target, str) and target
+            )
+            answer_expectation_counts.update(
+                expectation
+                for expectation in attention_contract.get("answer_expectations", [])
+                if isinstance(expectation, str) and expectation
+            )
+            render_goal = attention_contract.get("render_goal")
+            if isinstance(render_goal, str) and render_goal:
+                render_goal_counts.update([render_goal])
+            transformation_operation_counts.update(
+                operation
+                for operation in transformation_intent.get("operations", [])
+                if isinstance(operation, str) and operation
+            )
+            primary_output = transformation_intent.get("primary_output")
+            if isinstance(primary_output, str) and primary_output:
+                transformation_primary_output_counts.update([primary_output])
+
+            section_profile_summary = payload.get("section_profile_summary") if isinstance(payload.get("section_profile_summary"), dict) else {}
+            dominant_energy_band = section_profile_summary.get("dominant_energy_band")
+            if isinstance(dominant_energy_band, str) and dominant_energy_band:
+                dominant_section_energy_band_counts.update([dominant_energy_band])
+            total_section_energy_band_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (section_profile_summary.get("energy_band_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            total_section_duration_band_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (section_profile_summary.get("duration_band_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            total_section_position_band_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (section_profile_summary.get("position_band_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+
+            transition_profile_summary = payload.get("transition_profile_summary") if isinstance(payload.get("transition_profile_summary"), dict) else {}
+            dominant_transition_kind = transition_profile_summary.get("dominant_transition_kind")
+            if isinstance(dominant_transition_kind, str) and dominant_transition_kind:
+                dominant_transition_kind_counts.update([dominant_transition_kind])
+            total_transition_kind_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_profile_summary.get("transition_kind_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_signature = transition_motif_summary.get("dominant_motif_signature")
+            if isinstance(dominant_transition_motif_signature, str) and dominant_transition_motif_signature:
+                dominant_transition_motif_signature_counts.update([dominant_transition_motif_signature])
+            transition_motif_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_summary.get("motif_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_sequence_signature = transition_motif_sequence_summary.get(
+                "dominant_sequence_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_sequence_signature, str)
+                and dominant_transition_motif_sequence_signature
+            ):
+                dominant_transition_motif_sequence_signature_counts.update(
+                    [dominant_transition_motif_sequence_signature]
+                )
+            transition_motif_sequence_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_sequence_summary.get("sequence_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_chain_signature = transition_motif_chain_summary.get(
+                "dominant_chain_signature"
+            )
+            if isinstance(dominant_transition_motif_chain_signature, str) and dominant_transition_motif_chain_signature:
+                dominant_transition_motif_chain_signature_counts.update([dominant_transition_motif_chain_signature])
+            transition_motif_chain_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_chain_summary.get("chain_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_phrase_signature = transition_motif_phrase_summary.get(
+                "dominant_phrase_signature"
+            )
+            if isinstance(dominant_transition_motif_phrase_signature, str) and dominant_transition_motif_phrase_signature:
+                dominant_transition_motif_phrase_signature_counts.update([dominant_transition_motif_phrase_signature])
+            transition_motif_phrase_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_summary.get("phrase_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_phrase_family_signature = transition_motif_phrase_family_summary.get(
+                "dominant_family_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_phrase_family_signature, str)
+                and dominant_transition_motif_phrase_family_signature
+            ):
+                dominant_transition_motif_phrase_family_signature_counts.update(
+                    [dominant_transition_motif_phrase_family_signature]
+                )
+            transition_motif_phrase_family_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_family_summary.get("family_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_phrase_archetype_signature = transition_motif_phrase_archetype_summary.get(
+                "dominant_archetype_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_phrase_archetype_signature, str)
+                and dominant_transition_motif_phrase_archetype_signature
+            ):
+                dominant_transition_motif_phrase_archetype_signature_counts.update(
+                    [dominant_transition_motif_phrase_archetype_signature]
+                )
+            transition_motif_phrase_archetype_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_archetype_summary.get("archetype_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_phrase_contour_signature = transition_motif_phrase_contour_summary.get(
+                "dominant_contour_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_phrase_contour_signature, str)
+                and dominant_transition_motif_phrase_contour_signature
+            ):
+                dominant_transition_motif_phrase_contour_signature_counts.update(
+                    [dominant_transition_motif_phrase_contour_signature]
+                )
+            transition_motif_phrase_contour_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_contour_summary.get("contour_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            dominant_transition_motif_phrase_sweep_signature = transition_motif_phrase_sweep_summary.get(
+                "dominant_sweep_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_phrase_sweep_signature, str)
+                and dominant_transition_motif_phrase_sweep_signature
+            ):
+                dominant_transition_motif_phrase_sweep_signature_counts.update(
+                    [dominant_transition_motif_phrase_sweep_signature]
+                )
+            dominant_transition_motif_phrase_gesture_signature = transition_motif_phrase_gesture_summary.get(
+                "dominant_gesture_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_phrase_gesture_signature, str)
+                and dominant_transition_motif_phrase_gesture_signature
+            ):
+                dominant_transition_motif_phrase_gesture_signature_counts.update(
+                    [dominant_transition_motif_phrase_gesture_signature]
+                )
+            dominant_transition_motif_phrase_mobility_signature = transition_motif_phrase_mobility_summary.get(
+                "dominant_mobility_signature"
+            )
+            if (
+                isinstance(dominant_transition_motif_phrase_mobility_signature, str)
+                and dominant_transition_motif_phrase_mobility_signature
+            ):
+                dominant_transition_motif_phrase_mobility_signature_counts.update(
+                    [dominant_transition_motif_phrase_mobility_signature]
+                )
+            transition_motif_phrase_sweep_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_sweep_summary.get("sweep_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            transition_motif_phrase_gesture_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_gesture_summary.get("gesture_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+            transition_motif_phrase_mobility_signature_counts.update(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (transition_motif_phrase_mobility_summary.get("mobility_signature_counts") or {}).items()
+                    if isinstance(key, str)
+                }
+            )
+
+        results.append(payload)
+
+    payload = {
+        "analysis_documents_processed": len(analysis_document_paths),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "analysis_profile_counts": dict(sorted(analysis_profile_counts.items())),
+        "codec_counts": dict(sorted(codec_counts.items())),
+        "decode_backend_counts": dict(sorted(decode_backend_counts.items())),
+        "observation_layer_name_counts": dict(sorted(observation_layer_name_counts.items())),
+        "documents_with_attention_contract": documents_with_attention_contract,
+        "documents_with_interpretation_layers": documents_with_interpretation_layers,
+        "documents_with_transformation_intent": documents_with_transformation_intent,
+        "total_interpretation_hypothesis_count": total_interpretation_hypothesis_count,
+        "interpretation_layer_name_counts": dict(sorted(interpretation_layer_name_counts.items())),
+        "attention_target_counts": dict(sorted(attention_target_counts.items())),
+        "retain_target_counts": dict(sorted(retain_target_counts.items())),
+        "suppress_target_counts": dict(sorted(suppress_target_counts.items())),
+        "answer_expectation_counts": dict(sorted(answer_expectation_counts.items())),
+        "render_goal_counts": dict(sorted(render_goal_counts.items())),
+        "transformation_operation_counts": dict(sorted(transformation_operation_counts.items())),
+        "transformation_primary_output_counts": dict(sorted(transformation_primary_output_counts.items())),
+        "total_onset_map_count": total_onset_map_count,
+        "total_section_boundary_count": total_section_boundary_count,
+        "total_section_candidate_count": total_section_candidate_count,
+        "total_section_transition_count": total_section_transition_count,
+        "total_source_hypothesis_count": total_source_hypothesis_count,
+        "total_recurring_transition_motif_count": total_recurring_transition_motif_count,
+        "total_recurring_transition_motif_sequence_count": total_recurring_transition_motif_sequence_count,
+        "total_recurring_transition_motif_chain_count": total_recurring_transition_motif_chain_count,
+        "total_recurring_transition_motif_phrase_count": total_recurring_transition_motif_phrase_count,
+        "total_recurring_transition_motif_phrase_family_count": total_recurring_transition_motif_phrase_family_count,
+        "total_recurring_transition_motif_phrase_archetype_count": total_recurring_transition_motif_phrase_archetype_count,
+        "total_recurring_transition_motif_phrase_contour_count": total_recurring_transition_motif_phrase_contour_count,
+        "total_recurring_transition_motif_phrase_sweep_count": total_recurring_transition_motif_phrase_sweep_count,
+        "total_recurring_transition_motif_phrase_gesture_count": total_recurring_transition_motif_phrase_gesture_count,
+        "total_recurring_transition_motif_phrase_mobility_count": total_recurring_transition_motif_phrase_mobility_count,
+        "transition_motif_phrase_abstraction_totals": {
+            "recurring_counts": {
+                "phrase": total_recurring_transition_motif_phrase_count,
+                "family": total_recurring_transition_motif_phrase_family_count,
+                "archetype": total_recurring_transition_motif_phrase_archetype_count,
+                "contour": total_recurring_transition_motif_phrase_contour_count,
+                "sweep": total_recurring_transition_motif_phrase_sweep_count,
+                "gesture": total_recurring_transition_motif_phrase_gesture_count,
+                "mobility": total_recurring_transition_motif_phrase_mobility_count,
+            },
+            "occurrence_counts": {
+                "phrase": sum(transition_motif_phrase_signature_counts.values()),
+                "family": sum(transition_motif_phrase_family_signature_counts.values()),
+                "archetype": sum(transition_motif_phrase_archetype_signature_counts.values()),
+                "contour": sum(transition_motif_phrase_contour_signature_counts.values()),
+                "sweep": sum(transition_motif_phrase_sweep_signature_counts.values()),
+                "gesture": sum(transition_motif_phrase_gesture_signature_counts.values()),
+                "mobility": sum(transition_motif_phrase_mobility_signature_counts.values()),
+            },
+        },
+        "highest_stable_transition_motif_abstraction_layer_counts": dict(
+            sorted(highest_stable_transition_motif_abstraction_layer_counts.items())
+        ),
+        "total_source_hypothesis_linked_transition_motif_signature_count": total_source_hypothesis_linked_transition_motif_signature_count,
+        "total_source_hypothesis_linked_transition_motif_sequence_signature_count": total_source_hypothesis_linked_transition_motif_sequence_signature_count,
+        "total_source_hypothesis_linked_transition_motif_chain_signature_count": total_source_hypothesis_linked_transition_motif_chain_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_signature_count": total_source_hypothesis_linked_transition_motif_phrase_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_family_signature_count": total_source_hypothesis_linked_transition_motif_phrase_family_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_archetype_signature_count": total_source_hypothesis_linked_transition_motif_phrase_archetype_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_contour_signature_count": total_source_hypothesis_linked_transition_motif_phrase_contour_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_sweep_signature_count": total_source_hypothesis_linked_transition_motif_phrase_sweep_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_gesture_signature_count": total_source_hypothesis_linked_transition_motif_phrase_gesture_signature_count,
+        "total_source_hypothesis_linked_transition_motif_phrase_mobility_signature_count": total_source_hypothesis_linked_transition_motif_phrase_mobility_signature_count,
+        "source_hypothesis_class_counts": dict(sorted(source_hypothesis_class_counts.items())),
+        "source_hypothesis_role_counts": dict(sorted(source_hypothesis_role_counts.items())),
+        "source_hypothesis_linked_transition_motif_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_sequence_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_sequence_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_chain_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_chain_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_family_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_family_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_archetype_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_archetype_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_contour_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_contour_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_sweep_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_sweep_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_gesture_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_gesture_signature_counts.items())
+        ),
+        "source_hypothesis_linked_transition_motif_phrase_mobility_signature_counts": dict(
+            sorted(source_hypothesis_linked_transition_motif_phrase_mobility_signature_counts.items())
+        ),
+        "total_component_group_count": total_component_group_count,
+        "total_uncertainty_warning_count": total_uncertainty_warning_count,
+        "dominant_section_energy_band_counts": dict(sorted(dominant_section_energy_band_counts.items())),
+        "dominant_transition_kind_counts": dict(sorted(dominant_transition_kind_counts.items())),
+        "dominant_transition_motif_signature_counts": dict(sorted(dominant_transition_motif_signature_counts.items())),
+        "dominant_transition_motif_sequence_signature_counts": dict(
+            sorted(dominant_transition_motif_sequence_signature_counts.items())
+        ),
+        "dominant_transition_motif_chain_signature_counts": dict(
+            sorted(dominant_transition_motif_chain_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_family_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_family_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_archetype_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_archetype_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_contour_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_contour_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_sweep_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_sweep_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_gesture_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_gesture_signature_counts.items())
+        ),
+        "dominant_transition_motif_phrase_mobility_signature_counts": dict(
+            sorted(dominant_transition_motif_phrase_mobility_signature_counts.items())
+        ),
+        "total_section_energy_band_counts": dict(sorted(total_section_energy_band_counts.items())),
+        "total_section_duration_band_counts": dict(sorted(total_section_duration_band_counts.items())),
+        "total_section_position_band_counts": dict(sorted(total_section_position_band_counts.items())),
+        "total_transition_kind_counts": dict(sorted(total_transition_kind_counts.items())),
+        "transition_motif_signature_counts": dict(sorted(transition_motif_signature_counts.items())),
+        "transition_motif_sequence_signature_counts": dict(sorted(transition_motif_sequence_signature_counts.items())),
+        "transition_motif_chain_signature_counts": dict(sorted(transition_motif_chain_signature_counts.items())),
+        "transition_motif_phrase_signature_counts": dict(sorted(transition_motif_phrase_signature_counts.items())),
+        "transition_motif_phrase_family_signature_counts": dict(
+            sorted(transition_motif_phrase_family_signature_counts.items())
+        ),
+        "transition_motif_phrase_archetype_signature_counts": dict(
+            sorted(transition_motif_phrase_archetype_signature_counts.items())
+        ),
+        "transition_motif_phrase_contour_signature_counts": dict(
+            sorted(transition_motif_phrase_contour_signature_counts.items())
+        ),
+        "transition_motif_phrase_sweep_signature_counts": dict(
+            sorted(transition_motif_phrase_sweep_signature_counts.items())
+        ),
+        "transition_motif_phrase_gesture_signature_counts": dict(
+            sorted(transition_motif_phrase_gesture_signature_counts.items())
+        ),
+        "transition_motif_phrase_mobility_signature_counts": dict(
+            sorted(transition_motif_phrase_mobility_signature_counts.items())
+        ),
+        "results": results,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch analysis inspection output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def batch_validate_analysis_documents(
+    analysis_document_paths: list[str | Path],
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not analysis_document_paths:
+        raise ValueError("at least one analysis document path must be provided")
+
+    results: list[dict[str, Any]] = []
+    valid_count = 0
+    invalid_count = 0
+    total_observation_layer_count = 0
+    total_source_hypothesis_count = 0
+    total_component_layer_count = 0
+    total_reconstructable_output_count = 0
+    total_uncertainty_warning_count = 0
+    documents_with_attention_contract = 0
+    documents_with_interpretation_layers = 0
+    documents_with_transformation_intent = 0
+    analysis_profile_counts: Counter[str] = Counter()
+
+    for analysis_document in analysis_document_paths:
+        report = validate_analysis_document(Path(analysis_document))
+        payload = report.to_payload()
+        if report.is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+        stats = report.stats
+        analysis_profile = stats.get("analysis_profile")
+        if isinstance(analysis_profile, str) and analysis_profile:
+            analysis_profile_counts.update([analysis_profile])
+        total_observation_layer_count += int(stats.get("observation_layer_count", 0) or 0)
+        total_source_hypothesis_count += int(stats.get("source_hypothesis_count", 0) or 0)
+        total_component_layer_count += int(stats.get("component_layer_count", 0) or 0)
+        total_reconstructable_output_count += int(stats.get("reconstructable_output_count", 0) or 0)
+        total_uncertainty_warning_count += int(stats.get("uncertainty_warning_count", 0) or 0)
+        documents_with_attention_contract += int(bool(stats.get("has_attention_contract", False)))
+        documents_with_interpretation_layers += int(bool(stats.get("has_interpretation_layers", False)))
+        documents_with_transformation_intent += int(bool(stats.get("has_transformation_intent", False)))
+        results.append(payload)
+
+    payload = {
+        "analysis_documents_processed": len(analysis_document_paths),
+        "valid_count": valid_count,
+        "invalid_count": invalid_count,
+        "is_valid": invalid_count == 0,
+        "analysis_profile_counts": dict(sorted(analysis_profile_counts.items())),
+        "total_observation_layer_count": total_observation_layer_count,
+        "total_source_hypothesis_count": total_source_hypothesis_count,
+        "total_component_layer_count": total_component_layer_count,
+        "total_reconstructable_output_count": total_reconstructable_output_count,
+        "total_uncertainty_warning_count": total_uncertainty_warning_count,
+        "documents_with_attention_contract": documents_with_attention_contract,
+        "documents_with_interpretation_layers": documents_with_interpretation_layers,
+        "documents_with_transformation_intent": documents_with_transformation_intent,
+        "results": results,
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch analysis validation output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def batch_diff_analysis_documents(
+    left_documents: list[str | Path],
+    right_documents: list[str | Path],
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    if not left_documents or not right_documents:
+        raise ValueError("at least one left and one right analysis document must be provided")
+    if len(left_documents) != len(right_documents):
+        raise ValueError("left and right analysis document collections must have the same length")
+
+    results: list[dict[str, Any]] = []
+    changed_pairs = 0
+    unchanged_pairs = 0
+    invalid_pairs = 0
+
+    metadata_counter: Counter[str] = Counter()
+    observed_audio_counter: Counter[str] = Counter()
+    analysis_window_counter: Counter[str] = Counter()
+    attention_contract_counter: Counter[str] = Counter()
+    transformation_intent_counter: Counter[str] = Counter()
+    basic_observation_counter: Counter[str] = Counter()
+    observation_layers_added_counter: Counter[str] = Counter()
+    observation_layers_removed_counter: Counter[str] = Counter()
+    interpretation_layers_added_counter: Counter[str] = Counter()
+    interpretation_layers_removed_counter: Counter[str] = Counter()
+    source_hypothesis_classes_added_counter: Counter[str] = Counter()
+    source_hypothesis_classes_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_sequence_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_sequence_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_chain_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_chain_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_family_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_counter: Counter[str] = Counter()
+    source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_sequence_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_sequence_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_chain_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_chain_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_family_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_family_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_archetype_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_archetype_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_contour_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_contour_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_sweep_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_sweep_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_gesture_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_gesture_signatures_removed_counter: Counter[str] = Counter()
+    transition_motif_phrase_mobility_signatures_added_counter: Counter[str] = Counter()
+    transition_motif_phrase_mobility_signatures_removed_counter: Counter[str] = Counter()
+    metadata_pair_indexes: dict[str, list[int]] = {}
+    observed_audio_pair_indexes: dict[str, list[int]] = {}
+    analysis_window_pair_indexes: dict[str, list[int]] = {}
+    attention_contract_pair_indexes: dict[str, list[int]] = {}
+    transformation_intent_pair_indexes: dict[str, list[int]] = {}
+    basic_observation_pair_indexes: dict[str, list[int]] = {}
+    observation_layers_added_pair_indexes: dict[str, list[int]] = {}
+    observation_layers_removed_pair_indexes: dict[str, list[int]] = {}
+    interpretation_layers_added_pair_indexes: dict[str, list[int]] = {}
+    interpretation_layers_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_classes_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_classes_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_sequence_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_sequence_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_chain_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_chain_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_family_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_sequence_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_sequence_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_chain_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_chain_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_family_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_family_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_archetype_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_archetype_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_contour_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_contour_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_sweep_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_sweep_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_gesture_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_gesture_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_mobility_signatures_added_pair_indexes: dict[str, list[int]] = {}
+    transition_motif_phrase_mobility_signatures_removed_pair_indexes: dict[str, list[int]] = {}
+
+    source_hypothesis_count_delta_pairs = 0
+    total_source_hypothesis_count_delta = 0
+    interpretation_hypothesis_count_delta_pairs = 0
+    total_interpretation_hypothesis_count_delta = 0
+    recurring_transition_motif_count_delta_pairs = 0
+    total_recurring_transition_motif_count_delta = 0
+    recurring_transition_motif_sequence_count_delta_pairs = 0
+    total_recurring_transition_motif_sequence_count_delta = 0
+    recurring_transition_motif_chain_count_delta_pairs = 0
+    total_recurring_transition_motif_chain_count_delta = 0
+    recurring_transition_motif_phrase_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_count_delta = 0
+    recurring_transition_motif_phrase_family_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_family_count_delta = 0
+    recurring_transition_motif_phrase_archetype_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_archetype_count_delta = 0
+    recurring_transition_motif_phrase_contour_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_contour_count_delta = 0
+    recurring_transition_motif_phrase_sweep_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_sweep_count_delta = 0
+    recurring_transition_motif_phrase_gesture_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_gesture_count_delta = 0
+    recurring_transition_motif_phrase_mobility_count_delta_pairs = 0
+    total_recurring_transition_motif_phrase_mobility_count_delta = 0
+    component_group_count_delta_pairs = 0
+    total_component_group_count_delta = 0
+    onset_map_count_delta_pairs = 0
+    total_onset_map_count_delta = 0
+    section_boundary_count_delta_pairs = 0
+    total_section_boundary_count_delta = 0
+    section_candidate_count_delta_pairs = 0
+    total_section_candidate_count_delta = 0
+    section_transition_count_delta_pairs = 0
+    total_section_transition_count_delta = 0
+    uncertainty_warning_count_delta_pairs = 0
+    total_uncertainty_warning_count_delta = 0
+    highest_stable_transition_motif_abstraction_layer_change_pairs = 0
+    highest_stable_transition_motif_abstraction_layer_rise_pairs = 0
+    highest_stable_transition_motif_abstraction_layer_fall_pairs = 0
+    total_highest_stable_transition_motif_abstraction_layer_step_delta = 0
+    highest_stable_transition_motif_abstraction_layer_recurring_count_delta_pairs = 0
+    total_highest_stable_transition_motif_abstraction_layer_recurring_count_delta = 0
+    highest_stable_transition_motif_abstraction_layer_occurrence_count_delta_pairs = 0
+    total_highest_stable_transition_motif_abstraction_layer_occurrence_count_delta = 0
+    first_scene_hypothesis_change_pairs = 0
+    first_communicative_hypothesis_change_pairs = 0
+    transformation_intent_change_pairs = 0
+
+    for pair_index, (left_document, right_document) in enumerate(zip(left_documents, right_documents, strict=True)):
+        left_path = Path(left_document)
+        right_path = Path(right_document)
+        try:
+            payload = diff_analysis_documents(left_path, right_path)
+        except ValueError as exc:
+            payload = {
+                "command": "arwif-diff-analysis",
+                "left": str(left_path),
+                "right": str(right_path),
+                "left_valid": False,
+                "right_valid": False,
+                "pair_changed": False,
+                "is_valid": False,
+                "message": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            }
+            invalid_pairs += 1
+            unchanged_pairs += 1
+            payload["pair_index"] = pair_index
+            results.append(payload)
+            continue
+
+        payload["pair_index"] = pair_index
+        pair_changed = bool(payload.get("pair_changed", False))
+        if pair_changed:
+            changed_pairs += 1
+        else:
+            unchanged_pairs += 1
+
+        if not payload.get("left_valid", False) or not payload.get("right_valid", False):
+            invalid_pairs += 1
+
+        for field in _mapping_keys(payload.get("metadata_changes")):
+            metadata_counter[field] += 1
+            metadata_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _mapping_keys(payload.get("observed_audio_changes")):
+            observed_audio_counter[field] += 1
+            observed_audio_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _mapping_keys(payload.get("analysis_window_changes")):
+            analysis_window_counter[field] += 1
+            analysis_window_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _mapping_keys(payload.get("attention_contract_changes")):
+            attention_contract_counter[field] += 1
+            attention_contract_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _mapping_keys(payload.get("transformation_intent_changes")):
+            transformation_intent_counter[field] += 1
+            transformation_intent_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _flatten_change_field_paths(payload.get("basic_observation_changes"), prefix=""):
+            basic_observation_counter[field] += 1
+            basic_observation_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("observation_layer_changes")).get("added")):
+            observation_layers_added_counter[field] += 1
+            observation_layers_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("observation_layer_changes")).get("removed")):
+            observation_layers_removed_counter[field] += 1
+            observation_layers_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("interpretation_layer_changes")).get("added")):
+            interpretation_layers_added_counter[field] += 1
+            interpretation_layers_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("interpretation_layer_changes")).get("removed")):
+            interpretation_layers_removed_counter[field] += 1
+            interpretation_layers_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("source_hypothesis_class_changes")).get("added")):
+            source_hypothesis_classes_added_counter[field] += 1
+            source_hypothesis_classes_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("source_hypothesis_class_changes")).get("removed")):
+            source_hypothesis_classes_removed_counter[field] += 1
+            source_hypothesis_classes_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_sequence_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_sequence_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_sequence_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_sequence_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_sequence_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_sequence_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_chain_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_chain_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_chain_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_chain_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_chain_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_chain_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_family_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_family_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_family_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_family_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_archetype_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_archetype_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_contour_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_contour_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_sweep_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_sweep_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_gesture_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_gesture_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_mobility_signature_changes")).get("added")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(
+            _mapping_optional(payload.get("source_hypothesis_linked_transition_motif_phrase_mobility_signature_changes")).get("removed")
+        ):
+            source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_counter[field] += 1
+            source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_signature_changes")).get("added")):
+            transition_motif_signatures_added_counter[field] += 1
+            transition_motif_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_signature_changes")).get("removed")):
+            transition_motif_signatures_removed_counter[field] += 1
+            transition_motif_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_sequence_signature_changes")).get("added")):
+            transition_motif_sequence_signatures_added_counter[field] += 1
+            transition_motif_sequence_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_sequence_signature_changes")).get("removed")):
+            transition_motif_sequence_signatures_removed_counter[field] += 1
+            transition_motif_sequence_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_chain_signature_changes")).get("added")):
+            transition_motif_chain_signatures_added_counter[field] += 1
+            transition_motif_chain_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_chain_signature_changes")).get("removed")):
+            transition_motif_chain_signatures_removed_counter[field] += 1
+            transition_motif_chain_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_signature_changes")).get("added")):
+            transition_motif_phrase_signatures_added_counter[field] += 1
+            transition_motif_phrase_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_signature_changes")).get("removed")):
+            transition_motif_phrase_signatures_removed_counter[field] += 1
+            transition_motif_phrase_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_family_signature_changes")).get("added")):
+            transition_motif_phrase_family_signatures_added_counter[field] += 1
+            transition_motif_phrase_family_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_family_signature_changes")).get("removed")):
+            transition_motif_phrase_family_signatures_removed_counter[field] += 1
+            transition_motif_phrase_family_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_archetype_signature_changes")).get("added")):
+            transition_motif_phrase_archetype_signatures_added_counter[field] += 1
+            transition_motif_phrase_archetype_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_archetype_signature_changes")).get("removed")):
+            transition_motif_phrase_archetype_signatures_removed_counter[field] += 1
+            transition_motif_phrase_archetype_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_contour_signature_changes")).get("added")):
+            transition_motif_phrase_contour_signatures_added_counter[field] += 1
+            transition_motif_phrase_contour_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_contour_signature_changes")).get("removed")):
+            transition_motif_phrase_contour_signatures_removed_counter[field] += 1
+            transition_motif_phrase_contour_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_sweep_signature_changes")).get("added")):
+            transition_motif_phrase_sweep_signatures_added_counter[field] += 1
+            transition_motif_phrase_sweep_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_sweep_signature_changes")).get("removed")):
+            transition_motif_phrase_sweep_signatures_removed_counter[field] += 1
+            transition_motif_phrase_sweep_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_gesture_signature_changes")).get("added")):
+            transition_motif_phrase_gesture_signatures_added_counter[field] += 1
+            transition_motif_phrase_gesture_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_gesture_signature_changes")).get("removed")):
+            transition_motif_phrase_gesture_signatures_removed_counter[field] += 1
+            transition_motif_phrase_gesture_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_mobility_signature_changes")).get("added")):
+            transition_motif_phrase_mobility_signatures_added_counter[field] += 1
+            transition_motif_phrase_mobility_signatures_added_pair_indexes.setdefault(field, []).append(pair_index)
+        for field in _string_list(_mapping_optional(payload.get("transition_motif_phrase_mobility_signature_changes")).get("removed")):
+            transition_motif_phrase_mobility_signatures_removed_counter[field] += 1
+            transition_motif_phrase_mobility_signatures_removed_pair_indexes.setdefault(field, []).append(pair_index)
+
+        source_hypothesis_count_delta = int(payload.get("source_hypothesis_count_delta", 0) or 0)
+        total_source_hypothesis_count_delta += source_hypothesis_count_delta
+        if source_hypothesis_count_delta != 0:
+            source_hypothesis_count_delta_pairs += 1
+
+        interpretation_hypothesis_count_delta = int(payload.get("interpretation_hypothesis_count_delta", 0) or 0)
+        total_interpretation_hypothesis_count_delta += interpretation_hypothesis_count_delta
+        if interpretation_hypothesis_count_delta != 0:
+            interpretation_hypothesis_count_delta_pairs += 1
+
+        recurring_transition_motif_count_delta = int(payload.get("recurring_transition_motif_count_delta", 0) or 0)
+        total_recurring_transition_motif_count_delta += recurring_transition_motif_count_delta
+        if recurring_transition_motif_count_delta != 0:
+            recurring_transition_motif_count_delta_pairs += 1
+
+        recurring_transition_motif_sequence_count_delta = int(
+            payload.get("recurring_transition_motif_sequence_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_sequence_count_delta += recurring_transition_motif_sequence_count_delta
+        if recurring_transition_motif_sequence_count_delta != 0:
+            recurring_transition_motif_sequence_count_delta_pairs += 1
+
+        recurring_transition_motif_chain_count_delta = int(
+            payload.get("recurring_transition_motif_chain_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_chain_count_delta += recurring_transition_motif_chain_count_delta
+        if recurring_transition_motif_chain_count_delta != 0:
+            recurring_transition_motif_chain_count_delta_pairs += 1
+
+        recurring_transition_motif_phrase_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_count_delta += recurring_transition_motif_phrase_count_delta
+        if recurring_transition_motif_phrase_count_delta != 0:
+            recurring_transition_motif_phrase_count_delta_pairs += 1
+
+        recurring_transition_motif_phrase_family_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_family_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_family_count_delta += recurring_transition_motif_phrase_family_count_delta
+        if recurring_transition_motif_phrase_family_count_delta != 0:
+            recurring_transition_motif_phrase_family_count_delta_pairs += 1
+        recurring_transition_motif_phrase_archetype_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_archetype_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_archetype_count_delta += recurring_transition_motif_phrase_archetype_count_delta
+        if recurring_transition_motif_phrase_archetype_count_delta != 0:
+            recurring_transition_motif_phrase_archetype_count_delta_pairs += 1
+        recurring_transition_motif_phrase_contour_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_contour_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_contour_count_delta += recurring_transition_motif_phrase_contour_count_delta
+        if recurring_transition_motif_phrase_contour_count_delta != 0:
+            recurring_transition_motif_phrase_contour_count_delta_pairs += 1
+        recurring_transition_motif_phrase_sweep_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_sweep_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_sweep_count_delta += recurring_transition_motif_phrase_sweep_count_delta
+        if recurring_transition_motif_phrase_sweep_count_delta != 0:
+            recurring_transition_motif_phrase_sweep_count_delta_pairs += 1
+        recurring_transition_motif_phrase_gesture_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_gesture_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_gesture_count_delta += recurring_transition_motif_phrase_gesture_count_delta
+        if recurring_transition_motif_phrase_gesture_count_delta != 0:
+            recurring_transition_motif_phrase_gesture_count_delta_pairs += 1
+        recurring_transition_motif_phrase_mobility_count_delta = int(
+            payload.get("recurring_transition_motif_phrase_mobility_count_delta", 0) or 0
+        )
+        total_recurring_transition_motif_phrase_mobility_count_delta += recurring_transition_motif_phrase_mobility_count_delta
+        if recurring_transition_motif_phrase_mobility_count_delta != 0:
+            recurring_transition_motif_phrase_mobility_count_delta_pairs += 1
+
+        component_group_count_delta = int(payload.get("component_group_count_delta", 0) or 0)
+        total_component_group_count_delta += component_group_count_delta
+        if component_group_count_delta != 0:
+            component_group_count_delta_pairs += 1
+
+        onset_map_count_delta = int(payload.get("onset_map_count_delta", 0) or 0)
+        total_onset_map_count_delta += onset_map_count_delta
+        if onset_map_count_delta != 0:
+            onset_map_count_delta_pairs += 1
+
+        section_boundary_count_delta = int(payload.get("section_boundary_count_delta", 0) or 0)
+        total_section_boundary_count_delta += section_boundary_count_delta
+        if section_boundary_count_delta != 0:
+            section_boundary_count_delta_pairs += 1
+
+        section_candidate_count_delta = int(payload.get("section_candidate_count_delta", 0) or 0)
+        total_section_candidate_count_delta += section_candidate_count_delta
+        if section_candidate_count_delta != 0:
+            section_candidate_count_delta_pairs += 1
+
+        section_transition_count_delta = int(payload.get("section_transition_count_delta", 0) or 0)
+        total_section_transition_count_delta += section_transition_count_delta
+        if section_transition_count_delta != 0:
+            section_transition_count_delta_pairs += 1
+
+        uncertainty_warning_count_delta = int(payload.get("uncertainty_warning_count_delta", 0) or 0)
+        total_uncertainty_warning_count_delta += uncertainty_warning_count_delta
+        if uncertainty_warning_count_delta != 0:
+            uncertainty_warning_count_delta_pairs += 1
+
+        highest_stable_layer_change = _mapping_optional(
+            payload.get("highest_stable_transition_motif_abstraction_layer_change")
+        )
+        highest_stable_layer_step_delta = int(highest_stable_layer_change.get("layer_step_delta", 0) or 0)
+        total_highest_stable_transition_motif_abstraction_layer_step_delta += highest_stable_layer_step_delta
+        if bool(highest_stable_layer_change.get("layer_changed", False)):
+            highest_stable_transition_motif_abstraction_layer_change_pairs += 1
+
+        highest_stable_layer_direction = str(highest_stable_layer_change.get("direction", "unchanged") or "unchanged")
+        if highest_stable_layer_direction == "rose":
+            highest_stable_transition_motif_abstraction_layer_rise_pairs += 1
+        elif highest_stable_layer_direction == "fell":
+            highest_stable_transition_motif_abstraction_layer_fall_pairs += 1
+
+        highest_stable_layer_recurring_count_delta = int(highest_stable_layer_change.get("recurring_count_delta", 0) or 0)
+        total_highest_stable_transition_motif_abstraction_layer_recurring_count_delta += (
+            highest_stable_layer_recurring_count_delta
+        )
+        if highest_stable_layer_recurring_count_delta != 0:
+            highest_stable_transition_motif_abstraction_layer_recurring_count_delta_pairs += 1
+
+        highest_stable_layer_occurrence_count_delta = int(highest_stable_layer_change.get("occurrence_count_delta", 0) or 0)
+        total_highest_stable_transition_motif_abstraction_layer_occurrence_count_delta += (
+            highest_stable_layer_occurrence_count_delta
+        )
+        if highest_stable_layer_occurrence_count_delta != 0:
+            highest_stable_transition_motif_abstraction_layer_occurrence_count_delta_pairs += 1
+
+        if _mapping_optional(payload.get("first_scene_hypothesis_changes")):
+            first_scene_hypothesis_change_pairs += 1
+        if _mapping_optional(payload.get("first_communicative_hypothesis_changes")):
+            first_communicative_hypothesis_change_pairs += 1
+        if _mapping_optional(payload.get("transformation_intent_changes")):
+            transformation_intent_change_pairs += 1
+
+        results.append(payload)
+
+    payload = {
+        "pairs_compared": len(left_documents),
+        "changed_pairs": changed_pairs,
+        "unchanged_pairs": unchanged_pairs,
+        "invalid_pairs": invalid_pairs,
+        "is_valid": invalid_pairs == 0,
+        "results": results,
+        "metadata_field_frequencies": _rank_frequency_items(metadata_counter, metadata_pair_indexes, "field", changed_pairs),
+        "observed_audio_field_frequencies": _rank_frequency_items(observed_audio_counter, observed_audio_pair_indexes, "field", changed_pairs),
+        "analysis_window_field_frequencies": _rank_frequency_items(analysis_window_counter, analysis_window_pair_indexes, "field", changed_pairs),
+        "attention_contract_field_frequencies": _rank_frequency_items(attention_contract_counter, attention_contract_pair_indexes, "field", changed_pairs),
+        "transformation_intent_field_frequencies": _rank_frequency_items(transformation_intent_counter, transformation_intent_pair_indexes, "field", changed_pairs),
+        "basic_observation_field_frequencies": _rank_frequency_items(basic_observation_counter, basic_observation_pair_indexes, "field", changed_pairs),
+        "observation_layers_added_frequencies": _rank_frequency_items(observation_layers_added_counter, observation_layers_added_pair_indexes, "layer", changed_pairs),
+        "observation_layers_removed_frequencies": _rank_frequency_items(observation_layers_removed_counter, observation_layers_removed_pair_indexes, "layer", changed_pairs),
+        "interpretation_layers_added_frequencies": _rank_frequency_items(interpretation_layers_added_counter, interpretation_layers_added_pair_indexes, "layer", changed_pairs),
+        "interpretation_layers_removed_frequencies": _rank_frequency_items(interpretation_layers_removed_counter, interpretation_layers_removed_pair_indexes, "layer", changed_pairs),
+        "source_hypothesis_classes_added_frequencies": _rank_frequency_items(source_hypothesis_classes_added_counter, source_hypothesis_classes_added_pair_indexes, "source_hypothesis_class", changed_pairs),
+        "source_hypothesis_classes_removed_frequencies": _rank_frequency_items(source_hypothesis_classes_removed_counter, source_hypothesis_classes_removed_pair_indexes, "source_hypothesis_class", changed_pairs),
+        "source_hypothesis_linked_transition_motif_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_signatures_added_counter, source_hypothesis_linked_transition_motif_signatures_added_pair_indexes, "transition_motif_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_signatures_removed_counter, source_hypothesis_linked_transition_motif_signatures_removed_pair_indexes, "transition_motif_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_sequence_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_sequence_signatures_added_counter, source_hypothesis_linked_transition_motif_sequence_signatures_added_pair_indexes, "transition_motif_sequence_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_sequence_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_sequence_signatures_removed_counter, source_hypothesis_linked_transition_motif_sequence_signatures_removed_pair_indexes, "transition_motif_sequence_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_chain_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_chain_signatures_added_counter, source_hypothesis_linked_transition_motif_chain_signatures_added_pair_indexes, "transition_motif_chain_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_chain_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_chain_signatures_removed_counter, source_hypothesis_linked_transition_motif_chain_signatures_removed_pair_indexes, "transition_motif_chain_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_signatures_added_pair_indexes, "transition_motif_phrase_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_signatures_removed_pair_indexes, "transition_motif_phrase_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_family_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_family_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_family_signatures_added_pair_indexes, "transition_motif_phrase_family_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_pair_indexes, "transition_motif_phrase_family_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_pair_indexes, "transition_motif_phrase_archetype_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_pair_indexes, "transition_motif_phrase_archetype_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_pair_indexes, "transition_motif_phrase_contour_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_pair_indexes, "transition_motif_phrase_contour_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_pair_indexes, "transition_motif_phrase_sweep_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_pair_indexes, "transition_motif_phrase_sweep_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_pair_indexes, "transition_motif_phrase_gesture_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_pair_indexes, "transition_motif_phrase_gesture_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_counter, source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_pair_indexes, "transition_motif_phrase_mobility_signature", changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_frequencies": _rank_frequency_items(source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_counter, source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_pair_indexes, "transition_motif_phrase_mobility_signature", changed_pairs),
+        "transition_motif_signatures_added_frequencies": _rank_frequency_items(transition_motif_signatures_added_counter, transition_motif_signatures_added_pair_indexes, "transition_motif_signature", changed_pairs),
+        "transition_motif_signatures_removed_frequencies": _rank_frequency_items(transition_motif_signatures_removed_counter, transition_motif_signatures_removed_pair_indexes, "transition_motif_signature", changed_pairs),
+        "transition_motif_sequence_signatures_added_frequencies": _rank_frequency_items(transition_motif_sequence_signatures_added_counter, transition_motif_sequence_signatures_added_pair_indexes, "transition_motif_sequence_signature", changed_pairs),
+        "transition_motif_sequence_signatures_removed_frequencies": _rank_frequency_items(transition_motif_sequence_signatures_removed_counter, transition_motif_sequence_signatures_removed_pair_indexes, "transition_motif_sequence_signature", changed_pairs),
+        "transition_motif_chain_signatures_added_frequencies": _rank_frequency_items(transition_motif_chain_signatures_added_counter, transition_motif_chain_signatures_added_pair_indexes, "transition_motif_chain_signature", changed_pairs),
+        "transition_motif_chain_signatures_removed_frequencies": _rank_frequency_items(transition_motif_chain_signatures_removed_counter, transition_motif_chain_signatures_removed_pair_indexes, "transition_motif_chain_signature", changed_pairs),
+        "transition_motif_phrase_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_signatures_added_counter, transition_motif_phrase_signatures_added_pair_indexes, "transition_motif_phrase_signature", changed_pairs),
+        "transition_motif_phrase_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_signatures_removed_counter, transition_motif_phrase_signatures_removed_pair_indexes, "transition_motif_phrase_signature", changed_pairs),
+        "transition_motif_phrase_family_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_family_signatures_added_counter, transition_motif_phrase_family_signatures_added_pair_indexes, "transition_motif_phrase_family_signature", changed_pairs),
+        "transition_motif_phrase_family_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_family_signatures_removed_counter, transition_motif_phrase_family_signatures_removed_pair_indexes, "transition_motif_phrase_family_signature", changed_pairs),
+        "transition_motif_phrase_archetype_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_archetype_signatures_added_counter, transition_motif_phrase_archetype_signatures_added_pair_indexes, "transition_motif_phrase_archetype_signature", changed_pairs),
+        "transition_motif_phrase_archetype_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_archetype_signatures_removed_counter, transition_motif_phrase_archetype_signatures_removed_pair_indexes, "transition_motif_phrase_archetype_signature", changed_pairs),
+        "transition_motif_phrase_contour_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_contour_signatures_added_counter, transition_motif_phrase_contour_signatures_added_pair_indexes, "transition_motif_phrase_contour_signature", changed_pairs),
+        "transition_motif_phrase_contour_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_contour_signatures_removed_counter, transition_motif_phrase_contour_signatures_removed_pair_indexes, "transition_motif_phrase_contour_signature", changed_pairs),
+        "transition_motif_phrase_sweep_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_sweep_signatures_added_counter, transition_motif_phrase_sweep_signatures_added_pair_indexes, "transition_motif_phrase_sweep_signature", changed_pairs),
+        "transition_motif_phrase_sweep_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_sweep_signatures_removed_counter, transition_motif_phrase_sweep_signatures_removed_pair_indexes, "transition_motif_phrase_sweep_signature", changed_pairs),
+        "transition_motif_phrase_gesture_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_gesture_signatures_added_counter, transition_motif_phrase_gesture_signatures_added_pair_indexes, "transition_motif_phrase_gesture_signature", changed_pairs),
+        "transition_motif_phrase_gesture_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_gesture_signatures_removed_counter, transition_motif_phrase_gesture_signatures_removed_pair_indexes, "transition_motif_phrase_gesture_signature", changed_pairs),
+        "transition_motif_phrase_mobility_signatures_added_frequencies": _rank_frequency_items(transition_motif_phrase_mobility_signatures_added_counter, transition_motif_phrase_mobility_signatures_added_pair_indexes, "transition_motif_phrase_mobility_signature", changed_pairs),
+        "transition_motif_phrase_mobility_signatures_removed_frequencies": _rank_frequency_items(transition_motif_phrase_mobility_signatures_removed_counter, transition_motif_phrase_mobility_signatures_removed_pair_indexes, "transition_motif_phrase_mobility_signature", changed_pairs),
+        "metadata_fields_changed_in_all_changed_pairs": _universal_items(metadata_counter, changed_pairs),
+        "observed_audio_fields_changed_in_all_changed_pairs": _universal_items(observed_audio_counter, changed_pairs),
+        "analysis_window_fields_changed_in_all_changed_pairs": _universal_items(analysis_window_counter, changed_pairs),
+        "attention_contract_fields_changed_in_all_changed_pairs": _universal_items(attention_contract_counter, changed_pairs),
+        "transformation_intent_fields_changed_in_all_changed_pairs": _universal_items(transformation_intent_counter, changed_pairs),
+        "basic_observation_fields_changed_in_all_changed_pairs": _universal_items(basic_observation_counter, changed_pairs),
+        "observation_layers_added_in_all_changed_pairs": _universal_items(observation_layers_added_counter, changed_pairs),
+        "observation_layers_removed_in_all_changed_pairs": _universal_items(observation_layers_removed_counter, changed_pairs),
+        "interpretation_layers_added_in_all_changed_pairs": _universal_items(interpretation_layers_added_counter, changed_pairs),
+        "interpretation_layers_removed_in_all_changed_pairs": _universal_items(interpretation_layers_removed_counter, changed_pairs),
+        "source_hypothesis_classes_added_in_all_changed_pairs": _universal_items(source_hypothesis_classes_added_counter, changed_pairs),
+        "source_hypothesis_classes_removed_in_all_changed_pairs": _universal_items(source_hypothesis_classes_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_sequence_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_sequence_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_sequence_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_sequence_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_chain_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_chain_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_chain_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_chain_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_family_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_family_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_counter, changed_pairs),
+        "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_in_all_changed_pairs": _universal_items(source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_counter, changed_pairs),
+        "transition_motif_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_signatures_added_counter, changed_pairs),
+        "transition_motif_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_signatures_removed_counter, changed_pairs),
+        "transition_motif_sequence_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_sequence_signatures_added_counter, changed_pairs),
+        "transition_motif_sequence_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_sequence_signatures_removed_counter, changed_pairs),
+        "transition_motif_chain_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_chain_signatures_added_counter, changed_pairs),
+        "transition_motif_chain_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_chain_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_family_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_family_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_family_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_family_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_archetype_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_archetype_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_archetype_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_contour_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_contour_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_contour_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_contour_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_sweep_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_sweep_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_sweep_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_gesture_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_gesture_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_gesture_signatures_removed_counter, changed_pairs),
+        "transition_motif_phrase_mobility_signatures_added_in_all_changed_pairs": _universal_items(transition_motif_phrase_mobility_signatures_added_counter, changed_pairs),
+        "transition_motif_phrase_mobility_signatures_removed_in_all_changed_pairs": _universal_items(transition_motif_phrase_mobility_signatures_removed_counter, changed_pairs),
+        "analysis_change_summary": {
+            "pairs_with_source_hypothesis_count_delta": source_hypothesis_count_delta_pairs,
+            "total_source_hypothesis_count_delta": total_source_hypothesis_count_delta,
+            "pairs_with_interpretation_hypothesis_count_delta": interpretation_hypothesis_count_delta_pairs,
+            "total_interpretation_hypothesis_count_delta": total_interpretation_hypothesis_count_delta,
+            "pairs_with_recurring_transition_motif_count_delta": recurring_transition_motif_count_delta_pairs,
+            "total_recurring_transition_motif_count_delta": total_recurring_transition_motif_count_delta,
+            "pairs_with_recurring_transition_motif_sequence_count_delta": recurring_transition_motif_sequence_count_delta_pairs,
+            "total_recurring_transition_motif_sequence_count_delta": total_recurring_transition_motif_sequence_count_delta,
+            "pairs_with_recurring_transition_motif_chain_count_delta": recurring_transition_motif_chain_count_delta_pairs,
+            "total_recurring_transition_motif_chain_count_delta": total_recurring_transition_motif_chain_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_count_delta": recurring_transition_motif_phrase_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_count_delta": total_recurring_transition_motif_phrase_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_family_count_delta": recurring_transition_motif_phrase_family_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_family_count_delta": total_recurring_transition_motif_phrase_family_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_archetype_count_delta": recurring_transition_motif_phrase_archetype_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_archetype_count_delta": total_recurring_transition_motif_phrase_archetype_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_contour_count_delta": recurring_transition_motif_phrase_contour_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_contour_count_delta": total_recurring_transition_motif_phrase_contour_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_sweep_count_delta": recurring_transition_motif_phrase_sweep_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_sweep_count_delta": total_recurring_transition_motif_phrase_sweep_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_gesture_count_delta": recurring_transition_motif_phrase_gesture_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_gesture_count_delta": total_recurring_transition_motif_phrase_gesture_count_delta,
+            "pairs_with_recurring_transition_motif_phrase_mobility_count_delta": recurring_transition_motif_phrase_mobility_count_delta_pairs,
+            "total_recurring_transition_motif_phrase_mobility_count_delta": total_recurring_transition_motif_phrase_mobility_count_delta,
+            "pairs_with_component_group_count_delta": component_group_count_delta_pairs,
+            "total_component_group_count_delta": total_component_group_count_delta,
+            "pairs_with_onset_map_count_delta": onset_map_count_delta_pairs,
+            "total_onset_map_count_delta": total_onset_map_count_delta,
+            "pairs_with_section_boundary_count_delta": section_boundary_count_delta_pairs,
+            "total_section_boundary_count_delta": total_section_boundary_count_delta,
+            "pairs_with_section_candidate_count_delta": section_candidate_count_delta_pairs,
+            "total_section_candidate_count_delta": total_section_candidate_count_delta,
+            "pairs_with_section_transition_count_delta": section_transition_count_delta_pairs,
+            "total_section_transition_count_delta": total_section_transition_count_delta,
+            "pairs_with_uncertainty_warning_count_delta": uncertainty_warning_count_delta_pairs,
+            "total_uncertainty_warning_count_delta": total_uncertainty_warning_count_delta,
+            "pairs_with_highest_stable_transition_motif_abstraction_layer_change": highest_stable_transition_motif_abstraction_layer_change_pairs,
+            "pairs_with_highest_stable_transition_motif_abstraction_layer_rise": highest_stable_transition_motif_abstraction_layer_rise_pairs,
+            "pairs_with_highest_stable_transition_motif_abstraction_layer_fall": highest_stable_transition_motif_abstraction_layer_fall_pairs,
+            "total_highest_stable_transition_motif_abstraction_layer_step_delta": total_highest_stable_transition_motif_abstraction_layer_step_delta,
+            "pairs_with_highest_stable_transition_motif_abstraction_layer_recurring_count_delta": highest_stable_transition_motif_abstraction_layer_recurring_count_delta_pairs,
+            "total_highest_stable_transition_motif_abstraction_layer_recurring_count_delta": total_highest_stable_transition_motif_abstraction_layer_recurring_count_delta,
+            "pairs_with_highest_stable_transition_motif_abstraction_layer_occurrence_count_delta": highest_stable_transition_motif_abstraction_layer_occurrence_count_delta_pairs,
+            "total_highest_stable_transition_motif_abstraction_layer_occurrence_count_delta": total_highest_stable_transition_motif_abstraction_layer_occurrence_count_delta,
+            "pairs_with_first_scene_hypothesis_change": first_scene_hypothesis_change_pairs,
+            "pairs_with_first_communicative_hypothesis_change": first_communicative_hypothesis_change_pairs,
+            "pairs_with_transformation_intent_change": transformation_intent_change_pairs,
+        },
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch analysis diff output")
+        _write_auxiliary_document(output_path, payload, report_format)
+        payload["report_output"] = str(output_path)
+        payload["report_format"] = report_format
+
+    return payload
+
+
+def batch_review_analysis_documents(
+    left_documents: list[str | Path],
+    right_documents: list[str | Path],
+    *,
+    output: str | Path | None = None,
+) -> dict[str, Any]:
+    diff_payload = batch_diff_analysis_documents(
+        left_documents,
+        right_documents,
+    )
+
+    review_payload = {
+        "pairs_compared": diff_payload["pairs_compared"],
+        "changed_pairs": diff_payload["changed_pairs"],
+        "unchanged_pairs": diff_payload["unchanged_pairs"],
+        "invalid_pairs": diff_payload["invalid_pairs"],
+        "is_valid": diff_payload["is_valid"],
+        "diff_report": diff_payload,
+        "analysis": {
+            "pairs_compared": diff_payload["pairs_compared"],
+            "changed_pairs": diff_payload["changed_pairs"],
+            "unchanged_pairs": diff_payload["unchanged_pairs"],
+            "invalid_pairs": diff_payload["invalid_pairs"],
+            "is_valid": diff_payload["is_valid"],
+            "metadata_field_frequencies": diff_payload["metadata_field_frequencies"],
+            "observed_audio_field_frequencies": diff_payload["observed_audio_field_frequencies"],
+            "analysis_window_field_frequencies": diff_payload["analysis_window_field_frequencies"],
+            "basic_observation_field_frequencies": diff_payload["basic_observation_field_frequencies"],
+            "observation_layers_added_frequencies": diff_payload["observation_layers_added_frequencies"],
+            "observation_layers_removed_frequencies": diff_payload["observation_layers_removed_frequencies"],
+            "source_hypothesis_classes_added_frequencies": diff_payload["source_hypothesis_classes_added_frequencies"],
+            "source_hypothesis_classes_removed_frequencies": diff_payload["source_hypothesis_classes_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_sequence_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_sequence_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_sequence_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_sequence_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_chain_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_chain_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_chain_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_chain_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_family_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_family_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_frequencies"],
+            "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_frequencies": diff_payload["source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_frequencies"],
+            "transition_motif_signatures_added_frequencies": diff_payload["transition_motif_signatures_added_frequencies"],
+            "transition_motif_signatures_removed_frequencies": diff_payload["transition_motif_signatures_removed_frequencies"],
+            "transition_motif_sequence_signatures_added_frequencies": diff_payload["transition_motif_sequence_signatures_added_frequencies"],
+            "transition_motif_sequence_signatures_removed_frequencies": diff_payload["transition_motif_sequence_signatures_removed_frequencies"],
+            "transition_motif_chain_signatures_added_frequencies": diff_payload["transition_motif_chain_signatures_added_frequencies"],
+            "transition_motif_chain_signatures_removed_frequencies": diff_payload["transition_motif_chain_signatures_removed_frequencies"],
+            "transition_motif_phrase_signatures_added_frequencies": diff_payload["transition_motif_phrase_signatures_added_frequencies"],
+            "transition_motif_phrase_signatures_removed_frequencies": diff_payload["transition_motif_phrase_signatures_removed_frequencies"],
+            "transition_motif_phrase_family_signatures_added_frequencies": diff_payload["transition_motif_phrase_family_signatures_added_frequencies"],
+            "transition_motif_phrase_family_signatures_removed_frequencies": diff_payload["transition_motif_phrase_family_signatures_removed_frequencies"],
+            "transition_motif_phrase_archetype_signatures_added_frequencies": diff_payload["transition_motif_phrase_archetype_signatures_added_frequencies"],
+            "transition_motif_phrase_archetype_signatures_removed_frequencies": diff_payload["transition_motif_phrase_archetype_signatures_removed_frequencies"],
+            "transition_motif_phrase_contour_signatures_added_frequencies": diff_payload["transition_motif_phrase_contour_signatures_added_frequencies"],
+            "transition_motif_phrase_contour_signatures_removed_frequencies": diff_payload["transition_motif_phrase_contour_signatures_removed_frequencies"],
+            "transition_motif_phrase_sweep_signatures_added_frequencies": diff_payload["transition_motif_phrase_sweep_signatures_added_frequencies"],
+            "transition_motif_phrase_sweep_signatures_removed_frequencies": diff_payload["transition_motif_phrase_sweep_signatures_removed_frequencies"],
+            "transition_motif_phrase_gesture_signatures_added_frequencies": diff_payload["transition_motif_phrase_gesture_signatures_added_frequencies"],
+            "transition_motif_phrase_gesture_signatures_removed_frequencies": diff_payload["transition_motif_phrase_gesture_signatures_removed_frequencies"],
+            "transition_motif_phrase_mobility_signatures_added_frequencies": diff_payload["transition_motif_phrase_mobility_signatures_added_frequencies"],
+            "transition_motif_phrase_mobility_signatures_removed_frequencies": diff_payload["transition_motif_phrase_mobility_signatures_removed_frequencies"],
+            "metadata_fields_changed_in_all_changed_pairs": diff_payload["metadata_fields_changed_in_all_changed_pairs"],
+            "observed_audio_fields_changed_in_all_changed_pairs": diff_payload["observed_audio_fields_changed_in_all_changed_pairs"],
+            "analysis_window_fields_changed_in_all_changed_pairs": diff_payload["analysis_window_fields_changed_in_all_changed_pairs"],
+            "basic_observation_fields_changed_in_all_changed_pairs": diff_payload["basic_observation_fields_changed_in_all_changed_pairs"],
+            "observation_layers_added_in_all_changed_pairs": diff_payload["observation_layers_added_in_all_changed_pairs"],
+            "observation_layers_removed_in_all_changed_pairs": diff_payload["observation_layers_removed_in_all_changed_pairs"],
+            "source_hypothesis_classes_added_in_all_changed_pairs": diff_payload["source_hypothesis_classes_added_in_all_changed_pairs"],
+            "source_hypothesis_classes_removed_in_all_changed_pairs": diff_payload["source_hypothesis_classes_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_sequence_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_sequence_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_sequence_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_sequence_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_chain_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_chain_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_chain_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_chain_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_family_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_family_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_family_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_removed_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_mobility_signatures_added_in_all_changed_pairs"],
+            "source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_in_all_changed_pairs": diff_payload["source_hypothesis_linked_transition_motif_phrase_mobility_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_signatures_added_in_all_changed_pairs"],
+            "transition_motif_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_sequence_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_sequence_signatures_added_in_all_changed_pairs"],
+            "transition_motif_sequence_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_sequence_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_chain_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_chain_signatures_added_in_all_changed_pairs"],
+            "transition_motif_chain_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_chain_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_family_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_family_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_family_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_family_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_archetype_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_archetype_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_contour_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_contour_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_contour_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_contour_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_sweep_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_sweep_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_gesture_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_gesture_signatures_removed_in_all_changed_pairs"],
+            "transition_motif_phrase_mobility_signatures_added_in_all_changed_pairs": diff_payload["transition_motif_phrase_mobility_signatures_added_in_all_changed_pairs"],
+            "transition_motif_phrase_mobility_signatures_removed_in_all_changed_pairs": diff_payload["transition_motif_phrase_mobility_signatures_removed_in_all_changed_pairs"],
+            "analysis_change_summary": diff_payload["analysis_change_summary"],
+        },
+    }
+
+    if output is not None:
+        output_path = Path(output)
+        report_format = _resolve_auxiliary_format(output_path, label="batch analysis review output")
+        _write_auxiliary_document(output_path, review_payload, report_format)
+        review_payload["report_output"] = str(output_path)
+        review_payload["report_format"] = report_format
+
+    return review_payload
 
 
 def batch_build_arwif_artifacts(
@@ -1089,6 +2950,30 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item) for item in value]
+
+
+def _mapping_optional(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _mapping_keys(value: Any) -> list[str]:
+    if not isinstance(value, dict):
+        return []
+    return [str(key) for key in value]
+
+
+def _flatten_change_field_paths(value: Any, *, prefix: str) -> list[str]:
+    if not isinstance(value, dict):
+        return []
+    if set(value.keys()) >= {"left", "right"}:
+        return [prefix] if prefix else []
+
+    fields: list[str] = []
+    for key, nested_value in value.items():
+        key_name = str(key)
+        nested_prefix = key_name if not prefix else f"{prefix}.{key_name}"
+        fields.extend(_flatten_change_field_paths(nested_value, prefix=nested_prefix))
+    return fields
 
 
 def _rank_frequency_items(

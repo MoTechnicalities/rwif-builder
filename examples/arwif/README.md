@@ -1,6 +1,6 @@
 # ARWIF Examples
 
-This directory contains the original C major triad examples plus a room-aware review pair for the current Level 3 ARWIF surface.
+This directory contains the original C major triad examples, a room-aware review pair for the current Level 3 ARWIF surface, and conceptual analysis-workspace examples for the forward-looking ARWIF AI workspace direction.
 
 ## Files
 
@@ -11,6 +11,20 @@ This directory contains the original C major triad examples plus a room-aware re
 - `CEG_v0_1.md`: sidecar notes for the strict example
 - `ROOM_REVIEW_baseline_v0_1.yaml`: baseline Level 3 room-aware review spec covering dimensions, geometry reference, surface treatment, reflection policy, renderer adaptation hints, listening zones with canonical intent, speaker placement, canonical speaker role, and speaker coverage intent
 - `ROOM_REVIEW_candidate_v0_1.yaml`: candidate Level 3 room-aware review spec with intentional room drift for diff and batch-review examples
+- `BABY_LOVE_workspace_accompaniment_only.analysis.yaml`: conceptual analysis-profile ARWIF workspace example showing task-conditioned retention of accompaniment while suppressing vocals
+- `WHALE_DOLPHIN_workspace_query.analysis.yaml`: conceptual analysis-profile ARWIF workspace example showing query-driven acoustic reasoning over whale foreground and dolphin background candidates
+
+## Conceptual Analysis Workspace Examples
+
+The `*.analysis.yaml` workspace examples are not strict `ARWIF v0.1` synthesis specs.
+They are forward-looking examples aligned to the analysis-oriented ARWIF direction described in `docs/ARWIF_ANALYSIS_MISSION.md`, `docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md`, and `docs/ARWIF_WORKSPACE_V0_DRAFT.md`.
+
+They exist to illustrate how a saved AI sound workspace can preserve:
+
+- observed audio evidence
+- the active attention contract for the task
+- inferred sound entities and higher-level interpretations
+- requested transformations and later render goals
 
 ## Validate
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 import tempfile
@@ -4773,6 +4774,4807 @@ class ARWIFSpeakerSpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_present_changed_pairs"], 1)
             self.assertEqual(analysis_payload["spatial_change_summary"]["room_changed_pairs"], 1)
             self.assertTrue(analysis_report_path.exists())
+
+    def test_arwif_analyze_audio_reports_basic_observation_for_wav(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            wav_path = tmp_dir / "analysis-input.wav"
+            analysis_output_path = tmp_dir / "analysis-output.yaml"
+            report_output_path = tmp_dir / "analysis-report.json"
+
+            sample_rate_hz = 8000
+            duration_seconds = 0.25
+            frame_count = int(sample_rate_hz * duration_seconds)
+            samples: list[int] = []
+            for frame_index in range(frame_count):
+                time_position = frame_index / float(sample_rate_hz)
+                left_sample = int(round(0.6 * 32767.0 * math.sin(2.0 * math.pi * 220.0 * time_position)))
+                right_sample = int(round(0.4 * 32767.0 * math.sin(2.0 * math.pi * 330.0 * time_position)))
+                samples.extend((left_sample, right_sample))
+
+            with wave.open(str(wav_path), "wb") as handle:
+                handle.setnchannels(2)
+                handle.setsampwidth(2)
+                handle.setframerate(sample_rate_hz)
+                frame_bytes = bytearray()
+                for sample in samples:
+                    frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                handle.writeframes(bytes(frame_bytes))
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-analyze-audio",
+                str(wav_path),
+                "--output",
+                str(analysis_output_path),
+                "--report",
+                str(report_output_path),
+                "--source-id",
+                "demo.clip-01",
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["command"], "arwif-analyze-audio")
+            self.assertEqual(payload["analysis_profile"], "basic-observation")
+            self.assertEqual(payload["source_id"], "demo.clip-01")
+            self.assertEqual(payload["decoded_audio"]["sample_rate_hz"], sample_rate_hz)
+            self.assertEqual(payload["decoded_audio"]["channel_count"], 2)
+            self.assertEqual(payload["decoded_audio"]["decode_backend"], "wave")
+            self.assertGreater(payload["observation_summary"]["peak_amplitude"], 0.0)
+            self.assertEqual(payload["analysis_document_format"], "yaml")
+            self.assertEqual(payload["report_format"], "json")
+            self.assertTrue(analysis_output_path.exists())
+            self.assertTrue(report_output_path.exists())
+
+            analysis_document = yaml.safe_load(analysis_output_path.read_text(encoding="utf-8"))
+            self.assertEqual(analysis_document["analysis_metadata"]["analysis_profile"], "basic-observation")
+            self.assertEqual(analysis_document["observed_audio"]["channel_count"], 2)
+            self.assertIn("basic_observation_summary", analysis_document["observation_layers"])
+            self.assertIn("onset_map", analysis_document["observation_layers"])
+            self.assertIn("section_boundaries", analysis_document["observation_layers"])
+            self.assertIn("section_candidates", analysis_document["observation_layers"])
+            self.assertGreater(len(analysis_document["observation_layers"]["onset_map"]), 0)
+            self.assertIn("section_profile_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_profile_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_sequence_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_chain_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_family_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_archetype_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_contour_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_sweep_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_gesture_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_mobility_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("section_transitions", analysis_document["observation_layers"])
+
+            report_document = json.loads(report_output_path.read_text(encoding="utf-8"))
+            self.assertEqual(report_document["source_id"], "demo.clip-01")
+            self.assertEqual(report_document["decoded_audio"]["channel_mode"], "preserve")
+            self.assertIn("observation_preview", report_document)
+            self.assertIn("section_candidate_count", report_document["observation_preview"])
+            self.assertIn("section_profile_summary", report_document["observation_preview"])
+            self.assertIn("transition_profile_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_sequence_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_chain_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_family_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_archetype_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_contour_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_sweep_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_gesture_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_mobility_summary", report_document["observation_preview"])
+            self.assertIn("transition_motif_phrase_abstraction_ladder", report_document["observation_preview"])
+
+    def test_arwif_analyze_audio_supports_excerpt_and_mono_mode(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            wav_path = tmp_dir / "analysis-window.wav"
+
+            sample_rate_hz = 4000
+            duration_seconds = 1.0
+            frame_count = int(sample_rate_hz * duration_seconds)
+            samples: list[int] = []
+            for frame_index in range(frame_count):
+                time_position = frame_index / float(sample_rate_hz)
+                sample = int(round(0.5 * 32767.0 * math.sin(2.0 * math.pi * 180.0 * time_position)))
+                samples.append(sample)
+
+            with wave.open(str(wav_path), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(sample_rate_hz)
+                frame_bytes = bytearray()
+                for sample in samples:
+                    frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                handle.writeframes(bytes(frame_bytes))
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-analyze-audio",
+                str(wav_path),
+                "--start-seconds",
+                "0.2",
+                "--duration-seconds",
+                "0.3",
+                "--channel-mode",
+                "mono",
+                "--target-sample-rate-hz",
+                "2000",
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["decoded_audio"]["channel_count"], 1)
+            self.assertEqual(payload["decoded_audio"]["sample_rate_hz"], 2000)
+            self.assertAlmostEqual(payload["analysis_window"]["duration_seconds"], 0.3, places=2)
+            self.assertGreaterEqual(len(payload["warnings"]), 1)
+
+    def test_arwif_analyze_audio_populates_section_boundaries_for_changed_energy_regions(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            wav_path = tmp_dir / "analysis-sections.wav"
+            analysis_output_path = tmp_dir / "analysis-sections.yaml"
+
+            sample_rate_hz = 4000
+            sections = [
+                (0.35, 0.0),
+                (0.35, 0.45),
+                (0.35, 0.1),
+            ]
+            samples: list[int] = []
+            for duration_seconds, amplitude in sections:
+                frame_count = int(sample_rate_hz * duration_seconds)
+                for frame_index in range(frame_count):
+                    time_position = frame_index / float(sample_rate_hz)
+                    sample = int(round(amplitude * 32767.0 * math.sin(2.0 * math.pi * 220.0 * time_position)))
+                    samples.append(sample)
+
+            with wave.open(str(wav_path), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(sample_rate_hz)
+                frame_bytes = bytearray()
+                for sample in samples:
+                    frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                handle.writeframes(bytes(frame_bytes))
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-analyze-audio",
+                str(wav_path),
+                "--output",
+                str(analysis_output_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertGreaterEqual(payload["observation_summary"]["section_boundary_count"], 1)
+            self.assertGreaterEqual(payload["observation_summary"]["section_candidate_count"], 1)
+            analysis_document = yaml.safe_load(analysis_output_path.read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(analysis_document["observation_layers"]["section_boundaries"]), 1)
+            self.assertGreaterEqual(len(analysis_document["observation_layers"]["section_candidates"]), 1)
+            first_boundary = analysis_document["observation_layers"]["section_boundaries"][0]
+            self.assertIn("offset_seconds", first_boundary)
+            self.assertIn("confidence", first_boundary)
+            first_candidate = analysis_document["observation_layers"]["section_candidates"][0]
+            self.assertIn("start_seconds", first_candidate)
+            self.assertIn("duration_seconds", first_candidate)
+            self.assertIn("energy_band", first_candidate)
+            self.assertIn("duration_band", first_candidate)
+            self.assertIn("position_band", first_candidate)
+            self.assertIn("section_profile_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_profile_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_sequence_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_chain_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_family_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertIn("transition_motif_phrase_archetype_summary", analysis_document["observation_layers"]["basic_observation_summary"])
+            self.assertGreaterEqual(len(analysis_document["observation_layers"]["section_transitions"]), 1)
+            self.assertGreaterEqual(payload["source_hypothesis_count"], 1)
+            self.assertIn("sustained_sectional_bed", payload["source_hypothesis_classes"])
+            self.assertGreaterEqual(len(analysis_document["source_hypotheses"]), 1)
+            self.assertEqual(analysis_document["source_hypotheses"][0]["hypothesis_origin"], "observation-derived")
+            self.assertIn("time_bounds", analysis_document["source_hypotheses"][0])
+            self.assertIn("linked_observations", analysis_document["source_hypotheses"][0])
+            first_transition = analysis_document["observation_layers"]["section_transitions"][0]
+            self.assertIn("transition_kind", first_transition)
+            self.assertIn("energy_delta", first_transition)
+
+    def test_arwif_analyze_audio_emits_workspace_task_fields(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            wav_path = tmp_dir / "analysis-workspace.wav"
+            analysis_output_path = tmp_dir / "analysis-workspace.yaml"
+            report_output_path = tmp_dir / "analysis-workspace-report.json"
+
+            sample_rate_hz = 4000
+            frame_count = int(sample_rate_hz * 0.25)
+            with wave.open(str(wav_path), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(sample_rate_hz)
+                frame_bytes = bytearray()
+                for frame_index in range(frame_count):
+                    sample = int(round(0.45 * 32767.0 * math.sin(2.0 * math.pi * 220.0 * (frame_index / 4000.0))))
+                    frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                handle.writeframes(bytes(frame_bytes))
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-analyze-audio",
+                str(wav_path),
+                "--output",
+                str(analysis_output_path),
+                "--report",
+                str(report_output_path),
+                "--query-text",
+                "Keep the backing bed, suppress the foreground call, and summarize what remains.",
+                "--attention-target",
+                "backing_bed",
+                "--attention-target",
+                "foreground_call_stream",
+                "--retain-target",
+                "backing_bed",
+                "--suppress-target",
+                "foreground_call_stream",
+                "--answer-expectation",
+                "summarize remaining scene",
+                "--render-goal",
+                "backing bed without foreground call stream",
+                "--transform-operation",
+                "retain",
+                "--transform-operation",
+                "suppress",
+                "--transform-operation",
+                "summarize",
+                "--primary-output",
+                "backing_bed_without_foreground_call_stream",
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(
+                payload["attention_contract"],
+                {
+                    "query_text": "Keep the backing bed, suppress the foreground call, and summarize what remains.",
+                    "attention_targets": ["backing_bed", "foreground_call_stream"],
+                    "retain_targets": ["backing_bed"],
+                    "suppress_targets": ["foreground_call_stream"],
+                    "answer_expectations": ["summarize remaining scene"],
+                    "render_goal": "backing bed without foreground call stream",
+                },
+            )
+            self.assertEqual(
+                payload["transformation_intent"],
+                {
+                    "operations": ["retain", "suppress", "summarize"],
+                    "primary_output": "backing_bed_without_foreground_call_stream",
+                },
+            )
+            self.assertEqual(
+                payload["interpretation_layers"]["scene_hypotheses"][0]["hypothesis_origin"],
+                "task-conditioned-observation-summary",
+            )
+            self.assertEqual(
+                payload["interpretation_layers"]["task_conditioning_notes"]["status"],
+                "task-conditioned",
+            )
+            self.assertEqual(payload["interpretation_layers"]["communicative_hypotheses"], [])
+
+            analysis_document = yaml.safe_load(analysis_output_path.read_text(encoding="utf-8"))
+            self.assertEqual(analysis_document["attention_contract"], payload["attention_contract"])
+            self.assertEqual(analysis_document["interpretation_layers"], payload["interpretation_layers"])
+            self.assertEqual(analysis_document["transformation_intent"], payload["transformation_intent"])
+
+            report_document = json.loads(report_output_path.read_text(encoding="utf-8"))
+            self.assertEqual(report_document["attention_contract"], payload["attention_contract"])
+            self.assertEqual(report_document["interpretation_layers"], payload["interpretation_layers"])
+            self.assertEqual(report_document["transformation_intent"], payload["transformation_intent"])
+
+    def test_arwif_batch_analyze_audio_persists_per_input_outputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_wav_path = tmp_dir / "alpha.wav"
+            second_wav_path = tmp_dir / "beta.wav"
+            analysis_dir = tmp_dir / "analysis-documents"
+            report_dir = tmp_dir / "analysis-reports"
+            aggregate_report_path = tmp_dir / "batch-analysis-report.json"
+
+            for wav_path, sample_rate_hz, frequency_hz in (
+                (first_wav_path, 8000, 220.0),
+                (second_wav_path, 12000, 330.0),
+            ):
+                frame_count = int(sample_rate_hz * 0.2)
+                samples: list[int] = []
+                for frame_index in range(frame_count):
+                    time_position = frame_index / float(sample_rate_hz)
+                    sample = int(round(0.5 * 32767.0 * math.sin(2.0 * math.pi * frequency_hz * time_position)))
+                    samples.append(sample)
+                with wave.open(str(wav_path), "wb") as handle:
+                    handle.setnchannels(1)
+                    handle.setsampwidth(2)
+                    handle.setframerate(sample_rate_hz)
+                    frame_bytes = bytearray()
+                    for sample in samples:
+                        frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                    handle.writeframes(bytes(frame_bytes))
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-analyze-audio",
+                str(first_wav_path),
+                str(second_wav_path),
+                "--analysis-dir",
+                str(analysis_dir),
+                "--report-dir",
+                str(report_dir),
+                "--query-text",
+                "Retain the backing bed and suppress the foreground call across the batch.",
+                "--attention-target",
+                "backing_bed",
+                "--attention-target",
+                "foreground_call_stream",
+                "--retain-target",
+                "backing_bed",
+                "--suppress-target",
+                "foreground_call_stream",
+                "--transform-operation",
+                "retain",
+                "--transform-operation",
+                "suppress",
+                "--primary-output",
+                "backing_bed_without_foreground_call_stream",
+                "--output",
+                str(aggregate_report_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["audio_inputs_processed"], 2)
+            self.assertEqual(payload["valid_count"], 2)
+            self.assertEqual(payload["invalid_count"], 0)
+            self.assertEqual(payload["analysis_dir"], str(analysis_dir))
+            self.assertEqual(payload["report_dir"], str(report_dir))
+            self.assertEqual(payload["analysis_format"], "yaml")
+            self.assertEqual(payload["report_format"], "json")
+            self.assertEqual(payload["aggregate_report_format"], "json")
+            self.assertEqual(
+                payload["attention_contract"]["query_text"],
+                "Retain the backing bed and suppress the foreground call across the batch.",
+            )
+            self.assertEqual(
+                payload["attention_contract"]["attention_targets"],
+                ["backing_bed", "foreground_call_stream"],
+            )
+            self.assertEqual(payload["transformation_intent"]["operations"], ["retain", "suppress"])
+            self.assertEqual(
+                payload["transformation_intent"]["primary_output"],
+                "backing_bed_without_foreground_call_stream",
+            )
+            self.assertEqual(payload["decode_backends"], ["wave"])
+            self.assertEqual(payload["max_channel_count"], 1)
+            self.assertGreaterEqual(payload["total_section_boundary_count"], 0)
+            self.assertGreaterEqual(payload["total_section_candidate_count"], 0)
+            self.assertGreaterEqual(payload["total_section_transition_count"], 0)
+            self.assertIn("total_section_energy_band_counts", payload)
+            self.assertIn("total_section_duration_band_counts", payload)
+            self.assertIn("total_section_position_band_counts", payload)
+            self.assertIn("total_transition_kind_counts", payload)
+            self.assertTrue(aggregate_report_path.exists())
+            self.assertEqual(len(payload["results"]), 2)
+
+            persisted_report = json.loads(aggregate_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["audio_inputs_processed"], 2)
+            self.assertEqual(persisted_report["valid_count"], 2)
+            self.assertEqual(persisted_report["attention_contract"]["retain_targets"], ["backing_bed"])
+
+            self.assertTrue((analysis_dir / "alpha.analysis.yaml").exists())
+            self.assertTrue((analysis_dir / "beta.analysis.yaml").exists())
+            self.assertTrue((report_dir / "alpha.report.json").exists())
+            self.assertTrue((report_dir / "beta.report.json").exists())
+            first_analysis_document = yaml.safe_load((analysis_dir / "alpha.analysis.yaml").read_text(encoding="utf-8"))
+            self.assertEqual(first_analysis_document["attention_contract"]["suppress_targets"], ["foreground_call_stream"])
+            self.assertEqual(first_analysis_document["interpretation_layers"]["task_conditioning_notes"]["status"], "task-conditioned")
+            first_report_document = json.loads((report_dir / "alpha.report.json").read_text(encoding="utf-8"))
+            self.assertIn("scene_hypotheses", first_report_document["interpretation_layers"])
+            self.assertEqual(
+                first_report_document["transformation_intent"]["primary_output"],
+                "backing_bed_without_foreground_call_stream",
+            )
+
+    def test_arwif_batch_analyze_audio_reports_failures(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            wav_path = tmp_dir / "valid.wav"
+            missing_path = tmp_dir / "missing.wav"
+            frame_count = 800
+            with wave.open(str(wav_path), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(8000)
+                frame_bytes = bytearray()
+                for frame_index in range(frame_count):
+                    sample = int(round(0.4 * 32767.0 * math.sin(2.0 * math.pi * 220.0 * (frame_index / 8000.0))))
+                    frame_bytes.extend(int(sample).to_bytes(2, byteorder="little", signed=True))
+                handle.writeframes(bytes(frame_bytes))
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-analyze-audio",
+                str(wav_path),
+                str(missing_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"], payload)
+            self.assertEqual(payload["audio_inputs_processed"], 2)
+            self.assertEqual(payload["valid_count"], 1)
+            self.assertEqual(payload["invalid_count"], 1)
+            invalid_result = next(result for result in payload["results"] if result["input_audio"] == str(missing_path))
+            self.assertFalse(invalid_result["is_valid"])
+            self.assertIn("does not exist", invalid_result["errors"][0])
+
+    def test_arwif_inspect_analysis_summarizes_yaml_document(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "analysis-output.yaml"
+
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "demo.analysis-01",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/example.wav",
+                            "duration_seconds": 12.5,
+                            "sample_rate_hz": 16000,
+                            "channel_count": 2,
+                            "codec": "wav",
+                            "original_sample_rate_hz": 16000,
+                            "original_channel_count": 2,
+                            "analysis_window": {
+                                "start_seconds": 1.5,
+                                "duration_seconds": 4.0,
+                            },
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {
+                                "peak_amplitude": 0.42,
+                                "rms_amplitude": 0.13,
+                                "estimated_onset_count": 9,
+                                "section_candidate_count": 0,
+                                "section_profile_summary": {
+                                    "average_duration_seconds": 0.0,
+                                    "longest_duration_seconds": 0.0,
+                                    "energy_band_counts": {},
+                                    "duration_band_counts": {},
+                                    "position_band_counts": {},
+                                    "dominant_energy_band": None,
+                                    "opening_energy_band": None,
+                                    "closing_energy_band": None,
+                                },
+                                "transition_profile_summary": {
+                                    "average_abs_energy_delta": 0.0,
+                                    "largest_abs_energy_delta": 0.0,
+                                    "transition_kind_counts": {},
+                                    "dominant_transition_kind": None,
+                                    "opening_transition_kind": None,
+                                    "closing_transition_kind": None,
+                                },
+                                "transition_motif_summary": {
+                                    "recurring_motif_count": 0,
+                                    "motif_occurrence_count": 0,
+                                    "motif_signature_counts": {},
+                                    "motif_signatures": [],
+                                    "dominant_motif_signature": None,
+                                    "motifs": [],
+                                },
+                                "transition_motif_sequence_summary": {
+                                    "recurring_sequence_count": 0,
+                                    "sequence_occurrence_count": 0,
+                                    "sequence_signature_counts": {},
+                                    "sequence_signatures": [],
+                                    "dominant_sequence_signature": None,
+                                    "sequences": [],
+                                },
+                                "transition_motif_chain_summary": {
+                                    "chain_length": 3,
+                                    "recurring_chain_count": 0,
+                                    "chain_occurrence_count": 0,
+                                    "chain_signature_counts": {},
+                                    "chain_signatures": [],
+                                    "dominant_chain_signature": None,
+                                    "chains": [],
+                                },
+                                "transition_motif_phrase_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_phrase_count": 0,
+                                    "phrase_occurrence_count": 0,
+                                    "phrase_signature_counts": {},
+                                    "phrase_signatures": [],
+                                    "dominant_phrase_signature": None,
+                                    "phrases": [],
+                                },
+                                "transition_motif_phrase_family_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_family_count": 0,
+                                    "family_occurrence_count": 0,
+                                    "family_signature_counts": {},
+                                    "family_signatures": [],
+                                    "dominant_family_signature": None,
+                                    "families": [],
+                                },
+                                "transition_motif_phrase_archetype_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_archetype_count": 0,
+                                    "archetype_occurrence_count": 0,
+                                    "archetype_signature_counts": {},
+                                    "archetype_signatures": [],
+                                    "dominant_archetype_signature": None,
+                                    "archetypes": [],
+                                },
+                                "transition_motif_phrase_contour_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_contour_count": 0,
+                                    "contour_occurrence_count": 0,
+                                    "contour_signature_counts": {},
+                                    "contour_signatures": [],
+                                    "dominant_contour_signature": None,
+                                    "contours": [],
+                                },
+                                "transition_motif_phrase_sweep_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_sweep_count": 0,
+                                    "sweep_occurrence_count": 0,
+                                    "sweep_signature_counts": {},
+                                    "sweep_signatures": [],
+                                    "dominant_sweep_signature": None,
+                                    "sweeps": [],
+                                },
+                                "transition_motif_phrase_gesture_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_gesture_count": 0,
+                                    "gesture_occurrence_count": 0,
+                                    "gesture_signature_counts": {},
+                                    "gesture_signatures": [],
+                                    "dominant_gesture_signature": None,
+                                    "gestures": [],
+                                },
+                                "transition_motif_phrase_mobility_summary": {
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 5,
+                                    "recurring_mobility_count": 0,
+                                    "mobility_occurrence_count": 0,
+                                    "mobility_signature_counts": {},
+                                    "mobility_signatures": [],
+                                    "dominant_mobility_signature": None,
+                                    "mobilities": [],
+                                },
+                            },
+                                    "onset_map": [],
+                            "transient_events": [],
+                            "section_boundaries": [],
+                                    "section_candidates": [],
+                                    "section_transitions": [],
+                        },
+                        "source_hypotheses": [
+                            {"source_id": "source.vocal.01", "source_class": "lead_vocal", "role": "principal", "time_bounds": {"start_seconds": 1.5, "end_seconds": 4.5, "duration_seconds": 3.0}, "linked_observations": {"section_indexes": [0], "transition_indexes": [], "transition_motif_ids": ["transition_motif.01"], "transition_motif_signatures": ["energy_stable|medium|medium|stable"], "transition_motif_reference_count": 1, "transition_motif_sequence_ids": ["transition_motif_sequence.01"], "transition_motif_sequence_signatures": ["energy_stable|medium|medium|stable=>energy_stable|medium|medium|stable"], "transition_motif_sequence_reference_count": 1, "transition_motif_chain_ids": [], "transition_motif_chain_signatures": [], "transition_motif_chain_reference_count": 0, "transition_motif_phrase_ids": [], "transition_motif_phrase_signatures": [], "transition_motif_phrase_reference_count": 0, "transition_motif_phrase_family_ids": [], "transition_motif_phrase_family_signatures": [], "transition_motif_phrase_family_reference_count": 0, "transition_motif_phrase_archetype_ids": [], "transition_motif_phrase_archetype_signatures": [], "transition_motif_phrase_archetype_reference_count": 0, "transition_motif_phrase_contour_ids": [], "transition_motif_phrase_contour_signatures": [], "transition_motif_phrase_contour_reference_count": 0, "transition_motif_phrase_sweep_ids": [], "transition_motif_phrase_sweep_signatures": [], "transition_motif_phrase_sweep_reference_count": 0, "transition_motif_phrase_gesture_ids": [], "transition_motif_phrase_gesture_signatures": [], "transition_motif_phrase_gesture_reference_count": 0, "transition_motif_phrase_mobility_ids": [], "transition_motif_phrase_mobility_signatures": [], "transition_motif_phrase_mobility_reference_count": 0, "onset_offsets_seconds_preview": [1.8], "onset_reference_count": 1}},
+                            {"source_id": "source.backing.01", "source_class": "backing_vocal", "role": "support", "time_bounds": {"start_seconds": 2.0, "end_seconds": 5.0, "duration_seconds": 3.0}, "linked_observations": {"section_indexes": [0], "transition_indexes": [], "transition_motif_ids": [], "transition_motif_signatures": [], "transition_motif_reference_count": 0, "transition_motif_sequence_ids": [], "transition_motif_sequence_signatures": [], "transition_motif_sequence_reference_count": 0, "transition_motif_chain_ids": [], "transition_motif_chain_signatures": [], "transition_motif_chain_reference_count": 0, "transition_motif_phrase_ids": [], "transition_motif_phrase_signatures": [], "transition_motif_phrase_reference_count": 0, "transition_motif_phrase_family_ids": [], "transition_motif_phrase_family_signatures": [], "transition_motif_phrase_family_reference_count": 0, "transition_motif_phrase_archetype_ids": [], "transition_motif_phrase_archetype_signatures": [], "transition_motif_phrase_archetype_reference_count": 0, "transition_motif_phrase_contour_ids": [], "transition_motif_phrase_contour_signatures": [], "transition_motif_phrase_contour_reference_count": 0, "transition_motif_phrase_sweep_ids": [], "transition_motif_phrase_sweep_signatures": [], "transition_motif_phrase_sweep_reference_count": 0, "transition_motif_phrase_gesture_ids": [], "transition_motif_phrase_gesture_signatures": [], "transition_motif_phrase_gesture_reference_count": 0, "transition_motif_phrase_mobility_ids": [], "transition_motif_phrase_mobility_signatures": [], "transition_motif_phrase_mobility_reference_count": 0, "onset_offsets_seconds_preview": [], "onset_reference_count": 0}},
+                        ],
+                        "component_layers": {
+                            "harmonic_component_groups": [
+                                {"component_id": "component.01"},
+                                {"component_id": "component.02"},
+                            ],
+                            "noise_component_bands": [],
+                        },
+                        "reconstruction": {
+                            "reconstructable_outputs": ["vocals", "accompaniment"],
+                        },
+                        "uncertainty_notes": {
+                            "warnings": ["analysis excerpt only"],
+                        },
+                        "provenance": {
+                            "input_file_hash": "abc123",
+                            "decode_backend": "wave",
+                            "preprocessing_steps": ["decode", "observe"],
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["command"], "arwif-inspect-analysis")
+            self.assertEqual(payload["analysis_document_format"], "yaml")
+            self.assertEqual(payload["analysis_profile"], "basic-observation")
+            self.assertEqual(payload["source_hypothesis_count"], 2)
+            self.assertEqual(payload["source_hypothesis_classes"], ["backing_vocal", "lead_vocal"])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_signature_count"], 1)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_signatures"], ["energy_stable|medium|medium|stable"])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_sequence_signature_count"], 1)
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_sequence_signatures"],
+                ["energy_stable|medium|medium|stable=>energy_stable|medium|medium|stable"],
+            )
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_chain_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_chain_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_family_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_family_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_archetype_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_contour_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_sweep_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_gesture_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures"], [])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_mobility_signature_count"], 0)
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_phrase_mobility_signatures"], [])
+            self.assertEqual(payload["first_source_hypothesis"]["source_class"], "lead_vocal")
+            self.assertEqual(payload["first_source_hypothesis"]["time_bounds"]["duration_seconds"], 3.0)
+            self.assertEqual(payload["first_source_hypothesis"]["linked_observations"]["section_indexes"], [0])
+            self.assertEqual(payload["first_source_hypothesis"]["linked_observations"]["transition_motif_signatures"], ["energy_stable|medium|medium|stable"])
+            self.assertEqual(
+                payload["first_source_hypothesis"]["linked_observations"]["transition_motif_sequence_signatures"],
+                ["energy_stable|medium|medium|stable=>energy_stable|medium|medium|stable"],
+            )
+            self.assertEqual(payload["first_source_hypothesis"]["linked_observations"]["transition_motif_chain_signatures"], [])
+            self.assertEqual(payload["first_source_hypothesis"]["linked_observations"].get("transition_motif_phrase_signatures", []), [])
+            self.assertEqual(payload["onset_map_count"], 0)
+            self.assertEqual(payload["section_boundary_count"], 0)
+            self.assertEqual(payload["section_candidate_count"], 0)
+            self.assertEqual(payload["section_transition_count"], 0)
+            self.assertEqual(payload["section_profile_summary"]["energy_band_counts"], {})
+            self.assertEqual(payload["transition_profile_summary"]["transition_kind_counts"], {})
+            self.assertEqual(payload["transition_motif_summary"]["recurring_motif_count"], 0)
+            self.assertEqual(payload["transition_motif_sequence_summary"]["recurring_sequence_count"], 0)
+            self.assertEqual(payload["transition_motif_chain_summary"]["recurring_chain_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_summary"]["recurring_phrase_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_family_summary"]["recurring_family_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_archetype_summary"]["recurring_archetype_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_contour_summary"]["recurring_contour_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_sweep_summary"]["recurring_sweep_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_gesture_summary"]["recurring_gesture_count"], 0)
+            self.assertEqual(payload["transition_motif_phrase_mobility_summary"]["recurring_mobility_count"], 0)
+            self.assertEqual(
+                payload["transition_motif_phrase_abstraction_ladder"],
+                {
+                    "recurring_counts": {
+                        "phrase": 0,
+                        "family": 0,
+                        "archetype": 0,
+                        "contour": 0,
+                        "sweep": 0,
+                        "gesture": 0,
+                        "mobility": 0,
+                    },
+                    "occurrence_counts": {
+                        "phrase": 0,
+                        "family": 0,
+                        "archetype": 0,
+                        "contour": 0,
+                        "sweep": 0,
+                        "gesture": 0,
+                        "mobility": 0,
+                    },
+                },
+            )
+            self.assertEqual(
+                payload["highest_stable_transition_motif_abstraction_layer"],
+                {
+                    "layer": "none",
+                    "recurring_count": 0,
+                    "occurrence_count": 0,
+                },
+            )
+            self.assertIsNone(payload["first_onset"])
+            self.assertIsNone(payload["first_section_boundary"])
+            self.assertIsNone(payload["first_section_candidate"])
+            self.assertIsNone(payload["first_section_transition"])
+            self.assertIsNone(payload["first_transition_motif"])
+            self.assertIsNone(payload["first_transition_motif_sequence"])
+            self.assertIsNone(payload["first_transition_motif_chain"])
+            self.assertIsNone(payload["first_transition_motif_phrase"])
+            self.assertIsNone(payload["first_transition_motif_phrase_family"])
+            self.assertIsNone(payload["first_transition_motif_phrase_archetype"])
+            self.assertIsNone(payload["first_transition_motif_phrase_contour"])
+            self.assertIsNone(payload["first_transition_motif_phrase_sweep"])
+            self.assertIsNone(payload["first_transition_motif_phrase_gesture"])
+            self.assertIsNone(payload["first_transition_motif_phrase_mobility"])
+            self.assertEqual(payload["component_group_count"], 2)
+            self.assertEqual(payload["reconstructable_outputs"], ["vocals", "accompaniment"])
+            self.assertEqual(payload["uncertainty_warning_count"], 1)
+            self.assertEqual(payload["provenance_summary"]["decode_backend"], "wave")
+            self.assertIn("basic_observation_summary", payload["observation_layer_names"])
+
+    def test_arwif_inspect_analysis_summarizes_workspace_sections_when_present(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "workspace-analysis.yaml"
+
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "workspace.demo-01",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/example.wav",
+                            "duration_seconds": 8.0,
+                            "sample_rate_hz": 16000,
+                            "channel_count": 1,
+                            "codec": "wav",
+                            "original_sample_rate_hz": 16000,
+                            "original_channel_count": 1,
+                        },
+                        "attention_contract": {
+                            "query_text": "Keep accompaniment, suppress vocals, and summarize likely crowd interjections.",
+                            "attention_targets": ["lead_vocal", "backing_band", "crowd_noise"],
+                            "retain_targets": ["backing_band"],
+                            "suppress_targets": ["lead_vocal"],
+                            "answer_expectations": ["summarize crowd interjections"],
+                            "render_goal": "instrumental bed with crowd-notes sidecar",
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {},
+                            "onset_map": [],
+                            "section_boundaries": [],
+                            "section_candidates": [],
+                            "section_transitions": [],
+                        },
+                        "source_hypotheses": [],
+                        "interpretation_layers": {
+                            "scene_hypotheses": [
+                                {
+                                    "hypothesis_id": "scene.01",
+                                    "label": "studio backing band with foreground vocal",
+                                }
+                            ],
+                            "communicative_hypotheses": [
+                                {
+                                    "hypothesis_id": "comm.01",
+                                    "label": "crowd echoes hook fragments",
+                                }
+                            ],
+                            "separation_notes": {
+                                "status": "query-conditioned",
+                            },
+                        },
+                        "component_layers": {},
+                        "transformation_intent": {
+                            "operations": ["suppress", "retain", "summarize"],
+                            "primary_output": "accompaniment_without_vocals",
+                        },
+                        "reconstruction": {
+                            "reconstructable_outputs": ["accompaniment_without_vocals"],
+                        },
+                        "uncertainty_notes": {
+                            "warnings": ["crowd interpretation remains low confidence"],
+                        },
+                        "provenance": {
+                            "input_file_hash": "workspacehash",
+                            "decode_backend": "wave",
+                            "preprocessing_steps": ["decode", "observe"],
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(
+                payload["attention_contract"],
+                {
+                    "query_text": "Keep accompaniment, suppress vocals, and summarize likely crowd interjections.",
+                    "attention_targets": ["lead_vocal", "backing_band", "crowd_noise"],
+                    "retain_targets": ["backing_band"],
+                    "suppress_targets": ["lead_vocal"],
+                    "answer_expectations": ["summarize crowd interjections"],
+                    "render_goal": "instrumental bed with crowd-notes sidecar",
+                },
+            )
+            self.assertEqual(
+                payload["interpretation_layer_names"],
+                ["communicative_hypotheses", "scene_hypotheses", "separation_notes"],
+            )
+            self.assertEqual(payload["interpretation_hypothesis_count"], 2)
+            self.assertEqual(payload["first_scene_hypothesis"]["hypothesis_id"], "scene.01")
+            self.assertEqual(payload["first_communicative_hypothesis"]["hypothesis_id"], "comm.01")
+            self.assertEqual(
+                payload["transformation_intent"],
+                {
+                    "operations": ["suppress", "retain", "summarize"],
+                    "primary_output": "accompaniment_without_vocals",
+                },
+            )
+            self.assertEqual(payload["reconstructable_outputs"], ["accompaniment_without_vocals"])
+
+    def test_arwif_validate_analysis_reports_workspace_stats(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "validate-analysis.yaml"
+
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "validate.demo-01",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/example.wav",
+                            "duration_seconds": 8.0,
+                            "sample_rate_hz": 16000,
+                            "channel_count": 1,
+                            "codec": "wav",
+                        },
+                        "attention_contract": {
+                            "query_text": "keep accompaniment",
+                            "retain_targets": ["backing_band"],
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {},
+                            "onset_map": [],
+                        },
+                        "source_hypotheses": [],
+                        "interpretation_layers": {
+                            "scene_hypotheses": [
+                                {
+                                    "hypothesis_id": "scene.01",
+                                    "label": "backing bed under vocal",
+                                }
+                            ]
+                        },
+                        "component_layers": {},
+                        "transformation_intent": {
+                            "operations": ["retain"],
+                            "primary_output": "backing_band_only",
+                        },
+                        "reconstruction": {
+                            "reconstructable_outputs": ["backing_band_only"],
+                        },
+                        "uncertainty_notes": {
+                            "warnings": ["low confidence scene summary"],
+                        },
+                        "provenance": {
+                            "decode_backend": "wave",
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-validate-analysis",
+                str(analysis_document_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["analysis_document"], str(analysis_document_path))
+            self.assertEqual(payload["stats"]["analysis_profile"], "basic-observation")
+            self.assertEqual(payload["stats"]["source_id"], "validate.demo-01")
+            self.assertEqual(payload["stats"]["observation_layer_count"], 2)
+            self.assertEqual(payload["stats"]["reconstructable_output_count"], 1)
+            self.assertEqual(payload["stats"]["uncertainty_warning_count"], 1)
+            self.assertTrue(payload["stats"]["has_attention_contract"])
+            self.assertTrue(payload["stats"]["has_interpretation_layers"])
+            self.assertTrue(payload["stats"]["has_transformation_intent"])
+
+    def test_arwif_inspect_analysis_rejects_invalid_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-analysis.json"
+            analysis_document_path.write_text(
+                json.dumps(
+                    {
+                        "analysis_metadata": [],
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("analysis_metadata", payload["errors"][0])
+
+    def test_arwif_inspect_analysis_rejects_invalid_attention_contract_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-attention-contract.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.attention",
+                        },
+                        "observed_audio": {},
+                        "attention_contract": {
+                            "query_text": "keep the bed",
+                            "attention_targets": "foreground_call_stream",
+                        },
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("attention_contract.attention_targets", payload["errors"][0])
+
+    def test_arwif_inspect_analysis_rejects_invalid_interpretation_layers_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-interpretation-layers.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.interpretation",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "interpretation_layers": {
+                            "scene_hypotheses": ["foreground call over bed"],
+                        },
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("interpretation_layers.scene_hypotheses[0]", payload["errors"][0])
+
+    def test_arwif_inspect_analysis_rejects_invalid_transformation_intent_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-transformation-intent.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.transformation",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "transformation_intent": {
+                            "operations": "suppress",
+                        },
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("transformation_intent.operations", payload["errors"][0])
+
+    def test_arwif_validate_analysis_rejects_invalid_attention_contract_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-validate-analysis.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.validate.analysis",
+                        },
+                        "observed_audio": {},
+                        "attention_contract": {
+                            "attention_targets": "foreground_call_stream",
+                        },
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-validate-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("attention_contract.attention_targets", payload["errors"][0])
+
+    def test_arwif_validate_analysis_rejects_invalid_source_hypothesis_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-source-hypothesis.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.source-hypothesis",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [
+                            {
+                                "source_id": "source.invalid.01",
+                                "confidence": 1.2,
+                                "linked_observations": {
+                                    "section_indexes": [0],
+                                },
+                            }
+                        ],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-validate-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("source_hypotheses[0].confidence", payload["errors"][0])
+
+    def test_arwif_inspect_analysis_rejects_invalid_component_layer_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-component-layers.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.component-layers",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {
+                            "harmonic_component_groups": [
+                                {
+                                    "component_id": "",
+                                }
+                            ]
+                        },
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-inspect-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("component_layers.harmonic_component_groups[0].component_id", payload["errors"][0])
+
+    def test_arwif_validate_analysis_rejects_invalid_reconstruction_shape(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            analysis_document_path = tmp_dir / "invalid-reconstruction.yaml"
+            analysis_document_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "invalid.reconstruction",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {
+                            "reconstructable_outputs": "vocals",
+                        },
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-validate-analysis",
+                str(analysis_document_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"])
+            self.assertIn("reconstruction.reconstructable_outputs", payload["errors"][0])
+
+    def test_arwif_batch_validate_analysis_aggregates_valid_and_invalid_documents(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            valid_path = tmp_dir / "valid-analysis.yaml"
+            invalid_path = tmp_dir / "invalid-analysis.yaml"
+            report_path = tmp_dir / "batch-validate-analysis-report.json"
+
+            valid_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "batch.validate.01",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/example.wav",
+                            "duration_seconds": 6.0,
+                            "sample_rate_hz": 16000,
+                            "channel_count": 1,
+                            "codec": "wav",
+                        },
+                        "attention_contract": {
+                            "retain_targets": ["backing_band"],
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {},
+                            "onset_map": [],
+                            "section_boundaries": [],
+                        },
+                        "source_hypotheses": [],
+                        "interpretation_layers": {
+                            "scene_hypotheses": [
+                                {
+                                    "hypothesis_id": "scene.01",
+                                    "label": "backing bed under vocal",
+                                }
+                            ]
+                        },
+                        "component_layers": {},
+                        "transformation_intent": {
+                            "operations": ["retain"],
+                        },
+                        "reconstruction": {
+                            "reconstructable_outputs": ["backing_band_only"],
+                        },
+                        "uncertainty_notes": {
+                            "warnings": ["low confidence scene summary"],
+                        },
+                        "provenance": {
+                            "decode_backend": "wave",
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+            invalid_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "batch.validate.invalid",
+                        },
+                        "observed_audio": {},
+                        "observation_layers": {},
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {},
+                        "uncertainty_notes": {},
+                        "provenance": {},
+                        "transformation_intent": {
+                            "operations": "retain",
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-validate-analysis",
+                str(valid_path),
+                str(invalid_path),
+                "--output",
+                str(report_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"], payload)
+            self.assertEqual(payload["analysis_documents_processed"], 2)
+            self.assertEqual(payload["valid_count"], 1)
+            self.assertEqual(payload["invalid_count"], 1)
+            self.assertEqual(payload["analysis_profile_counts"], {"basic-observation": 1})
+            self.assertEqual(payload["total_observation_layer_count"], 3)
+            self.assertEqual(payload["total_reconstructable_output_count"], 1)
+            self.assertEqual(payload["total_uncertainty_warning_count"], 1)
+            self.assertEqual(payload["documents_with_attention_contract"], 1)
+            self.assertEqual(payload["documents_with_interpretation_layers"], 1)
+            self.assertEqual(payload["documents_with_transformation_intent"], 1)
+            self.assertEqual(payload["report_format"], "json")
+            self.assertTrue(report_path.exists())
+            self.assertEqual(len(payload["results"]), 2)
+            invalid_result = next(
+                result for result in payload["results"] if result["analysis_document"] == str(invalid_path)
+            )
+            self.assertFalse(invalid_result["is_valid"])
+            self.assertIn("transformation_intent.operations", invalid_result["errors"][0])
+
+            persisted_report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_report["analysis_documents_processed"], 2)
+            self.assertEqual(persisted_report["invalid_count"], 1)
+
+    def test_arwif_batch_inspect_analysis_aggregates_structural_counts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            first_path = tmp_dir / "first-analysis.yaml"
+            second_path = tmp_dir / "second-analysis.json"
+            report_path = tmp_dir / "batch-inspect-analysis-report.json"
+
+            first_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.first",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/first.wav",
+                    "duration_seconds": 6.0,
+                    "sample_rate_hz": 16000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 16000,
+                    "original_channel_count": 1,
+                    "analysis_window": {
+                        "start_seconds": 0.0,
+                        "duration_seconds": 6.0,
+                    },
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.4,
+                        "rms_amplitude": 0.1,
+                        "estimated_onset_count": 4,
+                        "section_boundary_count": 1,
+                        "section_candidate_count": 2,
+                        "section_transition_count": 1,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 3.0,
+                            "longest_duration_seconds": 4.0,
+                            "energy_band_counts": {"low": 1, "medium": 1},
+                            "duration_band_counts": {"medium": 2},
+                            "position_band_counts": {"middle": 1, "opening": 1},
+                            "dominant_energy_band": "low",
+                            "opening_energy_band": "low",
+                            "closing_energy_band": "medium",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.25,
+                            "largest_abs_energy_delta": 0.25,
+                            "transition_kind_counts": {"energy_increase": 1},
+                            "dominant_transition_kind": "energy_increase",
+                            "opening_transition_kind": "energy_increase",
+                            "closing_transition_kind": "energy_increase",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 0,
+                            "motif_occurrence_count": 0,
+                            "motif_signature_counts": {},
+                            "motif_signatures": [],
+                            "dominant_motif_signature": None,
+                            "motifs": [],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 0,
+                            "sequence_occurrence_count": 0,
+                            "sequence_signature_counts": {},
+                            "sequence_signatures": [],
+                            "dominant_sequence_signature": None,
+                            "sequences": [],
+                        },
+                        "transition_motif_chain_summary": {
+                            "chain_length": 3,
+                            "recurring_chain_count": 0,
+                            "chain_occurrence_count": 0,
+                            "chain_signature_counts": {},
+                            "chain_signatures": [],
+                            "dominant_chain_signature": None,
+                            "chains": [],
+                        },
+                        "frame_count": 96000,
+                        "spectral_extent_summary": {"low_hz": 80, "high_hz": 4000},
+                        "channel_energy_summary": {"center_rms": 0.1},
+                    },
+                    "onset_map": [{"offset_seconds": 0.4, "strength": 0.12}],
+                    "transient_events": [],
+                    "section_boundaries": [{"offset_seconds": 2.0, "confidence": 0.3, "energy_transition": "rise"}],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 2.0, "duration_seconds": 2.0, "rms_amplitude": 0.08, "relative_energy": 0.8, "energy_band": "low", "duration_band": "medium", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 2.0, "end_seconds": 6.0, "duration_seconds": 4.0, "rms_amplitude": 0.12, "relative_energy": 1.05, "energy_band": "medium", "duration_band": "medium", "position_band": "middle"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 2.0, "from_energy_band": "low", "to_energy_band": "medium", "energy_delta": 0.25, "duration_delta_seconds": 2.0, "transition_kind": "energy_increase"},
+                    ],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {
+                    "input_file_hash": "hash-first",
+                    "decode_backend": "wave",
+                    "preprocessing_steps": ["decode", "observe"],
+                },
+            }
+            second_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.second",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/second.mp3",
+                    "duration_seconds": 4.0,
+                    "sample_rate_hz": 44100,
+                    "channel_count": 2,
+                    "codec": "mp3",
+                    "original_sample_rate_hz": 44100,
+                    "original_channel_count": 2,
+                    "analysis_window": {
+                        "start_seconds": 0.0,
+                        "duration_seconds": 4.0,
+                    },
+                },
+                "attention_contract": {
+                    "query_text": "Keep the band, suppress the lead vocal, and summarize the foreground call stream.",
+                    "attention_targets": ["foreground_call_stream", "band_bed"],
+                    "retain_targets": ["band_bed"],
+                    "suppress_targets": ["foreground_call_stream"],
+                    "answer_expectations": ["summarize foreground call stream"],
+                    "render_goal": "band bed without foreground call stream",
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.7,
+                        "rms_amplitude": 0.2,
+                        "estimated_onset_count": 6,
+                        "section_boundary_count": 2,
+                        "section_candidate_count": 3,
+                        "section_transition_count": 2,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 1.333333,
+                            "longest_duration_seconds": 2.0,
+                            "energy_band_counts": {"high": 1, "low": 1, "medium": 1},
+                            "duration_band_counts": {"medium": 1, "short": 2},
+                            "position_band_counts": {"closing": 1, "middle": 1, "opening": 1},
+                            "dominant_energy_band": "high",
+                            "opening_energy_band": "medium",
+                            "closing_energy_band": "high",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.18,
+                            "largest_abs_energy_delta": 0.2,
+                            "transition_kind_counts": {"energy_decrease": 1, "energy_stable": 1},
+                            "dominant_transition_kind": "energy_decrease",
+                            "opening_transition_kind": "energy_stable",
+                            "closing_transition_kind": "energy_decrease",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 1,
+                            "motif_occurrence_count": 2,
+                            "motif_signature_counts": {"energy_stable|medium|low|stable": 2},
+                            "motif_signatures": ["energy_stable|medium|low|stable"],
+                            "dominant_motif_signature": "energy_stable|medium|low|stable",
+                            "motifs": [
+                                {
+                                    "motif_id": "transition_motif.01",
+                                    "signature": "energy_stable|medium|low|stable",
+                                    "transition_kind": "energy_stable",
+                                    "from_energy_band": "medium",
+                                    "to_energy_band": "low",
+                                    "duration_trend": "stable",
+                                    "occurrence_count": 2,
+                                    "section_transition_indexes": [0, 1],
+                                    "boundary_offsets_seconds": [1.0, 2.0],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 1,
+                            "sequence_occurrence_count": 2,
+                            "sequence_signature_counts": {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 2},
+                            "sequence_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                            "dominant_sequence_signature": "energy_stable|medium|low|stable=>energy_stable|medium|low|stable",
+                            "sequences": [
+                                {
+                                    "sequence_id": "transition_motif_sequence.01",
+                                    "signature": "energy_stable|medium|low|stable=>energy_stable|medium|low|stable",
+                                    "left_signature": "energy_stable|medium|low|stable",
+                                    "right_signature": "energy_stable|medium|low|stable",
+                                    "occurrence_count": 2,
+                                    "section_transition_index_pairs": [[0, 1], [1, 2]],
+                                    "boundary_offset_pairs_seconds": [[1.0, 2.0], [2.0, 3.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_chain_summary": {
+                            "chain_length": 3,
+                            "recurring_chain_count": 1,
+                            "chain_occurrence_count": 2,
+                            "chain_signature_counts": {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 2},
+                            "chain_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                            "dominant_chain_signature": "energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable",
+                            "chains": [
+                                {
+                                    "chain_id": "transition_motif_chain.01",
+                                    "signature": "energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable",
+                                    "motif_signatures": ["energy_stable|medium|low|stable", "energy_stable|medium|low|stable", "energy_stable|medium|low|stable"],
+                                    "chain_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_chains": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_chains_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_phrase_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_phrase_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_phrase_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 2},
+                            "phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                            "dominant_phrase_signature": "energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable",
+                                    "motif_signatures": ["energy_stable|medium|low|stable", "energy_stable|medium|low|stable", "energy_stable|medium|low|stable"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_family_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_family_count": 1,
+                            "family_occurrence_count": 2,
+                            "family_signature_counts": {"energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable": 2},
+                            "family_signatures": ["energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable"],
+                            "dominant_family_signature": "energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable",
+                            "families": [
+                                {
+                                    "family_id": "transition_motif_phrase_family.01",
+                                    "signature": "energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable",
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_archetype_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_archetype_count": 1,
+                            "archetype_occurrence_count": 2,
+                            "archetype_signature_counts": {"energy_increase|rise_band|lengthen": 2},
+                            "archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                            "dominant_archetype_signature": "energy_increase|rise_band|lengthen",
+                            "archetypes": [
+                                {
+                                    "archetype_id": "transition_motif_phrase_archetype.01",
+                                    "signature": "energy_increase|rise_band|lengthen",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_archetype_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_archetype_count": 1,
+                            "archetype_occurrence_count": 2,
+                            "archetype_signature_counts": {"energy_stable|fall_band|stable": 2},
+                            "archetype_signatures": ["energy_stable|fall_band|stable"],
+                            "dominant_archetype_signature": "energy_stable|fall_band|stable",
+                            "archetypes": [
+                                {
+                                    "archetype_id": "transition_motif_phrase_archetype.01",
+                                    "signature": "energy_stable|fall_band|stable",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_stable|fall_band": 2},
+                            "contour_signatures": ["energy_stable|fall_band"],
+                            "dominant_contour_signature": "energy_stable|fall_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_stable|fall_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_stable|fall_band|stable"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_sweep_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_sweep_count": 1,
+                            "sweep_occurrence_count": 2,
+                            "sweep_signature_counts": {"fall_band": 2},
+                            "sweep_signatures": ["fall_band"],
+                            "dominant_sweep_signature": "fall_band",
+                            "sweeps": [
+                                {
+                                    "sweep_id": "transition_motif_phrase_sweep.01",
+                                    "signature": "fall_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_stable|fall_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_stable|fall_band|stable"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_gesture_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_gesture_count": 1,
+                            "gesture_occurrence_count": 2,
+                            "gesture_signature_counts": {"single_direction_sweep": 2},
+                            "gesture_signatures": ["single_direction_sweep"],
+                            "dominant_gesture_signature": "single_direction_sweep",
+                            "gestures": [
+                                {
+                                    "gesture_id": "transition_motif_phrase_gesture.01",
+                                    "signature": "single_direction_sweep",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_sweep_count": 1,
+                                    "member_sweep_ids": ["transition_motif_phrase_sweep.01"],
+                                    "member_sweep_signatures": ["rise_band"],
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_mobility_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_mobility_count": 1,
+                            "mobility_occurrence_count": 2,
+                            "mobility_signature_counts": {"traveling_band_region": 2},
+                            "mobility_signatures": ["traveling_band_region"],
+                            "dominant_mobility_signature": "traveling_band_region",
+                            "mobilities": [
+                                {
+                                    "mobility_id": "transition_motif_phrase_mobility.01",
+                                    "signature": "traveling_band_region",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_gesture_count": 1,
+                                    "member_gesture_ids": ["transition_motif_phrase_gesture.01"],
+                                    "member_gesture_signatures": ["single_direction_sweep"],
+                                    "member_sweep_count": 1,
+                                    "member_sweep_ids": ["transition_motif_phrase_sweep.01"],
+                                    "member_sweep_signatures": ["rise_band"],
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_gesture_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_gesture_count": 1,
+                            "gesture_occurrence_count": 2,
+                            "gesture_signature_counts": {"single_direction_sweep": 2},
+                            "gesture_signatures": ["single_direction_sweep"],
+                            "dominant_gesture_signature": "single_direction_sweep",
+                            "gestures": [
+                                {
+                                    "gesture_id": "transition_motif_phrase_gesture.01",
+                                    "signature": "single_direction_sweep",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_sweep_count": 1,
+                                    "member_sweep_ids": ["transition_motif_phrase_sweep.01"],
+                                    "member_sweep_signatures": ["fall_band"],
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_stable|fall_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_stable|fall_band|stable"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.0, "duration_seconds": 4.0},
+                                }
+                            ],
+                        },
+                        "frame_count": 176400,
+                        "spectral_extent_summary": {"low_hz": 60, "high_hz": 7200},
+                        "channel_energy_summary": {"left_rms": 0.21, "right_rms": 0.19},
+                    },
+                    "onset_map": [{"offset_seconds": 0.2, "strength": 0.2}, {"offset_seconds": 1.2, "strength": 0.15}],
+                    "transient_events": [],
+                    "section_boundaries": [
+                        {"offset_seconds": 1.0, "confidence": 0.2, "energy_transition": "rise"},
+                        {"offset_seconds": 2.0, "confidence": 0.15, "energy_transition": "fall"},
+                    ],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 1.0, "duration_seconds": 1.0, "rms_amplitude": 0.18, "relative_energy": 1.0, "energy_band": "medium", "duration_band": "short", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 1.0, "end_seconds": 2.0, "duration_seconds": 1.0, "rms_amplitude": 0.17, "relative_energy": 0.95, "energy_band": "low", "duration_band": "short", "position_band": "middle"},
+                        {"section_index": 2, "start_seconds": 2.0, "end_seconds": 4.0, "duration_seconds": 2.0, "rms_amplitude": 0.24, "relative_energy": 1.2, "energy_band": "high", "duration_band": "medium", "position_band": "closing"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 1.0, "from_energy_band": "medium", "to_energy_band": "low", "energy_delta": -0.05, "duration_delta_seconds": 0.0, "transition_kind": "energy_stable"},
+                        {"from_section_index": 1, "to_section_index": 2, "boundary_offset_seconds": 2.0, "from_energy_band": "low", "to_energy_band": "high", "energy_delta": 0.25, "duration_delta_seconds": 1.0, "transition_kind": "energy_decrease"},
+                    ],
+                },
+                "source_hypotheses": [{"source_id": "source.vocal.01", "source_class": "foreground_call_stream", "role": "foreground_stream", "linked_observations": {"transition_motif_signatures": ["energy_stable|medium|low|stable"], "transition_motif_sequence_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable"], "transition_motif_chain_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"], "transition_motif_phrase_signatures": ["energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable"], "transition_motif_phrase_family_signatures": ["energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable"], "transition_motif_phrase_archetype_signatures": ["energy_stable|fall_band|stable"], "transition_motif_phrase_contour_signatures": ["energy_stable|fall_band"], "transition_motif_phrase_sweep_signatures": ["fall_band"], "transition_motif_phrase_gesture_signatures": ["single_direction_sweep"], "transition_motif_phrase_mobility_signatures": ["traveling_band_region"]}}],
+                "interpretation_layers": {
+                    "scene_hypotheses": [
+                        {
+                            "hypothesis_id": "scene.01",
+                            "label": "foreground call over stereo band bed",
+                        }
+                    ],
+                    "communicative_hypotheses": [
+                        {
+                            "hypothesis_id": "comm.01",
+                            "label": "foreground call behaves like a query target",
+                        }
+                    ],
+                    "separation_notes": {
+                        "status": "task-conditioned",
+                    },
+                },
+                "component_layers": {"harmonic_component_groups": [{"component_id": "component.01"}]},
+                "transformation_intent": {
+                    "operations": ["retain", "suppress", "summarize"],
+                    "primary_output": "band_bed_without_foreground_call_stream",
+                },
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": ["lossy source"]},
+                "provenance": {
+                    "input_file_hash": "hash-second",
+                    "decode_backend": "ffmpeg",
+                    "preprocessing_steps": ["decode", "observe", "window"],
+                },
+            }
+
+            first_path.write_text(yaml.safe_dump(first_document, sort_keys=False), encoding="utf-8")
+            second_path.write_text(json.dumps(second_document, indent=2), encoding="utf-8")
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-inspect-analysis",
+                str(first_path),
+                str(second_path),
+                "--output",
+                str(report_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["analysis_documents_processed"], 2)
+            self.assertEqual(payload["valid_count"], 2)
+            self.assertEqual(payload["invalid_count"], 0)
+            self.assertEqual(payload["analysis_profile_counts"], {"basic-observation": 2})
+            self.assertEqual(payload["codec_counts"], {"mp3": 1, "wav": 1})
+            self.assertEqual(payload["decode_backend_counts"], {"ffmpeg": 1, "wave": 1})
+            self.assertEqual(payload["documents_with_attention_contract"], 1)
+            self.assertEqual(payload["documents_with_interpretation_layers"], 1)
+            self.assertEqual(payload["documents_with_transformation_intent"], 1)
+            self.assertEqual(payload["total_interpretation_hypothesis_count"], 2)
+            self.assertEqual(
+                payload["interpretation_layer_name_counts"],
+                {
+                    "communicative_hypotheses": 1,
+                    "scene_hypotheses": 1,
+                    "separation_notes": 1,
+                },
+            )
+            self.assertEqual(payload["attention_target_counts"], {"band_bed": 1, "foreground_call_stream": 1})
+            self.assertEqual(payload["retain_target_counts"], {"band_bed": 1})
+            self.assertEqual(payload["suppress_target_counts"], {"foreground_call_stream": 1})
+            self.assertEqual(payload["answer_expectation_counts"], {"summarize foreground call stream": 1})
+            self.assertEqual(payload["render_goal_counts"], {"band bed without foreground call stream": 1})
+            self.assertEqual(
+                payload["transformation_operation_counts"],
+                {"retain": 1, "summarize": 1, "suppress": 1},
+            )
+            self.assertEqual(
+                payload["transformation_primary_output_counts"],
+                {"band_bed_without_foreground_call_stream": 1},
+            )
+            self.assertEqual(payload["total_onset_map_count"], 3)
+            self.assertEqual(payload["total_section_boundary_count"], 3)
+            self.assertEqual(payload["total_section_candidate_count"], 5)
+            self.assertEqual(payload["total_section_transition_count"], 3)
+            self.assertEqual(payload["total_source_hypothesis_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_sequence_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_chain_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_family_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_archetype_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_contour_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_sweep_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_gesture_count"], 1)
+            self.assertEqual(payload["total_recurring_transition_motif_phrase_mobility_count"], 1)
+            self.assertEqual(
+                payload["transition_motif_phrase_abstraction_totals"],
+                {
+                    "recurring_counts": {
+                        "phrase": 1,
+                        "family": 1,
+                        "archetype": 1,
+                        "contour": 1,
+                        "sweep": 1,
+                        "gesture": 1,
+                        "mobility": 1,
+                    },
+                    "occurrence_counts": {
+                        "phrase": 2,
+                        "family": 2,
+                        "archetype": 2,
+                        "contour": 2,
+                        "sweep": 2,
+                        "gesture": 2,
+                        "mobility": 2,
+                    },
+                },
+            )
+            self.assertEqual(
+                payload["highest_stable_transition_motif_abstraction_layer_counts"],
+                {
+                    "mobility": 1,
+                    "none": 1,
+                },
+            )
+            self.assertEqual(
+                payload["results"][0]["highest_stable_transition_motif_abstraction_layer"],
+                {
+                    "layer": "none",
+                    "recurring_count": 0,
+                    "occurrence_count": 0,
+                },
+            )
+            self.assertEqual(
+                payload["results"][1]["highest_stable_transition_motif_abstraction_layer"],
+                {
+                    "layer": "mobility",
+                    "recurring_count": 1,
+                    "occurrence_count": 2,
+                },
+            )
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_sequence_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_chain_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_family_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_archetype_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_contour_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_sweep_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_gesture_signature_count"], 1)
+            self.assertEqual(payload["total_source_hypothesis_linked_transition_motif_phrase_mobility_signature_count"], 1)
+            self.assertEqual(payload["source_hypothesis_class_counts"], {"foreground_call_stream": 1})
+            self.assertEqual(payload["source_hypothesis_role_counts"], {"foreground_stream": 1})
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_signature_counts"], {"energy_stable|medium|low|stable": 1})
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_sequence_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_chain_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_family_signature_counts"],
+                {"energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_archetype_signature_counts"],
+                {"energy_stable|fall_band|stable": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_contour_signature_counts"],
+                {"energy_stable|fall_band": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_sweep_signature_counts"],
+                {"fall_band": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_gesture_signature_counts"],
+                {"single_direction_sweep": 1},
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_mobility_signature_counts"],
+                {"traveling_band_region": 1},
+            )
+            self.assertEqual(payload["total_component_group_count"], 1)
+            self.assertEqual(payload["total_uncertainty_warning_count"], 1)
+            self.assertEqual(payload["dominant_section_energy_band_counts"], {"high": 1, "low": 1})
+            self.assertEqual(payload["dominant_transition_kind_counts"], {"energy_decrease": 1, "energy_increase": 1})
+            self.assertEqual(payload["dominant_transition_motif_signature_counts"], {"energy_stable|medium|low|stable": 1})
+            self.assertEqual(
+                payload["dominant_transition_motif_sequence_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_chain_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_family_signature_counts"],
+                {"energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_archetype_signature_counts"],
+                {"energy_stable|fall_band|stable": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_contour_signature_counts"],
+                {"energy_stable|fall_band": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_sweep_signature_counts"],
+                {"fall_band": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_gesture_signature_counts"],
+                {"single_direction_sweep": 1},
+            )
+            self.assertEqual(
+                payload["dominant_transition_motif_phrase_mobility_signature_counts"],
+                {"traveling_band_region": 1},
+            )
+            self.assertEqual(payload["total_transition_kind_counts"], {"energy_decrease": 1, "energy_increase": 1, "energy_stable": 1})
+            self.assertEqual(payload["transition_motif_signature_counts"], {"energy_stable|medium|low|stable": 2})
+            self.assertEqual(
+                payload["transition_motif_sequence_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_chain_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_signature_counts"],
+                {"energy_stable|medium|low|stable=>energy_stable|medium|low|stable=>energy_stable|medium|low|stable": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_family_signature_counts"],
+                {"energy_stable|fall_band|stable=>energy_stable|fall_band|stable=>energy_stable|fall_band|stable": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_archetype_signature_counts"],
+                {"energy_stable|fall_band|stable": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_contour_signature_counts"],
+                {"energy_stable|fall_band": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_sweep_signature_counts"],
+                {"fall_band": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_gesture_signature_counts"],
+                {"single_direction_sweep": 2},
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_mobility_signature_counts"],
+                {"traveling_band_region": 2},
+            )
+            self.assertEqual(payload["report_format"], "json")
+            self.assertTrue(report_path.exists())
+            self.assertEqual(len(payload["results"]), 2)
+
+    def test_arwif_batch_inspect_analysis_reports_invalid_documents(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            valid_path = tmp_dir / "valid-analysis.yaml"
+            missing_path = tmp_dir / "missing-analysis.yaml"
+
+            valid_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "demo.valid",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/valid.wav",
+                            "duration_seconds": 1.0,
+                            "sample_rate_hz": 8000,
+                            "channel_count": 1,
+                            "codec": "wav",
+                            "original_sample_rate_hz": 8000,
+                            "original_channel_count": 1,
+                            "analysis_window": {"start_seconds": 0.0, "duration_seconds": 1.0},
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {
+                                "peak_amplitude": 0.1,
+                                "rms_amplitude": 0.05,
+                                "estimated_onset_count": 0,
+                                "section_boundary_count": 0,
+                                "section_candidate_count": 0,
+                                "section_transition_count": 0,
+                                "section_profile_summary": {
+                                    "average_duration_seconds": 0.0,
+                                    "longest_duration_seconds": 0.0,
+                                    "energy_band_counts": {},
+                                    "duration_band_counts": {},
+                                    "position_band_counts": {},
+                                    "dominant_energy_band": None,
+                                    "opening_energy_band": None,
+                                    "closing_energy_band": None,
+                                },
+                                "transition_profile_summary": {
+                                    "average_abs_energy_delta": 0.0,
+                                    "largest_abs_energy_delta": 0.0,
+                                    "transition_kind_counts": {},
+                                    "dominant_transition_kind": None,
+                                    "opening_transition_kind": None,
+                                    "closing_transition_kind": None,
+                                },
+                                "frame_count": 8000,
+                                "spectral_extent_summary": {"low_hz": 90, "high_hz": 1000},
+                                "channel_energy_summary": {"center_rms": 0.05},
+                            },
+                            "onset_map": [],
+                            "transient_events": [],
+                            "section_boundaries": [],
+                            "section_candidates": [],
+                            "section_transitions": [],
+                        },
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {"reconstructable_outputs": []},
+                        "uncertainty_notes": {"warnings": []},
+                        "provenance": {
+                            "input_file_hash": "hash-valid",
+                            "decode_backend": "wave",
+                            "preprocessing_steps": ["decode", "observe"],
+                        },
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-inspect-analysis",
+                str(valid_path),
+                str(missing_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"], payload)
+            self.assertEqual(payload["analysis_documents_processed"], 2)
+            self.assertEqual(payload["valid_count"], 1)
+            self.assertEqual(payload["invalid_count"], 1)
+            invalid_result = next(result for result in payload["results"] if result["analysis_document"] == str(missing_path))
+            self.assertFalse(invalid_result["is_valid"])
+            self.assertIn("does not exist", invalid_result["errors"][0])
+
+    def test_arwif_batch_diff_analysis_aggregates_recurring_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_changed_path = tmp_dir / "left-changed.yaml"
+            right_changed_path = tmp_dir / "right-changed.yaml"
+            left_same_path = tmp_dir / "left-same.yaml"
+            right_same_path = tmp_dir / "right-same.yaml"
+            report_path = tmp_dir / "batch-diff-analysis-report.yaml"
+
+            left_changed_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.left.changed",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/left.wav",
+                    "duration_seconds": 8.0,
+                    "sample_rate_hz": 16000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 16000,
+                    "original_channel_count": 1,
+                    "analysis_window": {"start_seconds": 0.0, "duration_seconds": 8.0},
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.4,
+                        "rms_amplitude": 0.1,
+                        "estimated_onset_count": 8,
+                        "section_boundary_count": 1,
+                        "section_candidate_count": 2,
+                        "section_transition_count": 1,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 4.0,
+                            "longest_duration_seconds": 5.0,
+                            "energy_band_counts": {"low": 1, "medium": 1},
+                            "duration_band_counts": {"medium": 2},
+                            "position_band_counts": {"middle": 1, "opening": 1},
+                            "dominant_energy_band": "low",
+                            "opening_energy_band": "low",
+                            "closing_energy_band": "medium",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.15,
+                            "largest_abs_energy_delta": 0.15,
+                            "transition_kind_counts": {"energy_stable": 1},
+                            "dominant_transition_kind": "energy_stable",
+                            "opening_transition_kind": "energy_stable",
+                            "closing_transition_kind": "energy_stable",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 0,
+                            "motif_occurrence_count": 0,
+                            "motif_signature_counts": {},
+                            "motif_signatures": [],
+                            "dominant_motif_signature": None,
+                            "motifs": [],
+                        },
+                        "frame_count": 128000,
+                        "spectral_extent_summary": {"low_hz": 80, "high_hz": 4200},
+                        "channel_energy_summary": {"center_rms": 0.1},
+                    },
+                    "onset_map": [],
+                    "transient_events": [],
+                    "section_boundaries": [{"offset_seconds": 3.0, "confidence": 0.2, "energy_transition": "rise"}],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 3.0, "duration_seconds": 3.0, "rms_amplitude": 0.08, "relative_energy": 0.8, "energy_band": "low", "duration_band": "medium", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 3.0, "end_seconds": 8.0, "duration_seconds": 5.0, "rms_amplitude": 0.11, "relative_energy": 1.0, "energy_band": "medium", "duration_band": "medium", "position_band": "middle"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 3.0, "from_energy_band": "low", "to_energy_band": "medium", "energy_delta": 0.2, "duration_delta_seconds": 2.0, "transition_kind": "energy_stable"},
+                    ],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {"input_file_hash": "hash-left", "decode_backend": "wave", "preprocessing_steps": ["decode", "observe"]},
+            }
+            right_changed_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.right.changed",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/right.mp3",
+                    "duration_seconds": 8.5,
+                    "sample_rate_hz": 44100,
+                    "channel_count": 2,
+                    "codec": "mp3",
+                    "original_sample_rate_hz": 44100,
+                    "original_channel_count": 2,
+                    "analysis_window": {"start_seconds": 0.0, "duration_seconds": 8.5},
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.7,
+                        "rms_amplitude": 0.2,
+                        "estimated_onset_count": 10,
+                        "section_boundary_count": 2,
+                        "section_candidate_count": 3,
+                        "section_transition_count": 2,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 2.833333,
+                            "longest_duration_seconds": 4.5,
+                            "energy_band_counts": {"high": 1, "low": 1, "medium": 1},
+                            "duration_band_counts": {"medium": 2, "short": 1},
+                            "position_band_counts": {"closing": 1, "middle": 1, "opening": 1},
+                            "dominant_energy_band": "high",
+                            "opening_energy_band": "medium",
+                            "closing_energy_band": "high",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.25,
+                            "largest_abs_energy_delta": 0.4,
+                            "transition_kind_counts": {"energy_decrease": 1, "energy_increase": 1},
+                            "dominant_transition_kind": "energy_decrease",
+                            "opening_transition_kind": "energy_increase",
+                            "closing_transition_kind": "energy_decrease",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 1,
+                            "motif_occurrence_count": 2,
+                            "motif_signature_counts": {"energy_increase|low|high|lengthen": 2},
+                            "motif_signatures": ["energy_increase|low|high|lengthen"],
+                            "dominant_motif_signature": "energy_increase|low|high|lengthen",
+                            "motifs": [
+                                {
+                                    "motif_id": "transition_motif.01",
+                                    "signature": "energy_increase|low|high|lengthen",
+                                    "transition_kind": "energy_increase",
+                                    "from_energy_band": "low",
+                                    "to_energy_band": "high",
+                                    "duration_trend": "lengthen",
+                                    "occurrence_count": 2,
+                                    "section_transition_indexes": [0, 1],
+                                    "boundary_offsets_seconds": [2.0, 4.0],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 1,
+                            "sequence_occurrence_count": 2,
+                            "sequence_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "sequence_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_sequence_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "sequences": [
+                                {
+                                    "sequence_id": "transition_motif_sequence.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "left_signature": "energy_increase|low|high|lengthen",
+                                    "right_signature": "energy_increase|low|high|lengthen",
+                                    "occurrence_count": 2,
+                                    "section_transition_index_pairs": [[0, 1], [1, 2]],
+                                    "boundary_offset_pairs_seconds": [[2.0, 4.0], [4.0, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_chain_summary": {
+                            "chain_length": 3,
+                            "recurring_chain_count": 1,
+                            "chain_occurrence_count": 2,
+                            "chain_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "chain_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_chain_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "chains": [
+                                {
+                                    "chain_id": "transition_motif_chain.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "chain_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_chains": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_chains_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_phrase_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_family_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_family_count": 1,
+                            "family_occurrence_count": 2,
+                            "family_signature_counts": {"energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen": 2},
+                            "family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                            "dominant_family_signature": "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+                            "families": [
+                                {
+                                    "family_id": "transition_motif_phrase_family.01",
+                                    "signature": "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_archetype_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_archetype_count": 1,
+                            "archetype_occurrence_count": 2,
+                            "archetype_signature_counts": {"energy_increase|rise_band|lengthen": 2},
+                            "archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                            "dominant_archetype_signature": "energy_increase|rise_band|lengthen",
+                            "archetypes": [
+                                {
+                                    "archetype_id": "transition_motif_phrase_archetype.01",
+                                    "signature": "energy_increase|rise_band|lengthen",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_sweep_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_sweep_count": 1,
+                            "sweep_occurrence_count": 2,
+                            "sweep_signature_counts": {"rise_band": 2},
+                            "sweep_signatures": ["rise_band"],
+                            "dominant_sweep_signature": "rise_band",
+                            "sweeps": [
+                                {
+                                    "sweep_id": "transition_motif_phrase_sweep.01",
+                                    "signature": "rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_gesture_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_gesture_count": 1,
+                            "gesture_occurrence_count": 2,
+                            "gesture_signature_counts": {"single_direction_sweep": 2},
+                            "gesture_signatures": ["single_direction_sweep"],
+                            "dominant_gesture_signature": "single_direction_sweep",
+                            "gestures": [
+                                {
+                                    "gesture_id": "transition_motif_phrase_gesture.01",
+                                    "signature": "single_direction_sweep",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_sweep_count": 1,
+                                    "member_sweep_ids": ["transition_motif_phrase_sweep.01"],
+                                    "member_sweep_signatures": ["rise_band"],
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 8.5, "duration_seconds": 8.5},
+                                }
+                            ],
+                        },
+                        "frame_count": 374850,
+                        "spectral_extent_summary": {"low_hz": 60, "high_hz": 7200},
+                        "channel_energy_summary": {"left_rms": 0.21, "right_rms": 0.19},
+                    },
+                    "onset_map": [{"offset_seconds": 0.4, "strength": 0.2}],
+                    "transient_events": [],
+                    "section_boundaries": [
+                        {"offset_seconds": 2.0, "confidence": 0.3, "energy_transition": "rise"},
+                        {"offset_seconds": 4.0, "confidence": 0.25, "energy_transition": "fall"},
+                    ],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 2.0, "duration_seconds": 2.0, "rms_amplitude": 0.18, "relative_energy": 1.0, "energy_band": "medium", "duration_band": "medium", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 2.0, "end_seconds": 4.0, "duration_seconds": 2.0, "rms_amplitude": 0.15, "relative_energy": 0.8, "energy_band": "low", "duration_band": "medium", "position_band": "middle"},
+                        {"section_index": 2, "start_seconds": 4.0, "end_seconds": 8.5, "duration_seconds": 4.5, "rms_amplitude": 0.24, "relative_energy": 1.3, "energy_band": "high", "duration_band": "medium", "position_band": "closing"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 2.0, "from_energy_band": "medium", "to_energy_band": "low", "energy_delta": -0.2, "duration_delta_seconds": 0.0, "transition_kind": "energy_increase"},
+                        {"from_section_index": 1, "to_section_index": 2, "boundary_offset_seconds": 4.0, "from_energy_band": "low", "to_energy_band": "high", "energy_delta": 0.5, "duration_delta_seconds": 2.5, "transition_kind": "energy_decrease"},
+                    ],
+                },
+                "source_hypotheses": [{"source_id": "source.vocal.01", "source_class": "transient_event_cluster", "role": "event_layer", "linked_observations": {"transition_motif_signatures": ["energy_increase|low|high|lengthen"], "transition_motif_sequence_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_chain_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_phrase_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"], "transition_motif_phrase_archetype_signatures": ["energy_increase|rise_band|lengthen"], "transition_motif_phrase_contour_signatures": ["energy_increase|rise_band"], "transition_motif_phrase_sweep_signatures": ["rise_band"], "transition_motif_phrase_gesture_signatures": ["single_direction_sweep"]}}],
+                "component_layers": {"harmonic_component_groups": [{"component_id": "component.01"}]},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": ["lossy source"]},
+                "attention_contract": {
+                    "query_text": "Which event layer should stay foregrounded?",
+                    "attention_targets": ["event layer", "rising transition"],
+                    "retain_targets": ["event layer"],
+                    "suppress_targets": ["steady bed"],
+                    "answer_expectations": ["identify the foregrounded event layer"],
+                    "render_goal": "keep the event layer prominent",
+                },
+                "interpretation_layers": {
+                    "scene_hypotheses": [
+                        {
+                            "hypothesis_id": "scene.changed.01",
+                            "label": "event layer punctuates a rising backdrop",
+                            "confidence": 0.34,
+                            "confidence_band": "low",
+                            "hypothesis_origin": "task_conditioned_initialization",
+                            "observed_source_classes": ["transient_event_cluster"],
+                            "linked_source_ids": ["source.vocal.01"],
+                            "attention_targets_matched_source_classes": ["transient_event_cluster"],
+                            "attention_targets_unmatched": ["rising transition"],
+                        }
+                    ],
+                    "communicative_hypotheses": [
+                        {
+                            "hypothesis_id": "communicative.changed.01",
+                            "label": "event layer is the likely answer-bearing stream",
+                            "confidence": 0.29,
+                            "confidence_band": "low",
+                            "hypothesis_origin": "task_conditioned_initialization",
+                            "linked_source_classes": ["transient_event_cluster"],
+                            "answer_expectations": ["identify the foregrounded event layer"],
+                        }
+                    ],
+                    "task_conditioning_notes": [
+                        {
+                            "note_id": "task-note.changed.01",
+                            "kind": "attention_bias",
+                            "text": "Prefer event-layer explanations over static bed descriptions.",
+                        }
+                    ],
+                },
+                "transformation_intent": {
+                    "operations": ["retain_foreground", "reduce_bed"],
+                    "primary_output": "event_layer_stem",
+                },
+                "provenance": {"input_file_hash": "hash-right", "decode_backend": "ffmpeg", "preprocessing_steps": ["decode", "observe", "window"]},
+            }
+
+            unchanged_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.same",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/same.wav",
+                    "duration_seconds": 3.0,
+                    "sample_rate_hz": 8000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 8000,
+                    "original_channel_count": 1,
+                    "analysis_window": {"start_seconds": 0.0, "duration_seconds": 3.0},
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.2,
+                        "rms_amplitude": 0.05,
+                        "estimated_onset_count": 2,
+                        "section_boundary_count": 0,
+                        "section_candidate_count": 0,
+                        "section_transition_count": 0,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 0.0,
+                            "longest_duration_seconds": 0.0,
+                            "energy_band_counts": {},
+                            "duration_band_counts": {},
+                            "position_band_counts": {},
+                            "dominant_energy_band": None,
+                            "opening_energy_band": None,
+                            "closing_energy_band": None,
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.0,
+                            "largest_abs_energy_delta": 0.0,
+                            "transition_kind_counts": {},
+                            "dominant_transition_kind": None,
+                            "opening_transition_kind": None,
+                            "closing_transition_kind": None,
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 0,
+                            "motif_occurrence_count": 0,
+                            "motif_signature_counts": {},
+                            "motif_signatures": [],
+                            "dominant_motif_signature": None,
+                            "motifs": [],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 0,
+                            "sequence_occurrence_count": 0,
+                            "sequence_signature_counts": {},
+                            "sequence_signatures": [],
+                            "dominant_sequence_signature": None,
+                            "sequences": [],
+                        },
+                        "frame_count": 24000,
+                        "spectral_extent_summary": {"low_hz": 90, "high_hz": 1000},
+                        "channel_energy_summary": {"center_rms": 0.05},
+                    },
+                    "onset_map": [],
+                    "transient_events": [],
+                    "section_boundaries": [],
+                    "section_candidates": [],
+                    "section_transitions": [],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {"input_file_hash": "hash-same", "decode_backend": "wave", "preprocessing_steps": ["decode", "observe"]},
+            }
+
+            left_changed_path.write_text(yaml.safe_dump(left_changed_document, sort_keys=False), encoding="utf-8")
+            right_changed_path.write_text(yaml.safe_dump(right_changed_document, sort_keys=False), encoding="utf-8")
+            serialized_same = yaml.safe_dump(unchanged_document, sort_keys=False)
+            left_same_path.write_text(serialized_same, encoding="utf-8")
+            right_same_path.write_text(serialized_same, encoding="utf-8")
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff-analysis",
+                "--left",
+                str(left_changed_path),
+                str(left_same_path),
+                "--right",
+                str(right_changed_path),
+                str(right_same_path),
+                "--output",
+                str(report_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["pairs_compared"], 2)
+            self.assertEqual(payload["changed_pairs"], 1)
+            self.assertEqual(payload["unchanged_pairs"], 1)
+            self.assertEqual(payload["invalid_pairs"], 0)
+            self.assertEqual(payload["report_format"], "yaml")
+            self.assertTrue(report_path.exists())
+            self.assertEqual(payload["metadata_fields_changed_in_all_changed_pairs"], ["source_id"])
+            self.assertIn("codec", payload["observed_audio_fields_changed_in_all_changed_pairs"])
+            self.assertEqual(
+                payload["attention_contract_fields_changed_in_all_changed_pairs"],
+                [
+                    "answer_expectations",
+                    "attention_targets",
+                    "query_text",
+                    "render_goal",
+                    "retain_targets",
+                    "suppress_targets",
+                ],
+            )
+            self.assertEqual(
+                payload["transformation_intent_fields_changed_in_all_changed_pairs"],
+                ["operations", "primary_output"],
+            )
+            self.assertEqual(
+                payload["interpretation_layers_added_in_all_changed_pairs"],
+                ["communicative_hypotheses", "scene_hypotheses", "task_conditioning_notes"],
+            )
+            self.assertIn("section_profile_summary.dominant_energy_band", payload["basic_observation_fields_changed_in_all_changed_pairs"])
+            self.assertIn("transition_profile_summary.dominant_transition_kind", payload["basic_observation_fields_changed_in_all_changed_pairs"])
+            self.assertIn("transition_motif_summary.dominant_motif_signature", payload["basic_observation_fields_changed_in_all_changed_pairs"])
+            self.assertIn(
+                "transition_motif_phrase_abstraction_ladder.recurring_counts.phrase",
+                payload["basic_observation_fields_changed_in_all_changed_pairs"],
+            )
+            self.assertIn(
+                "transition_motif_sequence_summary.dominant_sequence_signature",
+                payload["basic_observation_fields_changed_in_all_changed_pairs"],
+            )
+            self.assertEqual(payload["source_hypothesis_classes_added_in_all_changed_pairs"], ["transient_event_cluster"])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_signatures_added_in_all_changed_pairs"], ["energy_increase|low|high|lengthen"])
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_sequence_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_chain_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_family_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs"],
+                ["rise_band"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs"],
+                ["single_direction_sweep"],
+            )
+            self.assertEqual(payload["transition_motif_signatures_added_in_all_changed_pairs"], ["energy_increase|low|high|lengthen"])
+            self.assertEqual(
+                payload["transition_motif_sequence_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_chain_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_family_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_contour_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs"],
+                ["rise_band"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs"],
+                ["single_direction_sweep"],
+            )
+            self.assertEqual(payload["source_hypothesis_classes_added_frequencies"][0]["source_hypothesis_class"], "transient_event_cluster")
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_signatures_added_frequencies"][0]["transition_motif_signature"], "energy_increase|low|high|lengthen")
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_sequence_signatures_added_frequencies"][0]["transition_motif_sequence_signature"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_chain_signatures_added_frequencies"][0]["transition_motif_chain_signature"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_signatures_added_frequencies"][0]["transition_motif_phrase_signature"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_family_signatures_added_frequencies"][0]["transition_motif_phrase_family_signature"],
+                "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_frequencies"][0]["transition_motif_phrase_archetype_signature"],
+                "energy_increase|rise_band|lengthen",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_frequencies"][0]["transition_motif_phrase_contour_signature"],
+                "energy_increase|rise_band",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_frequencies"][0]["transition_motif_phrase_sweep_signature"],
+                "rise_band",
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_frequencies"][0]["transition_motif_phrase_gesture_signature"],
+                "single_direction_sweep",
+            )
+            self.assertEqual(payload["transition_motif_signatures_added_frequencies"][0]["transition_motif_signature"], "energy_increase|low|high|lengthen")
+            self.assertEqual(
+                payload["transition_motif_sequence_signatures_added_frequencies"][0]["transition_motif_sequence_signature"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["transition_motif_chain_signatures_added_frequencies"][0]["transition_motif_chain_signature"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_signatures_added_frequencies"][0]["transition_motif_phrase_signature"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_family_signatures_added_frequencies"][0]["transition_motif_phrase_family_signature"],
+                "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_archetype_signatures_added_frequencies"][0]["transition_motif_phrase_archetype_signature"],
+                "energy_increase|rise_band|lengthen",
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_contour_signatures_added_frequencies"][0]["transition_motif_phrase_contour_signature"],
+                "energy_increase|rise_band",
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_sweep_signatures_added_frequencies"][0]["transition_motif_phrase_sweep_signature"],
+                "rise_band",
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_gesture_signatures_added_frequencies"][0]["transition_motif_phrase_gesture_signature"],
+                "single_direction_sweep",
+            )
+            self.assertEqual(payload["attention_contract_field_frequencies"][0]["field"], "answer_expectations")
+            self.assertEqual(payload["attention_contract_field_frequencies"][0]["pairs_changed"], 1)
+            self.assertEqual(payload["transformation_intent_field_frequencies"][0]["field"], "operations")
+            self.assertEqual(payload["interpretation_layers_added_frequencies"][0]["layer"], "communicative_hypotheses")
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_section_candidate_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_section_candidate_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_section_transition_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_section_transition_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_interpretation_hypothesis_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_interpretation_hypothesis_count_delta"], 3)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_sequence_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_sequence_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_chain_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_chain_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_phrase_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_phrase_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_phrase_family_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_phrase_family_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_phrase_archetype_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_phrase_archetype_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_phrase_contour_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_phrase_contour_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_phrase_sweep_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_phrase_sweep_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_recurring_transition_motif_phrase_gesture_count_delta"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["total_recurring_transition_motif_phrase_gesture_count_delta"], 1)
+            self.assertEqual(
+                payload["analysis_change_summary"]["pairs_with_highest_stable_transition_motif_abstraction_layer_change"],
+                1,
+            )
+            self.assertEqual(
+                payload["analysis_change_summary"]["pairs_with_highest_stable_transition_motif_abstraction_layer_rise"],
+                1,
+            )
+            self.assertEqual(
+                payload["analysis_change_summary"]["pairs_with_highest_stable_transition_motif_abstraction_layer_fall"],
+                0,
+            )
+            self.assertEqual(
+                payload["analysis_change_summary"]["total_highest_stable_transition_motif_abstraction_layer_step_delta"],
+                9,
+            )
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_first_scene_hypothesis_change"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_first_communicative_hypothesis_change"], 1)
+            self.assertEqual(payload["analysis_change_summary"]["pairs_with_transformation_intent_change"], 1)
+            self.assertEqual(
+                payload["results"][0]["highest_stable_transition_motif_abstraction_layer_change"]["direction"],
+                "rose",
+            )
+            self.assertEqual(payload["results"][0]["pair_index"], 0)
+            self.assertTrue(payload["results"][0]["pair_changed"])
+            self.assertFalse(payload["results"][1]["pair_changed"])
+
+    def test_arwif_batch_diff_analysis_reports_invalid_documents(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            valid_path = tmp_dir / "valid-analysis.yaml"
+            missing_path = tmp_dir / "missing-analysis.yaml"
+
+            valid_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "demo.valid",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/valid.wav",
+                            "duration_seconds": 1.0,
+                            "sample_rate_hz": 8000,
+                            "channel_count": 1,
+                            "codec": "wav",
+                            "original_sample_rate_hz": 8000,
+                            "original_channel_count": 1,
+                            "analysis_window": {"start_seconds": 0.0, "duration_seconds": 1.0},
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {
+                                "peak_amplitude": 0.1,
+                                "rms_amplitude": 0.05,
+                                "estimated_onset_count": 0,
+                                "section_boundary_count": 0,
+                                "section_candidate_count": 0,
+                                "section_transition_count": 0,
+                                "section_profile_summary": {
+                                    "average_duration_seconds": 0.0,
+                                    "longest_duration_seconds": 0.0,
+                                    "energy_band_counts": {},
+                                    "duration_band_counts": {},
+                                    "position_band_counts": {},
+                                    "dominant_energy_band": None,
+                                    "opening_energy_band": None,
+                                    "closing_energy_band": None,
+                                },
+                                "transition_profile_summary": {
+                                    "average_abs_energy_delta": 0.0,
+                                    "largest_abs_energy_delta": 0.0,
+                                    "transition_kind_counts": {},
+                                    "dominant_transition_kind": None,
+                                    "opening_transition_kind": None,
+                                    "closing_transition_kind": None,
+                                },
+                                "frame_count": 8000,
+                                "spectral_extent_summary": {"low_hz": 90, "high_hz": 1000},
+                                "channel_energy_summary": {"center_rms": 0.05},
+                            },
+                            "onset_map": [],
+                            "transient_events": [],
+                            "section_boundaries": [],
+                            "section_candidates": [],
+                            "section_transitions": [],
+                        },
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {"reconstructable_outputs": []},
+                        "uncertainty_notes": {"warnings": []},
+                        "provenance": {"input_file_hash": "hash-valid", "decode_backend": "wave", "preprocessing_steps": ["decode", "observe"]},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-diff-analysis",
+                "--left",
+                str(valid_path),
+                str(valid_path),
+                "--right",
+                str(valid_path),
+                str(missing_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"], payload)
+            self.assertEqual(payload["pairs_compared"], 2)
+            self.assertEqual(payload["changed_pairs"], 0)
+            self.assertEqual(payload["unchanged_pairs"], 2)
+            self.assertEqual(payload["invalid_pairs"], 1)
+            invalid_result = next(result for result in payload["results"] if result["right"] == str(missing_path))
+            self.assertFalse(invalid_result["left_valid"])
+            self.assertFalse(invalid_result["right_valid"])
+            self.assertIn("does not exist", invalid_result["errors"][0])
+
+    def test_arwif_batch_review_analysis_runs_diff_and_review_together(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_changed_path = tmp_dir / "left-changed.yaml"
+            right_changed_path = tmp_dir / "right-changed.yaml"
+            left_same_path = tmp_dir / "left-same.yaml"
+            right_same_path = tmp_dir / "right-same.yaml"
+            review_report_path = tmp_dir / "batch-review-analysis-report.json"
+
+            changed_left_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.left.review",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/review-left.wav",
+                    "duration_seconds": 6.0,
+                    "sample_rate_hz": 16000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 16000,
+                    "original_channel_count": 1,
+                    "analysis_window": {"start_seconds": 0.0, "duration_seconds": 6.0},
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.35,
+                        "rms_amplitude": 0.09,
+                        "estimated_onset_count": 4,
+                        "section_boundary_count": 1,
+                        "section_candidate_count": 2,
+                        "section_transition_count": 1,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 3.0,
+                            "longest_duration_seconds": 4.0,
+                            "energy_band_counts": {"low": 1, "medium": 1},
+                            "duration_band_counts": {"medium": 2},
+                            "position_band_counts": {"opening": 1, "middle": 1},
+                            "dominant_energy_band": "low",
+                            "opening_energy_band": "low",
+                            "closing_energy_band": "medium",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.12,
+                            "largest_abs_energy_delta": 0.12,
+                            "transition_kind_counts": {"energy_stable": 1},
+                            "dominant_transition_kind": "energy_stable",
+                            "opening_transition_kind": "energy_stable",
+                            "closing_transition_kind": "energy_stable",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 0,
+                            "motif_occurrence_count": 0,
+                            "motif_signature_counts": {},
+                            "motif_signatures": [],
+                            "dominant_motif_signature": None,
+                            "motifs": [],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 0,
+                            "sequence_occurrence_count": 0,
+                            "sequence_signature_counts": {},
+                            "sequence_signatures": [],
+                            "dominant_sequence_signature": None,
+                            "sequences": [],
+                        },
+                        "frame_count": 96000,
+                        "spectral_extent_summary": {"low_hz": 70, "high_hz": 3500},
+                        "channel_energy_summary": {"center_rms": 0.09},
+                    },
+                    "onset_map": [],
+                    "transient_events": [],
+                    "section_boundaries": [{"offset_seconds": 2.0, "confidence": 0.2, "energy_transition": "rise"}],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 2.0, "duration_seconds": 2.0, "rms_amplitude": 0.07, "relative_energy": 0.8, "energy_band": "low", "duration_band": "medium", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 2.0, "end_seconds": 6.0, "duration_seconds": 4.0, "rms_amplitude": 0.11, "relative_energy": 1.1, "energy_band": "medium", "duration_band": "medium", "position_band": "middle"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 2.0, "from_energy_band": "low", "to_energy_band": "medium", "energy_delta": 0.3, "duration_delta_seconds": 2.0, "transition_kind": "energy_stable"},
+                    ],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {"input_file_hash": "hash-review-left", "decode_backend": "wave", "preprocessing_steps": ["decode", "observe"]},
+            }
+            changed_right_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.right.review",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/review-right.mp3",
+                    "duration_seconds": 6.5,
+                    "sample_rate_hz": 44100,
+                    "channel_count": 2,
+                    "codec": "mp3",
+                    "original_sample_rate_hz": 44100,
+                    "original_channel_count": 2,
+                    "analysis_window": {"start_seconds": 0.0, "duration_seconds": 6.5},
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.62,
+                        "rms_amplitude": 0.19,
+                        "estimated_onset_count": 7,
+                        "section_boundary_count": 2,
+                        "section_candidate_count": 3,
+                        "section_transition_count": 2,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 2.166667,
+                            "longest_duration_seconds": 3.0,
+                            "energy_band_counts": {"high": 1, "low": 1, "medium": 1},
+                            "duration_band_counts": {"medium": 1, "short": 2},
+                            "position_band_counts": {"opening": 1, "middle": 1, "closing": 1},
+                            "dominant_energy_band": "high",
+                            "opening_energy_band": "medium",
+                            "closing_energy_band": "high",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.26,
+                            "largest_abs_energy_delta": 0.4,
+                            "transition_kind_counts": {"energy_decrease": 1, "energy_increase": 1},
+                            "dominant_transition_kind": "energy_decrease",
+                            "opening_transition_kind": "energy_increase",
+                            "closing_transition_kind": "energy_decrease",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 1,
+                            "motif_occurrence_count": 2,
+                            "motif_signature_counts": {"energy_increase|low|high|lengthen": 2},
+                            "motif_signatures": ["energy_increase|low|high|lengthen"],
+                            "dominant_motif_signature": "energy_increase|low|high|lengthen",
+                            "motifs": [
+                                {
+                                    "motif_id": "transition_motif.01",
+                                    "signature": "energy_increase|low|high|lengthen",
+                                    "transition_kind": "energy_increase",
+                                    "from_energy_band": "low",
+                                    "to_energy_band": "high",
+                                    "duration_trend": "lengthen",
+                                    "occurrence_count": 2,
+                                    "section_transition_indexes": [0, 1],
+                                    "boundary_offsets_seconds": [1.5, 3.5],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 1,
+                            "sequence_occurrence_count": 2,
+                            "sequence_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "sequence_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_sequence_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "sequences": [
+                                {
+                                    "sequence_id": "transition_motif_sequence.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "left_signature": "energy_increase|low|high|lengthen",
+                                    "right_signature": "energy_increase|low|high|lengthen",
+                                    "occurrence_count": 2,
+                                    "section_transition_index_pairs": [[0, 1], [1, 2]],
+                                    "boundary_offset_pairs_seconds": [[1.5, 3.5], [3.5, 5.5]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_chain_summary": {
+                            "chain_length": 3,
+                            "recurring_chain_count": 1,
+                            "chain_occurrence_count": 2,
+                            "chain_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "chain_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_chain_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "chains": [
+                                {
+                                    "chain_id": "transition_motif_chain.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "chain_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_chains": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_chains_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_phrase_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_family_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_family_count": 1,
+                            "family_occurrence_count": 2,
+                            "family_signature_counts": {"energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen": 2},
+                            "family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                            "dominant_family_signature": "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+                            "families": [
+                                {
+                                    "family_id": "transition_motif_phrase_family.01",
+                                    "signature": "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_archetype_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_archetype_count": 1,
+                            "archetype_occurrence_count": 2,
+                            "archetype_signature_counts": {"energy_increase|rise_band|lengthen": 2},
+                            "archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                            "dominant_archetype_signature": "energy_increase|rise_band|lengthen",
+                            "archetypes": [
+                                {
+                                    "archetype_id": "transition_motif_phrase_archetype.01",
+                                    "signature": "energy_increase|rise_band|lengthen",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_sweep_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_sweep_count": 1,
+                            "sweep_occurrence_count": 2,
+                            "sweep_signature_counts": {"rise_band": 2},
+                            "sweep_signatures": ["rise_band"],
+                            "dominant_sweep_signature": "rise_band",
+                            "sweeps": [
+                                {
+                                    "sweep_id": "transition_motif_phrase_sweep.01",
+                                    "signature": "rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_gesture_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_gesture_count": 1,
+                            "gesture_occurrence_count": 2,
+                            "gesture_signature_counts": {"single_direction_sweep": 2},
+                            "gesture_signatures": ["single_direction_sweep"],
+                            "dominant_gesture_signature": "single_direction_sweep",
+                            "gestures": [
+                                {
+                                    "gesture_id": "transition_motif_phrase_gesture.01",
+                                    "signature": "single_direction_sweep",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_sweep_count": 1,
+                                    "member_sweep_ids": ["transition_motif_phrase_sweep.01"],
+                                    "member_sweep_signatures": ["rise_band"],
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[1, 2, 3], [2, 3, 4]],
+                                    "boundary_offset_phrases_seconds": [[1.5, 3.5, 5.5], [3.5, 5.5, 6.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 6.5, "duration_seconds": 6.5},
+                                }
+                            ],
+                        },
+                        "frame_count": 286650,
+                        "spectral_extent_summary": {"low_hz": 55, "high_hz": 7600},
+                        "channel_energy_summary": {"left_rms": 0.2, "right_rms": 0.18},
+                    },
+                    "onset_map": [{"offset_seconds": 0.5, "strength": 0.18}],
+                    "transient_events": [],
+                    "section_boundaries": [
+                        {"offset_seconds": 1.5, "confidence": 0.22, "energy_transition": "rise"},
+                        {"offset_seconds": 3.5, "confidence": 0.2, "energy_transition": "fall"},
+                    ],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 1.5, "duration_seconds": 1.5, "rms_amplitude": 0.16, "relative_energy": 1.0, "energy_band": "medium", "duration_band": "short", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 1.5, "end_seconds": 3.5, "duration_seconds": 2.0, "rms_amplitude": 0.12, "relative_energy": 0.75, "energy_band": "low", "duration_band": "medium", "position_band": "middle"},
+                        {"section_index": 2, "start_seconds": 3.5, "end_seconds": 6.5, "duration_seconds": 3.0, "rms_amplitude": 0.24, "relative_energy": 1.3, "energy_band": "high", "duration_band": "medium", "position_band": "closing"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 1.5, "from_energy_band": "medium", "to_energy_band": "low", "energy_delta": -0.25, "duration_delta_seconds": 0.5, "transition_kind": "energy_increase"},
+                        {"from_section_index": 1, "to_section_index": 2, "boundary_offset_seconds": 3.5, "from_energy_band": "low", "to_energy_band": "high", "energy_delta": 0.55, "duration_delta_seconds": 1.0, "transition_kind": "energy_decrease"},
+                    ],
+                },
+                "source_hypotheses": [{"source_id": "source.review.01", "linked_observations": {"transition_motif_signatures": ["energy_increase|low|high|lengthen"], "transition_motif_sequence_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_chain_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_phrase_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"], "transition_motif_phrase_archetype_signatures": ["energy_increase|rise_band|lengthen"], "transition_motif_phrase_contour_signatures": ["energy_increase|rise_band"], "transition_motif_phrase_sweep_signatures": ["rise_band"], "transition_motif_phrase_gesture_signatures": ["single_direction_sweep"]}}],
+                "component_layers": {"harmonic_component_groups": [{"component_id": "component.review.01"}]},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": ["lossy source"]},
+                "provenance": {"input_file_hash": "hash-review-right", "decode_backend": "ffmpeg", "preprocessing_steps": ["decode", "observe", "window"]},
+            }
+
+            unchanged_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.same.review",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/review-same.wav",
+                    "duration_seconds": 2.0,
+                    "sample_rate_hz": 8000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 8000,
+                    "original_channel_count": 1,
+                    "analysis_window": {"start_seconds": 0.0, "duration_seconds": 2.0},
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.2,
+                        "rms_amplitude": 0.05,
+                        "estimated_onset_count": 1,
+                        "section_boundary_count": 0,
+                        "section_candidate_count": 0,
+                        "section_transition_count": 0,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 0.0,
+                            "longest_duration_seconds": 0.0,
+                            "energy_band_counts": {},
+                            "duration_band_counts": {},
+                            "position_band_counts": {},
+                            "dominant_energy_band": None,
+                            "opening_energy_band": None,
+                            "closing_energy_band": None,
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.0,
+                            "largest_abs_energy_delta": 0.0,
+                            "transition_kind_counts": {},
+                            "dominant_transition_kind": None,
+                            "opening_transition_kind": None,
+                            "closing_transition_kind": None,
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 0,
+                            "motif_occurrence_count": 0,
+                            "motif_signature_counts": {},
+                            "motif_signatures": [],
+                            "dominant_motif_signature": None,
+                            "motifs": [],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 0,
+                            "sequence_occurrence_count": 0,
+                            "sequence_signature_counts": {},
+                            "sequence_signatures": [],
+                            "dominant_sequence_signature": None,
+                            "sequences": [],
+                        },
+                        "frame_count": 16000,
+                        "spectral_extent_summary": {"low_hz": 90, "high_hz": 1200},
+                        "channel_energy_summary": {"center_rms": 0.05},
+                    },
+                    "onset_map": [],
+                    "transient_events": [],
+                    "section_boundaries": [],
+                    "section_candidates": [],
+                    "section_transitions": [],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {"input_file_hash": "hash-review-same", "decode_backend": "wave", "preprocessing_steps": ["decode", "observe"]},
+            }
+
+            left_changed_path.write_text(yaml.safe_dump(changed_left_document, sort_keys=False), encoding="utf-8")
+            right_changed_path.write_text(yaml.safe_dump(changed_right_document, sort_keys=False), encoding="utf-8")
+            serialized_same = yaml.safe_dump(unchanged_document, sort_keys=False)
+            left_same_path.write_text(serialized_same, encoding="utf-8")
+            right_same_path.write_text(serialized_same, encoding="utf-8")
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-review-analysis",
+                "--left",
+                str(left_changed_path),
+                str(left_same_path),
+                "--right",
+                str(right_changed_path),
+                str(right_same_path),
+                "--output",
+                str(review_report_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["is_valid"], payload)
+            self.assertEqual(payload["pairs_compared"], 2)
+            self.assertEqual(payload["changed_pairs"], 1)
+            self.assertEqual(payload["unchanged_pairs"], 1)
+            self.assertEqual(payload["invalid_pairs"], 0)
+            self.assertEqual(payload["report_output"], str(review_report_path))
+            self.assertEqual(payload["report_format"], "json")
+            self.assertEqual(payload["diff_report"]["changed_pairs"], 1)
+            self.assertEqual(payload["analysis"]["metadata_fields_changed_in_all_changed_pairs"], ["source_id"])
+            self.assertIn("codec", payload["analysis"]["observed_audio_fields_changed_in_all_changed_pairs"])
+            self.assertIn(
+                "transition_motif_phrase_abstraction_ladder.recurring_counts.phrase",
+                payload["analysis"]["basic_observation_fields_changed_in_all_changed_pairs"],
+            )
+            self.assertEqual(
+                payload["analysis"]["analysis_change_summary"]["pairs_with_highest_stable_transition_motif_abstraction_layer_change"],
+                1,
+            )
+            self.assertEqual(
+                payload["analysis"]["analysis_change_summary"]["pairs_with_highest_stable_transition_motif_abstraction_layer_rise"],
+                1,
+            )
+            self.assertEqual(
+                payload["analysis"]["analysis_change_summary"]["total_highest_stable_transition_motif_abstraction_layer_step_delta"],
+                9,
+            )
+            self.assertEqual(
+                payload["diff_report"]["results"][0]["highest_stable_transition_motif_abstraction_layer_change"]["right"],
+                {"layer": "gesture", "recurring_count": 1, "occurrence_count": 2},
+            )
+            self.assertEqual(payload["analysis"]["analysis_change_summary"]["pairs_with_section_transition_count_delta"], 1)
+            self.assertEqual(payload["analysis"]["source_hypothesis_linked_transition_motif_signatures_added_in_all_changed_pairs"], ["energy_increase|low|high|lengthen"])
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_sequence_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_chain_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_phrase_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_phrase_family_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_phrase_contour_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs"],
+                ["rise_band"],
+            )
+            self.assertEqual(
+                payload["analysis"]["source_hypothesis_linked_transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs"],
+                ["single_direction_sweep"],
+            )
+            self.assertEqual(payload["analysis"]["transition_motif_signatures_added_in_all_changed_pairs"], ["energy_increase|low|high|lengthen"])
+            self.assertEqual(
+                payload["analysis"]["transition_motif_sequence_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_chain_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_phrase_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_phrase_family_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_phrase_archetype_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_phrase_contour_signatures_added_in_all_changed_pairs"],
+                ["energy_increase|rise_band"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_phrase_sweep_signatures_added_in_all_changed_pairs"],
+                ["rise_band"],
+            )
+            self.assertEqual(
+                payload["analysis"]["transition_motif_phrase_gesture_signatures_added_in_all_changed_pairs"],
+                ["single_direction_sweep"],
+            )
+            self.assertEqual(len(payload["diff_report"]["results"]), 2)
+
+            persisted_review = json.loads(review_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted_review["pairs_compared"], 2)
+            self.assertEqual(persisted_review["analysis"]["metadata_fields_changed_in_all_changed_pairs"], ["source_id"])
+
+    def test_arwif_batch_review_analysis_reports_invalid_documents(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            valid_path = tmp_dir / "valid-analysis.yaml"
+            missing_path = tmp_dir / "missing-analysis.yaml"
+
+            valid_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "analysis_metadata": {
+                            "analysis_profile": "basic-observation",
+                            "analysis_version": "0.1-draft",
+                            "analyzer_id": "rwif-builder",
+                            "source_id": "demo.valid.review",
+                        },
+                        "observed_audio": {
+                            "path_hint": ".local/audio/valid-review.wav",
+                            "duration_seconds": 1.0,
+                            "sample_rate_hz": 8000,
+                            "channel_count": 1,
+                            "codec": "wav",
+                            "original_sample_rate_hz": 8000,
+                            "original_channel_count": 1,
+                            "analysis_window": {"start_seconds": 0.0, "duration_seconds": 1.0},
+                        },
+                        "observation_layers": {
+                            "basic_observation_summary": {
+                                "peak_amplitude": 0.1,
+                                "rms_amplitude": 0.05,
+                                "estimated_onset_count": 0,
+                                "section_boundary_count": 0,
+                                "section_candidate_count": 0,
+                                "section_transition_count": 0,
+                                "section_profile_summary": {
+                                    "average_duration_seconds": 0.0,
+                                    "longest_duration_seconds": 0.0,
+                                    "energy_band_counts": {},
+                                    "duration_band_counts": {},
+                                    "position_band_counts": {},
+                                    "dominant_energy_band": None,
+                                    "opening_energy_band": None,
+                                    "closing_energy_band": None,
+                                },
+                                "transition_profile_summary": {
+                                    "average_abs_energy_delta": 0.0,
+                                    "largest_abs_energy_delta": 0.0,
+                                    "transition_kind_counts": {},
+                                    "dominant_transition_kind": None,
+                                    "opening_transition_kind": None,
+                                    "closing_transition_kind": None,
+                                },
+                                "frame_count": 8000,
+                                "spectral_extent_summary": {"low_hz": 90, "high_hz": 1000},
+                                "channel_energy_summary": {"center_rms": 0.05},
+                            },
+                            "onset_map": [],
+                            "transient_events": [],
+                            "section_boundaries": [],
+                            "section_candidates": [],
+                            "section_transitions": [],
+                        },
+                        "source_hypotheses": [],
+                        "component_layers": {},
+                        "reconstruction": {"reconstructable_outputs": []},
+                        "uncertainty_notes": {"warnings": []},
+                        "provenance": {"input_file_hash": "hash-valid-review", "decode_backend": "wave", "preprocessing_steps": ["decode", "observe"]},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-batch-review-analysis",
+                "--left",
+                str(valid_path),
+                str(valid_path),
+                "--right",
+                str(valid_path),
+                str(missing_path),
+                "--json",
+                allow_failure=True,
+            )
+
+            self.assertFalse(payload["is_valid"], payload)
+            self.assertEqual(payload["pairs_compared"], 2)
+            self.assertEqual(payload["changed_pairs"], 0)
+            self.assertEqual(payload["unchanged_pairs"], 2)
+            self.assertEqual(payload["invalid_pairs"], 1)
+            self.assertFalse(payload["diff_report"]["is_valid"])
+            self.assertFalse(payload["analysis"]["is_valid"])
+            invalid_result = next(result for result in payload["diff_report"]["results"] if result["right"] == str(missing_path))
+            self.assertFalse(invalid_result["right_valid"])
+            self.assertIn("does not exist", invalid_result["errors"][0])
+
+    def test_arwif_diff_analysis_reports_summary_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-analysis.yaml"
+            right_path = tmp_dir / "right-analysis.json"
+            report_path = tmp_dir / "analysis-diff-report.yaml"
+
+            left_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.left",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/left.wav",
+                    "duration_seconds": 10.0,
+                    "sample_rate_hz": 16000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 16000,
+                    "original_channel_count": 1,
+                    "analysis_window": {
+                        "start_seconds": 0.0,
+                        "duration_seconds": 10.0,
+                    },
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.4,
+                        "rms_amplitude": 0.1,
+                        "estimated_onset_count": 8,
+                        "section_boundary_count": 0,
+                        "section_candidate_count": 1,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 10.0,
+                            "longest_duration_seconds": 10.0,
+                            "energy_band_counts": {"medium": 1},
+                            "duration_band_counts": {"long": 1},
+                            "position_band_counts": {"middle": 1},
+                            "dominant_energy_band": "medium",
+                            "opening_energy_band": "medium",
+                            "closing_energy_band": "medium",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.0,
+                            "largest_abs_energy_delta": 0.0,
+                            "transition_kind_counts": {},
+                            "dominant_transition_kind": None,
+                            "opening_transition_kind": None,
+                            "closing_transition_kind": None,
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 0,
+                            "motif_occurrence_count": 0,
+                            "motif_signature_counts": {},
+                            "motif_signatures": [],
+                            "dominant_motif_signature": None,
+                            "motifs": [],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 0,
+                            "sequence_occurrence_count": 0,
+                            "sequence_signature_counts": {},
+                            "sequence_signatures": [],
+                            "dominant_sequence_signature": None,
+                            "sequences": [],
+                        },
+                        "transition_motif_chain_summary": {
+                            "chain_length": 3,
+                            "recurring_chain_count": 0,
+                            "chain_occurrence_count": 0,
+                            "chain_signature_counts": {},
+                            "chain_signatures": [],
+                            "dominant_chain_signature": None,
+                            "chains": [],
+                        },
+                        "frame_count": 160000,
+                        "spectral_extent_summary": {"low_hz": 80, "high_hz": 4200},
+                        "channel_energy_summary": {"center_rms": 0.1},
+                    },
+                    "onset_map": [],
+                    "transient_events": [],
+                    "section_candidates": [{"section_index": 0, "start_seconds": 0.0, "end_seconds": 10.0, "duration_seconds": 10.0, "rms_amplitude": 0.1, "relative_energy": 1.0, "energy_band": "medium", "duration_band": "long", "position_band": "middle"}],
+                    "section_transitions": [],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {
+                    "input_file_hash": "hash-left",
+                    "decode_backend": "wave",
+                    "preprocessing_steps": ["decode", "observe"],
+                },
+            }
+            right_document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.right",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/right.mp3",
+                    "duration_seconds": 12.0,
+                    "sample_rate_hz": 44100,
+                    "channel_count": 2,
+                    "codec": "mp3",
+                    "original_sample_rate_hz": 44100,
+                    "original_channel_count": 2,
+                    "analysis_window": {
+                        "start_seconds": 1.0,
+                        "duration_seconds": 4.5,
+                    },
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.8,
+                        "rms_amplitude": 0.2,
+                        "estimated_onset_count": 22,
+                        "section_boundary_count": 1,
+                        "section_candidate_count": 2,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 2.25,
+                            "longest_duration_seconds": 3.5,
+                            "energy_band_counts": {"high": 1, "low": 1},
+                            "duration_band_counts": {"medium": 1, "short": 1},
+                            "position_band_counts": {"middle": 1, "opening": 1},
+                            "dominant_energy_band": "high",
+                            "opening_energy_band": "low",
+                            "closing_energy_band": "high",
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.7,
+                            "largest_abs_energy_delta": 0.7,
+                            "transition_kind_counts": {"energy_increase": 1},
+                            "dominant_transition_kind": "energy_increase",
+                            "opening_transition_kind": "energy_increase",
+                            "closing_transition_kind": "energy_increase",
+                        },
+                        "transition_motif_summary": {
+                            "recurring_motif_count": 1,
+                            "motif_occurrence_count": 2,
+                            "motif_signature_counts": {"energy_increase|low|high|lengthen": 2},
+                            "motif_signatures": ["energy_increase|low|high|lengthen"],
+                            "dominant_motif_signature": "energy_increase|low|high|lengthen",
+                            "motifs": [
+                                {
+                                    "motif_id": "transition_motif.01",
+                                    "signature": "energy_increase|low|high|lengthen",
+                                    "transition_kind": "energy_increase",
+                                    "from_energy_band": "low",
+                                    "to_energy_band": "high",
+                                    "duration_trend": "lengthen",
+                                    "occurrence_count": 2,
+                                    "section_transition_indexes": [0, 1],
+                                    "boundary_offsets_seconds": [1.0, 3.0],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_sequence_summary": {
+                            "recurring_sequence_count": 1,
+                            "sequence_occurrence_count": 2,
+                            "sequence_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "sequence_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_sequence_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "sequences": [
+                                {
+                                    "sequence_id": "transition_motif_sequence.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "left_signature": "energy_increase|low|high|lengthen",
+                                    "right_signature": "energy_increase|low|high|lengthen",
+                                    "occurrence_count": 2,
+                                    "section_transition_index_pairs": [[0, 1], [1, 2]],
+                                    "boundary_offset_pairs_seconds": [[1.0, 3.0], [3.0, 4.0]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_chain_summary": {
+                            "chain_length": 3,
+                            "recurring_chain_count": 1,
+                            "chain_occurrence_count": 2,
+                            "chain_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "chain_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_chain_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "chains": [
+                                {
+                                    "chain_id": "transition_motif_chain.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "chain_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_chains": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_chains_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_phrase_count": 1,
+                            "phrase_occurrence_count": 2,
+                            "phrase_signature_counts": {"energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen": 2},
+                            "phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                            "dominant_phrase_signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                            "phrases": [
+                                {
+                                    "phrase_id": "transition_motif_phrase.01",
+                                    "signature": "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+                                    "motif_signatures": ["energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen", "energy_increase|low|high|lengthen"],
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_family_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_family_count": 1,
+                            "family_occurrence_count": 2,
+                            "family_signature_counts": {"energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen": 2},
+                            "family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                            "dominant_family_signature": "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+                            "families": [
+                                {
+                                    "family_id": "transition_motif_phrase_family.01",
+                                    "signature": "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+                                    "phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_archetype_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_archetype_count": 1,
+                            "archetype_occurrence_count": 2,
+                            "archetype_signature_counts": {"energy_increase|rise_band|lengthen": 2},
+                            "archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                            "dominant_archetype_signature": "energy_increase|rise_band|lengthen",
+                            "archetypes": [
+                                {
+                                    "archetype_id": "transition_motif_phrase_archetype.01",
+                                    "signature": "energy_increase|rise_band|lengthen",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_contour_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_contour_count": 1,
+                            "contour_occurrence_count": 2,
+                            "contour_signature_counts": {"energy_increase|rise_band": 2},
+                            "contour_signatures": ["energy_increase|rise_band"],
+                            "dominant_contour_signature": "energy_increase|rise_band",
+                            "contours": [
+                                {
+                                    "contour_id": "transition_motif_phrase_contour.01",
+                                    "signature": "energy_increase|rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_sweep_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_sweep_count": 1,
+                            "sweep_occurrence_count": 2,
+                            "sweep_signature_counts": {"rise_band": 2},
+                            "sweep_signatures": ["rise_band"],
+                            "dominant_sweep_signature": "rise_band",
+                            "sweeps": [
+                                {
+                                    "sweep_id": "transition_motif_phrase_sweep.01",
+                                    "signature": "rise_band",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "transition_motif_phrase_gesture_summary": {
+                            "min_phrase_length": 3,
+                            "max_phrase_length": 5,
+                            "recurring_gesture_count": 1,
+                            "gesture_occurrence_count": 2,
+                            "gesture_signature_counts": {"single_direction_sweep": 2},
+                            "gesture_signatures": ["single_direction_sweep"],
+                            "dominant_gesture_signature": "single_direction_sweep",
+                            "gestures": [
+                                {
+                                    "gesture_id": "transition_motif_phrase_gesture.01",
+                                    "signature": "single_direction_sweep",
+                                    "min_phrase_length": 3,
+                                    "max_phrase_length": 3,
+                                    "occurrence_count": 2,
+                                    "member_sweep_count": 1,
+                                    "member_sweep_ids": ["transition_motif_phrase_sweep.01"],
+                                    "member_sweep_signatures": ["rise_band"],
+                                    "member_contour_count": 1,
+                                    "member_contour_ids": ["transition_motif_phrase_contour.01"],
+                                    "member_contour_signatures": ["energy_increase|rise_band"],
+                                    "member_archetype_count": 1,
+                                    "member_archetype_ids": ["transition_motif_phrase_archetype.01"],
+                                    "member_archetype_signatures": ["energy_increase|rise_band|lengthen"],
+                                    "member_family_count": 1,
+                                    "member_family_ids": ["transition_motif_phrase_family.01"],
+                                    "member_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+                                    "member_phrase_count": 1,
+                                    "member_phrase_ids": ["transition_motif_phrase.01"],
+                                    "member_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+                                    "section_transition_index_phrases": [[0, 1, 2], [1, 2, 3]],
+                                    "boundary_offset_phrases_seconds": [[1.0, 3.0, 4.0], [3.0, 4.0, 4.25]],
+                                    "time_bounds": {"start_seconds": 0.0, "end_seconds": 4.5, "duration_seconds": 4.5},
+                                }
+                            ],
+                        },
+                        "frame_count": 198450,
+                        "spectral_extent_summary": {"low_hz": 60, "high_hz": 7200},
+                        "channel_energy_summary": {"left_rms": 0.21, "right_rms": 0.19},
+                    },
+                    "onset_map": [{"offset_seconds": 0.5, "strength": 0.2}],
+                    "transient_events": [],
+                    "section_boundaries": [{"offset_seconds": 1.0, "confidence": 0.4, "energy_transition": "rise"}],
+                    "section_candidates": [
+                        {"section_index": 0, "start_seconds": 0.0, "end_seconds": 1.0, "duration_seconds": 1.0, "rms_amplitude": 0.1, "relative_energy": 0.5, "energy_band": "low", "duration_band": "short", "position_band": "opening"},
+                        {"section_index": 1, "start_seconds": 1.0, "end_seconds": 4.5, "duration_seconds": 3.5, "rms_amplitude": 0.2, "relative_energy": 1.2, "energy_band": "high", "duration_band": "medium", "position_band": "middle"},
+                    ],
+                    "section_transitions": [
+                        {"from_section_index": 0, "to_section_index": 1, "boundary_offset_seconds": 1.0, "from_energy_band": "low", "to_energy_band": "high", "energy_delta": 0.7, "duration_delta_seconds": 2.5, "transition_kind": "energy_increase"},
+                    ],
+                },
+                "source_hypotheses": [{"source_id": "source.vocals.01", "source_class": "foreground_call_stream", "role": "foreground_stream", "linked_observations": {"transition_motif_signatures": ["energy_increase|low|high|lengthen"], "transition_motif_sequence_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_chain_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_phrase_signatures": ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"], "transition_motif_phrase_family_signatures": ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"], "transition_motif_phrase_archetype_signatures": ["energy_increase|rise_band|lengthen"], "transition_motif_phrase_contour_signatures": ["energy_increase|rise_band"], "transition_motif_phrase_sweep_signatures": ["rise_band"], "transition_motif_phrase_gesture_signatures": ["single_direction_sweep"]}}],
+                "component_layers": {"harmonic_component_groups": [{"component_id": "component.01"}]},
+                "reconstruction": {"reconstructable_outputs": ["vocals"]},
+                "uncertainty_notes": {"warnings": ["lossy source"]},
+                "attention_contract": {
+                    "query_text": "Is there a foreground call to retain?",
+                    "attention_targets": ["foreground call", "lead vocal motion"],
+                    "retain_targets": ["foreground call"],
+                    "suppress_targets": ["background bed"],
+                    "answer_expectations": ["state whether a call-like foreground is present"],
+                    "render_goal": "preserve the foreground call emphasis",
+                },
+                "interpretation_layers": {
+                    "scene_hypotheses": [
+                        {
+                            "hypothesis_id": "scene.01",
+                            "label": "foreground call over rising backing layer",
+                            "confidence": 0.36,
+                            "confidence_band": "low",
+                            "hypothesis_origin": "task_conditioned_initialization",
+                            "observed_source_classes": ["foreground_call_stream"],
+                            "linked_source_ids": ["source.vocals.01"],
+                            "attention_targets_matched_source_classes": ["foreground_call_stream"],
+                            "attention_targets_unmatched": ["lead vocal motion"],
+                        }
+                    ],
+                    "communicative_hypotheses": [
+                        {
+                            "hypothesis_id": "communicative.01",
+                            "label": "foreground call likely carries the queried answer",
+                            "confidence": 0.31,
+                            "confidence_band": "low",
+                            "hypothesis_origin": "task_conditioned_initialization",
+                            "linked_source_classes": ["foreground_call_stream"],
+                            "answer_expectations": ["state whether a call-like foreground is present"],
+                        }
+                    ],
+                    "task_conditioning_notes": [
+                        {
+                            "note_id": "task-note.01",
+                            "kind": "attention_bias",
+                            "text": "Prioritize foreground-call evidence over accompaniment texture.",
+                        }
+                    ],
+                },
+                "transformation_intent": {
+                    "operations": ["retain_foreground", "suppress_background"],
+                    "primary_output": "foreground_call_stem",
+                },
+                "provenance": {
+                    "input_file_hash": "hash-right",
+                    "decode_backend": "ffmpeg",
+                    "preprocessing_steps": ["decode", "observe", "window"],
+                },
+            }
+
+            left_path.write_text(yaml.safe_dump(left_document, sort_keys=False), encoding="utf-8")
+            right_path.write_text(json.dumps(right_document, indent=2), encoding="utf-8")
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-diff-analysis",
+                str(left_path),
+                str(right_path),
+                "--output",
+                str(report_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["left_valid"])
+            self.assertTrue(payload["right_valid"])
+            self.assertTrue(payload["pair_changed"])
+            self.assertEqual(payload["metadata_changes"]["source_id"]["left"], "demo.left")
+            self.assertEqual(payload["metadata_changes"]["source_id"]["right"], "demo.right")
+            self.assertEqual(payload["observed_audio_changes"]["codec"]["left"], "wav")
+            self.assertEqual(payload["observed_audio_changes"]["codec"]["right"], "mp3")
+            self.assertEqual(payload["observation_layer_changes"]["added"], ["section_boundaries"])
+            self.assertEqual(payload["reconstructable_outputs_added"], ["vocals"])
+            self.assertEqual(payload["source_hypothesis_class_changes"]["added"], ["foreground_call_stream"])
+            self.assertEqual(payload["source_hypothesis_linked_transition_motif_signature_changes"]["added"], ["energy_increase|low|high|lengthen"])
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_sequence_signature_changes"]["added"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_chain_signature_changes"]["added"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_signature_changes"]["added"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_family_signature_changes"]["added"],
+                ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_archetype_signature_changes"]["added"],
+                ["energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_contour_signature_changes"]["added"],
+                ["energy_increase|rise_band"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_sweep_signature_changes"]["added"],
+                ["rise_band"],
+            )
+            self.assertEqual(
+                payload["source_hypothesis_linked_transition_motif_phrase_gesture_signature_changes"]["added"],
+                ["single_direction_sweep"],
+            )
+            self.assertEqual(payload["transition_motif_signature_changes"]["added"], ["energy_increase|low|high|lengthen"])
+            self.assertEqual(
+                payload["transition_motif_sequence_signature_changes"]["added"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_chain_signature_changes"]["added"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_signature_changes"]["added"],
+                ["energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_family_signature_changes"]["added"],
+                ["energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_archetype_signature_changes"]["added"],
+                ["energy_increase|rise_band|lengthen"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_contour_signature_changes"]["added"],
+                ["energy_increase|rise_band"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_sweep_signature_changes"]["added"],
+                ["rise_band"],
+            )
+            self.assertEqual(
+                payload["transition_motif_phrase_gesture_signature_changes"]["added"],
+                ["single_direction_sweep"],
+            )
+            self.assertEqual(payload["source_hypothesis_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_sequence_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_chain_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_phrase_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_phrase_family_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_phrase_archetype_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_phrase_contour_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_phrase_sweep_count_delta"], 1)
+            self.assertEqual(payload["recurring_transition_motif_phrase_gesture_count_delta"], 1)
+            self.assertEqual(payload["component_group_count_delta"], 1)
+            self.assertEqual(payload["onset_map_count_delta"], 1)
+            self.assertEqual(payload["section_boundary_count_delta"], 1)
+            self.assertEqual(payload["section_candidate_count_delta"], 1)
+            self.assertEqual(payload["section_transition_count_delta"], 1)
+            self.assertEqual(payload["basic_observation_changes"]["section_profile_summary"]["dominant_energy_band"]["left"], "medium")
+            self.assertEqual(payload["basic_observation_changes"]["section_profile_summary"]["dominant_energy_band"]["right"], "high")
+            self.assertEqual(payload["basic_observation_changes"]["transition_profile_summary"]["dominant_transition_kind"]["right"], "energy_increase")
+            self.assertEqual(payload["basic_observation_changes"]["transition_motif_summary"]["dominant_motif_signature"]["right"], "energy_increase|low|high|lengthen")
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_sequence_summary"]["dominant_sequence_signature"]["right"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_chain_summary"]["dominant_chain_signature"]["right"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_summary"]["dominant_phrase_signature"]["right"],
+                "energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen=>energy_increase|low|high|lengthen",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_family_summary"]["dominant_family_signature"]["right"],
+                "energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen=>energy_increase|rise_band|lengthen",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_archetype_summary"]["dominant_archetype_signature"]["right"],
+                "energy_increase|rise_band|lengthen",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_contour_summary"]["dominant_contour_signature"]["right"],
+                "energy_increase|rise_band",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_sweep_summary"]["dominant_sweep_signature"]["right"],
+                "rise_band",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_gesture_summary"]["dominant_gesture_signature"]["right"],
+                "single_direction_sweep",
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_abstraction_ladder"]["recurring_counts"]["phrase"]["left"],
+                0,
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_abstraction_ladder"]["recurring_counts"]["phrase"]["right"],
+                1,
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_abstraction_ladder"]["recurring_counts"]["gesture"]["right"],
+                1,
+            )
+            self.assertEqual(
+                payload["basic_observation_changes"]["transition_motif_phrase_abstraction_ladder"]["occurrence_counts"]["phrase"]["right"],
+                2,
+            )
+            self.assertEqual(
+                payload["highest_stable_transition_motif_abstraction_layer_change"]["left"],
+                {"layer": "none", "recurring_count": 0, "occurrence_count": 0},
+            )
+            self.assertEqual(
+                payload["highest_stable_transition_motif_abstraction_layer_change"]["right"],
+                {"layer": "gesture", "recurring_count": 1, "occurrence_count": 2},
+            )
+            self.assertTrue(payload["highest_stable_transition_motif_abstraction_layer_change"]["layer_changed"])
+            self.assertEqual(payload["highest_stable_transition_motif_abstraction_layer_change"]["direction"], "rose")
+            self.assertEqual(payload["highest_stable_transition_motif_abstraction_layer_change"]["layer_step_delta"], 9)
+            self.assertEqual(
+                payload["attention_contract_changes"]["query_text"]["right"],
+                "Is there a foreground call to retain?",
+            )
+            self.assertEqual(
+                payload["attention_contract_changes"]["render_goal"]["right"],
+                "preserve the foreground call emphasis",
+            )
+            self.assertEqual(
+                payload["interpretation_layer_changes"]["added"],
+                ["communicative_hypotheses", "scene_hypotheses", "task_conditioning_notes"],
+            )
+            self.assertEqual(
+                payload["first_scene_hypothesis_changes"]["label"]["right"],
+                "foreground call over rising backing layer",
+            )
+            self.assertEqual(
+                payload["first_communicative_hypothesis_changes"]["label"]["right"],
+                "foreground call likely carries the queried answer",
+            )
+            self.assertEqual(
+                payload["transformation_intent_changes"]["primary_output"]["right"],
+                "foreground_call_stem",
+            )
+            self.assertEqual(payload["interpretation_hypothesis_count_delta"], 3)
+            self.assertEqual(payload["uncertainty_warning_count_delta"], 1)
+            self.assertEqual(payload["provenance_changes"]["decode_backend"]["left"], "wave")
+            self.assertEqual(payload["provenance_changes"]["decode_backend"]["right"], "ffmpeg")
+            self.assertEqual(payload["report_format"], "yaml")
+            self.assertTrue(report_path.exists())
+
+    def test_arwif_diff_analysis_reports_no_change_for_identical_documents(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            left_path = tmp_dir / "left-analysis.yaml"
+            right_path = tmp_dir / "right-analysis.yaml"
+
+            document = {
+                "analysis_metadata": {
+                    "analysis_profile": "basic-observation",
+                    "analysis_version": "0.1-draft",
+                    "analyzer_id": "rwif-builder",
+                    "source_id": "demo.same",
+                },
+                "observed_audio": {
+                    "path_hint": ".local/audio/same.wav",
+                    "duration_seconds": 3.0,
+                    "sample_rate_hz": 8000,
+                    "channel_count": 1,
+                    "codec": "wav",
+                    "original_sample_rate_hz": 8000,
+                    "original_channel_count": 1,
+                    "analysis_window": {
+                        "start_seconds": 0.0,
+                        "duration_seconds": 3.0,
+                    },
+                },
+                "observation_layers": {
+                    "basic_observation_summary": {
+                        "peak_amplitude": 0.2,
+                        "rms_amplitude": 0.05,
+                        "estimated_onset_count": 2,
+                        "section_boundary_count": 0,
+                        "section_candidate_count": 0,
+                        "section_profile_summary": {
+                            "average_duration_seconds": 0.0,
+                            "longest_duration_seconds": 0.0,
+                            "energy_band_counts": {},
+                            "duration_band_counts": {},
+                            "position_band_counts": {},
+                            "dominant_energy_band": None,
+                            "opening_energy_band": None,
+                            "closing_energy_band": None,
+                        },
+                        "transition_profile_summary": {
+                            "average_abs_energy_delta": 0.0,
+                            "largest_abs_energy_delta": 0.0,
+                            "transition_kind_counts": {},
+                            "dominant_transition_kind": None,
+                            "opening_transition_kind": None,
+                            "closing_transition_kind": None,
+                        },
+                        "frame_count": 24000,
+                        "spectral_extent_summary": {"low_hz": 90, "high_hz": 1000},
+                        "channel_energy_summary": {"center_rms": 0.05},
+                    },
+                    "onset_map": [],
+                    "transient_events": [],
+                    "section_candidates": [],
+                    "section_transitions": [],
+                },
+                "source_hypotheses": [],
+                "component_layers": {},
+                "reconstruction": {"reconstructable_outputs": []},
+                "uncertainty_notes": {"warnings": []},
+                "provenance": {
+                    "input_file_hash": "hash-same",
+                    "decode_backend": "wave",
+                    "preprocessing_steps": ["decode", "observe"],
+                },
+            }
+
+            serialized = yaml.safe_dump(document, sort_keys=False)
+            left_path.write_text(serialized, encoding="utf-8")
+            right_path.write_text(serialized, encoding="utf-8")
+
+            payload = self._run_json(
+                repo_root,
+                "arwif-diff-analysis",
+                str(left_path),
+                str(right_path),
+                "--json",
+            )
+
+            self.assertTrue(payload["left_valid"])
+            self.assertTrue(payload["right_valid"])
+            self.assertFalse(payload["pair_changed"])
+            self.assertEqual(payload["metadata_changes"], {})
+            self.assertEqual(payload["observed_audio_changes"], {})
+            self.assertEqual(payload["analysis_window_changes"], {})
+            self.assertEqual(payload["basic_observation_changes"], {})
+            self.assertEqual(payload["source_hypothesis_count_delta"], 0)
+            self.assertEqual(payload["component_group_count_delta"], 0)
+            self.assertEqual(payload["onset_map_count_delta"], 0)
+            self.assertEqual(payload["section_boundary_count_delta"], 0)
+            self.assertEqual(payload["section_candidate_count_delta"], 0)
+            self.assertEqual(payload["section_transition_count_delta"], 0)
 
     def _run_json(self, repo_root: Path, *args: str, allow_failure: bool = False) -> dict[str, object]:
         result = subprocess.run(

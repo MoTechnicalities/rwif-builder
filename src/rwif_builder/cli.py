@@ -6,16 +6,25 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any
 
+from .arwif.analyze import analyze_audio_input
+from .arwif.analyze import diff_analysis_documents
+from .arwif.analyze import inspect_analysis_document
+from .arwif.analyze import validate_analysis_document
 from .arwif.build import build_arwif_artifact
 from .arwif.batch import batch_build_arwif_artifacts
 from .arwif.batch import analyze_batch_diff_report
+from .arwif.batch import batch_analyze_audio_inputs
+from .arwif.batch import batch_diff_analysis_documents
 from .arwif.batch import batch_diff_arwif_artifacts
 from .arwif.batch import batch_export_arwif_artifacts
 from .arwif.batch import batch_import_arwif_artifacts
+from .arwif.batch import batch_inspect_analysis_documents
 from .arwif.batch import batch_inspect_arwif_artifacts
 from .arwif.batch import batch_normalize_arwif_artifacts
+from .arwif.batch import batch_review_analysis_documents
 from .arwif.batch import batch_review_arwif_artifacts
 from .arwif.batch import batch_render_arwif_artifacts
+from .arwif.batch import batch_validate_analysis_documents
 from .arwif.batch import batch_validate_arwif_artifacts
 from .arwif.batch import batch_validate_arwif_specs
 from .arwif.diff import diff_arwif_artifacts
@@ -26,6 +35,11 @@ from .arwif.normalize import normalize_arwif_artifact
 from .arwif.render import render_arwif_to_wav
 from .arwif.validation import validate_arwif_artifact
 from .arwif.validation import validate_arwif_spec
+from .mrwif.batch import batch_diff_mrwif_specs
+from .mrwif.batch import batch_inspect_mrwif_specs
+from .mrwif.batch import batch_review_mrwif_specs
+from .mrwif.batch import batch_validate_mrwif_specs
+from .mrwif.batch import analyze_batch_diff_report as analyze_mrwif_batch_diff_report
 from .mrwif.diff import diff_mrwif_specs
 from .mrwif.inspect import inspect_mrwif_spec
 from .mrwif.validation import validate_mrwif_spec
@@ -159,6 +173,272 @@ def build_parser() -> argparse.ArgumentParser:
     arwif_validate_spec_parser.add_argument("spec", help="Path to an ARWIF source spec")
     arwif_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     arwif_validate_spec_parser.set_defaults(handler=handle_arwif_validate_spec)
+
+    arwif_validate_analysis_parser = subparsers.add_parser(
+        "arwif-validate-analysis",
+        help="Validate an analysis-oriented ARWIF YAML or JSON document",
+    )
+    arwif_validate_analysis_parser.add_argument(
+        "analysis_document",
+        help="Path to an analysis-oriented ARWIF .json, .yaml, or .yml document",
+    )
+    arwif_validate_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_validate_analysis_parser.set_defaults(handler=handle_arwif_validate_analysis)
+
+    arwif_batch_validate_analysis_parser = subparsers.add_parser(
+        "arwif-batch-validate-analysis",
+        help="Validate multiple analysis-oriented ARWIF YAML or JSON documents",
+    )
+    arwif_batch_validate_analysis_parser.add_argument(
+        "analysis_documents",
+        nargs="+",
+        help="Paths to analysis-oriented ARWIF .json, .yaml, or .yml documents",
+    )
+    arwif_batch_validate_analysis_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated validation report",
+    )
+    arwif_batch_validate_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_validate_analysis_parser.set_defaults(handler=handle_arwif_batch_validate_analysis)
+
+    arwif_analyze_audio_parser = subparsers.add_parser(
+        "arwif-analyze-audio",
+        help="Analyze a real audio file into an ARWIF-oriented observation report",
+    )
+    arwif_analyze_audio_parser.add_argument("input_audio", help="Path to an input .wav, .flac, or .mp3 audio file")
+    arwif_analyze_audio_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the analysis-oriented ARWIF draft document",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--report",
+        help="Optional destination .json, .yaml, or .yml path for a compact analysis summary report",
+    )
+    arwif_analyze_audio_parser.add_argument("--start-seconds", type=float, default=0.0, help="Optional start offset for partial analysis")
+    arwif_analyze_audio_parser.add_argument("--duration-seconds", type=float, help="Optional analysis window duration in seconds")
+    arwif_analyze_audio_parser.add_argument(
+        "--channel-mode",
+        choices=("preserve", "mono", "split-stereo"),
+        default="preserve",
+        help="Channel handling policy for analysis",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--target-sample-rate-hz",
+        type=int,
+        help="Optional resampling target for deterministic analysis",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--analysis-profile",
+        choices=("basic-observation",),
+        default="basic-observation",
+        help="Analysis profile to apply",
+    )
+    arwif_analyze_audio_parser.add_argument("--source-id", help="Optional stable identifier for the analyzed recording")
+    arwif_analyze_audio_parser.add_argument("--query-text", help="Optional task or question guiding analysis attention")
+    arwif_analyze_audio_parser.add_argument(
+        "--attention-target",
+        action="append",
+        dest="attention_targets",
+        help="Repeatable attention target label to store in the workspace-oriented attention contract",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--retain-target",
+        action="append",
+        dest="retain_targets",
+        help="Repeatable retain target label to store in the workspace-oriented attention contract",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--suppress-target",
+        action="append",
+        dest="suppress_targets",
+        help="Repeatable suppress target label to store in the workspace-oriented attention contract",
+    )
+    arwif_analyze_audio_parser.add_argument(
+        "--answer-expectation",
+        action="append",
+        dest="answer_expectations",
+        help="Repeatable answer expectation to store in the workspace-oriented attention contract",
+    )
+    arwif_analyze_audio_parser.add_argument("--render-goal", help="Optional render goal for the workspace-oriented attention contract")
+    arwif_analyze_audio_parser.add_argument(
+        "--transform-operation",
+        action="append",
+        dest="transformation_operations",
+        help="Repeatable transformation operation to store in transformation intent",
+    )
+    arwif_analyze_audio_parser.add_argument("--primary-output", help="Optional primary output label for transformation intent")
+    arwif_analyze_audio_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_analyze_audio_parser.set_defaults(handler=handle_arwif_analyze_audio)
+
+    arwif_batch_analyze_audio_parser = subparsers.add_parser(
+        "arwif-batch-analyze-audio",
+        help="Analyze multiple real audio files into ARWIF-oriented observation reports",
+    )
+    arwif_batch_analyze_audio_parser.add_argument("input_audio", nargs="+", help="Paths to input .wav, .flac, or .mp3 audio files")
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--analysis-dir",
+        help="Optional destination directory for per-input analysis documents",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--report-dir",
+        help="Optional destination directory for per-input compact analysis reports",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--analysis-format",
+        choices=("yaml", "json"),
+        default="yaml",
+        help="Format to use for per-input analysis documents when --analysis-dir is set",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--report-format",
+        choices=("yaml", "json"),
+        default="json",
+        help="Format to use for per-input compact reports when --report-dir is set",
+    )
+    arwif_batch_analyze_audio_parser.add_argument("--start-seconds", type=float, default=0.0, help="Optional start offset for partial analysis")
+    arwif_batch_analyze_audio_parser.add_argument("--duration-seconds", type=float, help="Optional analysis window duration in seconds")
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--channel-mode",
+        choices=("preserve", "mono", "split-stereo"),
+        default="preserve",
+        help="Channel handling policy for analysis",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--target-sample-rate-hz",
+        type=int,
+        help="Optional resampling target for deterministic analysis",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--analysis-profile",
+        choices=("basic-observation",),
+        default="basic-observation",
+        help="Analysis profile to apply",
+    )
+    arwif_batch_analyze_audio_parser.add_argument("--query-text", help="Optional task or question guiding analysis attention")
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--attention-target",
+        action="append",
+        dest="attention_targets",
+        help="Repeatable attention target label to store in each emitted attention contract",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--retain-target",
+        action="append",
+        dest="retain_targets",
+        help="Repeatable retain target label to store in each emitted attention contract",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--suppress-target",
+        action="append",
+        dest="suppress_targets",
+        help="Repeatable suppress target label to store in each emitted attention contract",
+    )
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--answer-expectation",
+        action="append",
+        dest="answer_expectations",
+        help="Repeatable answer expectation to store in each emitted attention contract",
+    )
+    arwif_batch_analyze_audio_parser.add_argument("--render-goal", help="Optional render goal for each emitted attention contract")
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--transform-operation",
+        action="append",
+        dest="transformation_operations",
+        help="Repeatable transformation operation to store in each emitted transformation intent",
+    )
+    arwif_batch_analyze_audio_parser.add_argument("--primary-output", help="Optional primary output label for each emitted transformation intent")
+    arwif_batch_analyze_audio_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated batch analysis report",
+    )
+    arwif_batch_analyze_audio_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_analyze_audio_parser.set_defaults(handler=handle_arwif_batch_analyze_audio)
+
+    arwif_inspect_analysis_parser = subparsers.add_parser(
+        "arwif-inspect-analysis",
+        help="Inspect an analysis-oriented ARWIF YAML or JSON document",
+    )
+    arwif_inspect_analysis_parser.add_argument(
+        "analysis_document",
+        help="Path to an analysis-oriented ARWIF .json, .yaml, or .yml document",
+    )
+    arwif_inspect_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_inspect_analysis_parser.set_defaults(handler=handle_arwif_inspect_analysis)
+
+    arwif_batch_inspect_analysis_parser = subparsers.add_parser(
+        "arwif-batch-inspect-analysis",
+        help="Inspect multiple analysis-oriented ARWIF YAML or JSON documents",
+    )
+    arwif_batch_inspect_analysis_parser.add_argument(
+        "analysis_documents",
+        nargs="+",
+        help="Paths to analysis-oriented ARWIF .json, .yaml, or .yml documents",
+    )
+    arwif_batch_inspect_analysis_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated inspection report",
+    )
+    arwif_batch_inspect_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_inspect_analysis_parser.set_defaults(handler=handle_arwif_batch_inspect_analysis)
+
+    arwif_batch_diff_analysis_parser = subparsers.add_parser(
+        "arwif-batch-diff-analysis",
+        help="Compare multiple analysis-oriented ARWIF document pairs",
+    )
+    arwif_batch_diff_analysis_parser.add_argument(
+        "--left",
+        nargs="+",
+        required=True,
+        help="Left-hand analysis-oriented ARWIF document paths matched pairwise with --right",
+    )
+    arwif_batch_diff_analysis_parser.add_argument(
+        "--right",
+        nargs="+",
+        required=True,
+        help="Right-hand analysis-oriented ARWIF document paths matched pairwise with --left",
+    )
+    arwif_batch_diff_analysis_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated batch analysis diff report",
+    )
+    arwif_batch_diff_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_diff_analysis_parser.set_defaults(handler=handle_arwif_batch_diff_analysis)
+
+    arwif_batch_review_analysis_parser = subparsers.add_parser(
+        "arwif-batch-review-analysis",
+        help="Run analysis-document batch diff and recurring-change review in one command",
+    )
+    arwif_batch_review_analysis_parser.add_argument(
+        "--left",
+        nargs="+",
+        required=True,
+        help="Left-hand analysis-oriented ARWIF document paths matched pairwise with --right",
+    )
+    arwif_batch_review_analysis_parser.add_argument(
+        "--right",
+        nargs="+",
+        required=True,
+        help="Right-hand analysis-oriented ARWIF document paths matched pairwise with --left",
+    )
+    arwif_batch_review_analysis_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated batch analysis review report",
+    )
+    arwif_batch_review_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_batch_review_analysis_parser.set_defaults(handler=handle_arwif_batch_review_analysis)
+
+    arwif_diff_analysis_parser = subparsers.add_parser(
+        "arwif-diff-analysis",
+        help="Compare two analysis-oriented ARWIF YAML or JSON documents",
+    )
+    arwif_diff_analysis_parser.add_argument("left", help="Path to the left analysis-oriented ARWIF document")
+    arwif_diff_analysis_parser.add_argument("right", help="Path to the right analysis-oriented ARWIF document")
+    arwif_diff_analysis_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the analysis diff report",
+    )
+    arwif_diff_analysis_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    arwif_diff_analysis_parser.set_defaults(handler=handle_arwif_diff_analysis)
 
     vrwif_batch_validate_spec_parser = subparsers.add_parser(
         "vrwif-batch-validate-spec",
@@ -335,6 +615,91 @@ def build_parser() -> argparse.ArgumentParser:
     mrwif_diff_parser.add_argument("right", help="Second MRWIF source spec path")
     mrwif_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     mrwif_diff_parser.set_defaults(handler=handle_mrwif_diff)
+
+    mrwif_batch_validate_spec_parser = subparsers.add_parser(
+        "mrwif-batch-validate-spec",
+        help="Validate multiple MRWIF YAML or JSON source specs",
+    )
+    mrwif_batch_validate_spec_parser.add_argument("specs", nargs="+", help="Paths to MRWIF source specs")
+    mrwif_batch_validate_spec_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated spec validation report",
+    )
+    mrwif_batch_validate_spec_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_batch_validate_spec_parser.set_defaults(handler=handle_mrwif_batch_validate_spec)
+
+    mrwif_batch_inspect_parser = subparsers.add_parser(
+        "mrwif-batch-inspect",
+        help="Inspect multiple MRWIF YAML or JSON source specs",
+    )
+    mrwif_batch_inspect_parser.add_argument("specs", nargs="+", help="Paths to MRWIF source specs")
+    mrwif_batch_inspect_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated inspection report",
+    )
+    mrwif_batch_inspect_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_batch_inspect_parser.set_defaults(handler=handle_mrwif_batch_inspect)
+
+    mrwif_batch_diff_parser = subparsers.add_parser(
+        "mrwif-batch-diff",
+        help="Compare multiple MRWIF YAML or JSON source spec pairs",
+    )
+    mrwif_batch_diff_parser.add_argument(
+        "--left",
+        nargs="+",
+        required=True,
+        help="Left-hand MRWIF source spec paths matched pairwise with --right",
+    )
+    mrwif_batch_diff_parser.add_argument(
+        "--right",
+        nargs="+",
+        required=True,
+        help="Right-hand MRWIF source spec paths matched pairwise with --left",
+    )
+    mrwif_batch_diff_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated diff report",
+    )
+    mrwif_batch_diff_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_batch_diff_parser.set_defaults(handler=handle_mrwif_batch_diff)
+
+    mrwif_batch_diff_analyze_parser = subparsers.add_parser(
+        "mrwif-batch-diff-analyze",
+        help="Analyze an aggregated MRWIF batch diff report",
+    )
+    mrwif_batch_diff_analyze_parser.add_argument(
+        "input",
+        help="Path to a batch diff report in .json, .yaml, or .yml format",
+    )
+    mrwif_batch_diff_analyze_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated analysis report",
+    )
+    mrwif_batch_diff_analyze_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_batch_diff_analyze_parser.set_defaults(handler=handle_mrwif_batch_diff_analyze)
+
+    mrwif_batch_review_parser = subparsers.add_parser(
+        "mrwif-batch-review",
+        help="Run MRWIF batch diff and recurring-change analysis in one command",
+    )
+    mrwif_batch_review_parser.add_argument(
+        "--left",
+        nargs="+",
+        required=True,
+        help="Left-hand MRWIF source spec paths matched pairwise with --right",
+    )
+    mrwif_batch_review_parser.add_argument(
+        "--right",
+        nargs="+",
+        required=True,
+        help="Right-hand MRWIF source spec paths matched pairwise with --left",
+    )
+    mrwif_batch_review_parser.add_argument(
+        "--output",
+        help="Optional destination .json, .yaml, or .yml path for the aggregated review report",
+    )
+    mrwif_batch_review_parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
+    mrwif_batch_review_parser.set_defaults(handler=handle_mrwif_batch_review)
 
     arwif_import_parser = subparsers.add_parser("arwif-import", help="Import an ARWIF YAML or JSON spec into an artifact")
     arwif_import_parser.add_argument("--spec", required=True, help="Path to an ARWIF import spec")
@@ -660,6 +1025,153 @@ def handle_arwif_validate_spec(args: argparse.Namespace) -> int:
     return 0 if report.is_valid else 1
 
 
+def handle_arwif_validate_analysis(args: argparse.Namespace) -> int:
+    report = validate_analysis_document(Path(args.analysis_document))
+    _print_payload(report.to_payload(), args.json)
+    return 0 if report.is_valid else 1
+
+
+def handle_arwif_batch_validate_analysis(args: argparse.Namespace) -> int:
+    payload = batch_validate_analysis_documents(
+        [Path(analysis_document) for analysis_document in args.analysis_documents],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_analyze_audio(args: argparse.Namespace) -> int:
+    try:
+        payload = analyze_audio_input(
+            Path(args.input_audio),
+            output=Path(args.output) if args.output else None,
+            report=Path(args.report) if args.report else None,
+            start_seconds=args.start_seconds,
+            duration_seconds=args.duration_seconds,
+            channel_mode=args.channel_mode,
+            target_sample_rate_hz=args.target_sample_rate_hz,
+            analysis_profile=args.analysis_profile,
+            source_id=args.source_id,
+            query_text=args.query_text,
+            attention_targets=args.attention_targets,
+            retain_targets=args.retain_targets,
+            suppress_targets=args.suppress_targets,
+            answer_expectations=args.answer_expectations,
+            render_goal=args.render_goal,
+            transformation_operations=args.transformation_operations,
+            primary_output=args.primary_output,
+        )
+    except ValueError as exc:
+        return _print_error_payload(
+            {
+                "input_audio": str(Path(args.input_audio)),
+                "is_valid": False,
+                "message": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            },
+            args.json,
+        )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_analyze_audio(args: argparse.Namespace) -> int:
+    payload = batch_analyze_audio_inputs(
+        [Path(input_audio) for input_audio in args.input_audio],
+        analysis_dir=Path(args.analysis_dir) if args.analysis_dir else None,
+        report_dir=Path(args.report_dir) if args.report_dir else None,
+        analysis_format=args.analysis_format,
+        report_format=args.report_format,
+        start_seconds=args.start_seconds,
+        duration_seconds=args.duration_seconds,
+        channel_mode=args.channel_mode,
+        target_sample_rate_hz=args.target_sample_rate_hz,
+        analysis_profile=args.analysis_profile,
+        query_text=args.query_text,
+        attention_targets=args.attention_targets,
+        retain_targets=args.retain_targets,
+        suppress_targets=args.suppress_targets,
+        answer_expectations=args.answer_expectations,
+        render_goal=args.render_goal,
+        transformation_operations=args.transformation_operations,
+        primary_output=args.primary_output,
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_inspect_analysis(args: argparse.Namespace) -> int:
+    try:
+        payload = inspect_analysis_document(Path(args.analysis_document))
+    except ValueError as exc:
+        return _print_error_payload(
+            {
+                "analysis_document": str(Path(args.analysis_document)),
+                "is_valid": False,
+                "message": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            },
+            args.json,
+        )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_inspect_analysis(args: argparse.Namespace) -> int:
+    payload = batch_inspect_analysis_documents(
+        [Path(analysis_document) for analysis_document in args.analysis_documents],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_diff_analysis(args: argparse.Namespace) -> int:
+    payload = batch_diff_analysis_documents(
+        [Path(analysis_document) for analysis_document in args.left],
+        [Path(analysis_document) for analysis_document in args.right],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_batch_review_analysis(args: argparse.Namespace) -> int:
+    payload = batch_review_analysis_documents(
+        [Path(analysis_document) for analysis_document in args.left],
+        [Path(analysis_document) for analysis_document in args.right],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_arwif_diff_analysis(args: argparse.Namespace) -> int:
+    try:
+        payload = diff_analysis_documents(
+            Path(args.left),
+            Path(args.right),
+            output=Path(args.output) if args.output else None,
+        )
+    except ValueError as exc:
+        return _print_error_payload(
+            {
+                "left": str(Path(args.left)),
+                "right": str(Path(args.right)),
+                "is_valid": False,
+                "message": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            },
+            args.json,
+        )
+    _print_payload(payload, args.json)
+    return 0 if payload["left_valid"] and payload["right_valid"] else 1
+
+
 def handle_vrwif_batch_validate_spec(args: argparse.Namespace) -> int:
     payload = batch_validate_vrwif_specs(
         [Path(spec) for spec in args.specs],
@@ -806,6 +1318,53 @@ def handle_mrwif_diff(args: argparse.Namespace) -> int:
     payload = diff_mrwif_specs(Path(args.left), Path(args.right))
     _print_payload(payload, args.json)
     return 0 if payload["left_valid"] and payload["right_valid"] else 1
+
+
+def handle_mrwif_batch_validate_spec(args: argparse.Namespace) -> int:
+    payload = batch_validate_mrwif_specs(
+        [Path(spec) for spec in args.specs],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_mrwif_batch_inspect(args: argparse.Namespace) -> int:
+    payload = batch_inspect_mrwif_specs(
+        [Path(spec) for spec in args.specs],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_mrwif_batch_diff(args: argparse.Namespace) -> int:
+    payload = batch_diff_mrwif_specs(
+        [Path(spec) for spec in args.left],
+        [Path(spec) for spec in args.right],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_mrwif_batch_diff_analyze(args: argparse.Namespace) -> int:
+    payload = analyze_mrwif_batch_diff_report(
+        Path(args.input),
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
+
+
+def handle_mrwif_batch_review(args: argparse.Namespace) -> int:
+    payload = batch_review_mrwif_specs(
+        [Path(spec) for spec in args.left],
+        [Path(spec) for spec in args.right],
+        output=Path(args.output) if args.output else None,
+    )
+    _print_payload(payload, args.json)
+    return 0 if payload["is_valid"] else 1
 
 
 def handle_arwif_import(args: argparse.Namespace) -> int:

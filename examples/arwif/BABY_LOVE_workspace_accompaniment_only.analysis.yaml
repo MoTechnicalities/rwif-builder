@@ -1,0 +1,118 @@
+analysis_metadata:
+  analysis_profile: arwif_workspace_draft
+  analysis_version: 0.1-draft
+  analyzer_id: rwif-builder
+  source_id: baby-love-accompaniment-demo
+  notes:
+    - Conceptual ARWIF workspace example for task-conditioned retention
+
+observed_audio:
+  path_hint: .local/audio/Baby Love.mp3
+  duration_seconds: 162.4
+  sample_rate_hz: 44100
+  channel_count: 2
+  codec: mp3
+
+attention_contract:
+  query_text: Remember the instrument tracks and omit the vocals.
+  attention_targets:
+    - accompaniment
+    - drum_pattern
+    - bass_line
+    - harmonic_bed
+    - vocal_regions
+  retain_targets:
+    - accompaniment
+    - drum_pattern
+    - bass_line
+    - harmonic_bed
+  suppress_targets:
+    - lead_vocal
+    - backing_vocal
+  answer_expectations:
+    - describe retained instrumental structure
+    - regenerate accompaniment-only output
+  render_goal: full_mix_without_vocals
+
+observation_layers:
+  onset_map:
+    summary:
+      onset_density: high
+  section_boundaries:
+    summary:
+      section_count_estimate: 6
+  transition_motif_summary:
+    summary:
+      recurring_motif_count: 19
+      dominant_signature: energy_stable|medium|medium|stable
+  transition_motif_phrase_summary:
+    summary:
+      recurring_phrase_count: 10
+      phrase_occurrence_count: 31
+
+source_hypotheses:
+  - source_id: source.vocals.01
+    source_class: lead_vocal
+    role: foreground
+    confidence: 0.84
+    time_bounds:
+      start_seconds: 0.0
+      end_seconds: 162.4
+    ambiguity_notes:
+      - Lead and backing vocals overlap in chorus regions.
+  - source_id: source.rhythm.01
+    source_class: drum_kit
+    role: rhythmic_anchor
+    confidence: 0.79
+  - source_id: source.bass.01
+    source_class: bass
+    role: low_end_foundation
+    confidence: 0.72
+  - source_id: source.harmonic-bed.01
+    source_class: harmonic_bed
+    role: accompaniment
+    confidence: 0.76
+
+interpretation_layers:
+  scene_hypotheses:
+    - hypothesis_id: scene.01
+      summary: foreground vocal over tightly coupled rhythm and harmonic accompaniment
+      confidence: 0.8
+  arrangement_hypotheses:
+    - hypothesis_id: arrangement.01
+      summary: accompaniment remains structurally stable enough to support vocal suppression without collapsing meter or groove
+      confidence: 0.74
+
+transformation_intent:
+  operations:
+    - suppress_source_group: vocals
+    - preserve_source_group: accompaniment
+    - preserve_source_group: drums
+    - preserve_source_group: bass
+  style_preservation_notes:
+    - Preserve rhythmic feel and harmonic timing even if vocal bleed remains in residual regions.
+
+reconstruction:
+  reconstructable_outputs:
+    - accompaniment
+    - drums
+    - bass
+    - full_mix_without_vocals
+  render_constraints:
+    - keep stereo image if confidence permits
+    - allow residual vocal bleed notes in low-confidence regions
+
+uncertainty_notes:
+  conflicting_source_assignments:
+    - Chorus energy may contain shared vocal and cymbal air-band content.
+  compression_artifact_notes:
+    - MP3 upper-band artifacts may weaken clean vocal suppression.
+
+provenance:
+  preprocessing_steps:
+    - decode mp3 to pcm
+    - derive observation layers
+    - infer source hypotheses
+    - attach task-conditioned retention intent
+  related_artifacts:
+    - docs/ARWIF_WORKSPACE_V0_DRAFT.md

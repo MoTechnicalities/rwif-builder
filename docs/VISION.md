@@ -4,6 +4,8 @@
 
 The ambition behind this repo is larger than a builder for one binary format.
 
+That ambition did not appear in a vacuum. It grew out of a broader attempt to reconcile meaning, perception, causality, and storage within one coherent picture of structure. The full theoretical foundation and origin story now lives in [docs/QFFT_v1.4_FOUNDATION.md](docs/QFFT_v1.4_FOUNDATION.md), which is kept separate from the operational format documents so the specs can stay disciplined.
+
 It starts with a sharper claim:
 
 AI systems reason poorly when they are forced to choose between symbols with too little perceptual grounding and media with too little causal structure.
@@ -183,6 +185,8 @@ That matters because it shows that:
 
 - semantic memory can be built, validated, inspected, diffed, and shipped
 - structured sound can be built, normalized, inspected, diffed, exported, imported, rendered, and batch processed
+
+The current ARWIF surface should still be read as the first narrow profile, not the final audio ambition. The follow-on analysis direction for inferred source structure, extraction, and regeneration is now spelled out in [docs/ARWIF_ANALYSIS_MISSION.md](docs/ARWIF_ANALYSIS_MISSION.md), [docs/ARWIF_ANALYSIS_ROADMAP.md](docs/ARWIF_ANALYSIS_ROADMAP.md), and [docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md](docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md).
 
 That is enough to justify the broader direction even before visual or multimodal formats exist.
 

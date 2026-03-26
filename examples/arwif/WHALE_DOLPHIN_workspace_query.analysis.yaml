@@ -1,0 +1,112 @@
+analysis_metadata:
+  analysis_profile: arwif_workspace_draft
+  analysis_version: 0.1-draft
+  analyzer_id: rwif-builder
+  source_id: whale-dolphin-query-demo
+  notes:
+    - Conceptual ARWIF workspace example for query-driven acoustic reasoning
+
+observed_audio:
+  path_hint: .local/audio/humpback_whale_feeding_call.mp3
+  duration_seconds: 11.8
+  sample_rate_hz: 44100
+  channel_count: 2
+  codec: mp3
+
+attention_contract:
+  query_text: Listen to the whale file, isolate any dolphin background sounds, and estimate what the dolphins may be communicating.
+  attention_targets:
+    - whale_calls
+    - dolphin_background_signals
+    - repeated_whistle_or_click_patterns
+    - turn_taking_or_grouping_behavior
+  retain_targets:
+    - dolphin_candidate_events
+    - whale_foreground_context
+    - timing_relationships
+  suppress_targets:
+    - irrelevant_broadband_noise
+  answer_expectations:
+    - identify candidate dolphin sounds
+    - summarize communicative pattern hypotheses
+  render_goal: dolphin_candidate_isolation_preview
+
+observation_layers:
+  onset_map:
+    summary:
+      onset_density: sparse
+  section_boundaries:
+    summary:
+      section_count_estimate: 7
+  transition_motif_summary:
+    summary:
+      recurring_motif_count: 6
+      dominant_signature: energy_stable|high|high|stable
+  foreground_background_summary:
+    summary:
+      dominant_foreground_class: whale_call_stream
+      probable_background_microevents: present
+
+source_hypotheses:
+  - source_id: source.whale.01
+    source_class: foreground_call_stream
+    role: foreground
+    confidence: 0.87
+  - source_id: source.dolphin-candidate.01
+    source_class: dolphin_candidate_signal
+    role: background
+    confidence: 0.42
+    ambiguity_notes:
+      - Could overlap with water noise or distant transient energy.
+      - Candidate classification is query-conditioned and low confidence.
+  - source_id: source.environment.01
+    source_class: ambient_water_noise
+    role: environmental_bed
+    confidence: 0.68
+
+interpretation_layers:
+  scene_hypotheses:
+    - hypothesis_id: scene.01
+      summary: dominant whale foreground with possible secondary background biosignals
+      confidence: 0.69
+  communicative_hypotheses:
+    - hypothesis_id: communication.01
+      summary: background dolphin candidate events may form short repeated signaling units, but semantic interpretation remains weak
+      confidence: 0.31
+      evidence_links:
+        - source.dolphin-candidate.01
+      caution_notes:
+        - Semantic interpretation is hypothetical and should not be treated as fact.
+
+transformation_intent:
+  operations:
+    - isolate_source_group: dolphin_candidate_signal
+    - preserve_source_group: whale_foreground_context
+    - generate_hypothesis_report: communicative_hypotheses
+  export_preferences:
+    - low-confidence isolation is acceptable if clearly labeled
+
+reconstruction:
+  reconstructable_outputs:
+    - dolphin_candidate_isolation_preview
+    - whale_plus_dolphin_context_mix
+    - hypothesis_summary_report
+  render_constraints:
+    - retain whale context at low level for interpretive reference
+
+uncertainty_notes:
+  low_confidence_bands:
+    - high-frequency background events are weak and partially masked
+  conflicting_source_assignments:
+    - some candidate dolphin events may instead be environmental transients
+  semantic_hypothesis_notes:
+    - Any answer to what the dolphins are saying is necessarily hypothesis-level in this draft example
+
+provenance:
+  preprocessing_steps:
+    - decode mp3 to pcm
+    - derive observation layers
+    - infer background biosignal candidates
+    - attach query-conditioned interpretation hypotheses
+  related_artifacts:
+    - docs/ARWIF_WORKSPACE_V0_DRAFT.md

@@ -96,6 +96,11 @@ A practical `MRWIF` draft would likely need:
 This repo now implements a minimal source-spec surface for `MRWIF`:
 
 - validation
+- batch spec validation
+- batch inspection
+- batch diff
+- batch diff analysis
+- batch review
 - inspection
 - diff
 

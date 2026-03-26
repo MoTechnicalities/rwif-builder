@@ -49,4 +49,6 @@ The current implementation maps onto that vision in a narrow but concrete way:
 - `ARWIF`: implemented here as the first structured sound profile layered on the RWIF container, with build, validate, inspect, diff, normalize, export, import, render, and batch operations
 - `MRWIF`, `TRWIF`, and future companions: not implemented here today, but documented as follow-on design targets in [docs/MRWIF.md](docs/MRWIF.md), [docs/TRWIF.md](docs/TRWIF.md), and [docs/VISION.md](docs/VISION.md)
 
+For ARWIF specifically, the repo should now be read as having a live synthesis-oriented profile plus a documented analysis-oriented target. The current code implements the former. The latter is defined in [docs/ARWIF_ANALYSIS_MISSION.md](docs/ARWIF_ANALYSIS_MISSION.md), [docs/ARWIF_ANALYSIS_ROADMAP.md](docs/ARWIF_ANALYSIS_ROADMAP.md), and [docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md](docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md).
+
 In that framing, `rwif-builder` is the first practical authoring environment for the format family, even though only the RWIF and ARWIF tracks are operational today.

@@ -72,6 +72,15 @@ rwif diff
 rwif patch
 rwif arwif-batch-build
 rwif arwif-batch-import
+rwif arwif-analyze-audio
+rwif arwif-batch-analyze-audio
+rwif arwif-validate-analysis
+rwif arwif-batch-validate-analysis
+rwif arwif-inspect-analysis
+rwif arwif-batch-inspect-analysis
+rwif arwif-diff-analysis
+rwif arwif-batch-diff-analysis
+rwif arwif-batch-review-analysis
 rwif arwif-batch-diff
 rwif arwif-batch-diff-analyze
 rwif arwif-batch-review
@@ -104,7 +113,7 @@ rwif vrwif-normalize
 rwif vrwif-validate-spec
 ```
 
-The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-diff-analyze`, `vrwif-batch-inspect`, `vrwif-batch-normalize`, `vrwif-batch-normalize-analyze`, `vrwif-batch-normalize-review`, `vrwif-batch-review`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, `vrwif-normalize`, and `vrwif-validate-spec`.
+The current implementation supports `init`, `build`, `validate`, `inspect`, `stats`, `diff`, `patch`, `arwif-batch-build`, `arwif-batch-import`, `arwif-analyze-audio`, `arwif-batch-analyze-audio`, `arwif-validate-analysis`, `arwif-batch-validate-analysis`, `arwif-inspect-analysis`, `arwif-batch-inspect-analysis`, `arwif-diff-analysis`, `arwif-batch-diff-analysis`, `arwif-batch-review-analysis`, `arwif-batch-diff`, `arwif-batch-diff-analyze`, `arwif-batch-review`, `arwif-batch-export`, `arwif-batch-render`, `arwif-batch-normalize`, `arwif-batch-validate-spec`, `arwif-batch-validate`, `arwif-batch-inspect`, `arwif-build`, `arwif-diff`, `arwif-export`, `arwif-import`, `arwif-inspect`, `arwif-normalize`, `arwif-validate-spec`, `arwif-validate`, `arwif-render`, `vrwif-batch-diff`, `vrwif-batch-diff-analyze`, `vrwif-batch-inspect`, `vrwif-batch-normalize`, `vrwif-batch-normalize-analyze`, `vrwif-batch-normalize-review`, `vrwif-batch-review`, `vrwif-diff`, `vrwif-inspect`, `vrwif-batch-validate-spec`, `vrwif-normalize`, and `vrwif-validate-spec`.
 
 ## Configuration
 
@@ -151,11 +160,17 @@ See [docs/EMBEDDING_BACKENDS.md](docs/EMBEDDING_BACKENDS.md) for the hashing and
 
 See [docs/ARWIF_v0.1.md](docs/ARWIF_v0.1.md) for the first ARWIF audio profile draft and [docs/ARWIF_CONTAINER_DECISION.md](docs/ARWIF_CONTAINER_DECISION.md) for the container-strategy analysis.
 
+See [docs/ARWIF_ANALYSIS_MISSION.md](docs/ARWIF_ANALYSIS_MISSION.md), [docs/ARWIF_ANALYSIS_ROADMAP.md](docs/ARWIF_ANALYSIS_ROADMAP.md), [docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md](docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md), and [docs/ARWIF_ANALYSIS_COMMAND_SURFACE.md](docs/ARWIF_ANALYSIS_COMMAND_SURFACE.md) for the longer-term ARWIF direction aimed at inferred source structure, extraction, and regeneration from real recordings.
+
+The current ARWIF analysis slice now emits lightweight temporal structure through `onset_map`, `section_boundaries`, `section_candidates`, and `section_transitions`, carries compact `section_profile_summary` and `transition_profile_summary` fields through analyze, inspect, batch-inspect, diff, batch-diff-analysis, batch, and report workflows, and now adds a first low-confidence observation-derived `source_hypotheses` layer with explicit evidence and ambiguity notes so AI reasoning can begin from structured causal hints without pretending to identify exact instruments or stems.
+
 See [examples/arwif/README.md](examples/arwif/README.md) for the shipped ARWIF examples, including a Level 3 room-aware baseline/candidate pair designed for `arwif-batch-review` workflows and geometry-aware room review.
 
 See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking spatial ARWIF roadmap centered on AI comprehension, reasoning, and production.
 
 See [docs/VISION.md](docs/VISION.md) for the longer-term thesis connecting RWIF semantic memory, ARWIF structured sound, and possible future multimodal companions such as VRWIF.
+
+See [docs/QFFT_v1.4_FOUNDATION.md](docs/QFFT_v1.4_FOUNDATION.md) for the author's broader theoretical foundation and the origin path that informed the format-family direction. That document is intentionally kept separate from the operational format specs.
 
 The first concrete VRWIF surface now covers source-spec validation, normalization, inspection, diff, and higher-level batch review. That keeps the realm narrow while establishing a real schema contract for scene identity, object identity, grouping, camera intent, and lighting intent before build or render tooling exists.
 

@@ -4,6 +4,8 @@ ARWIF stands for Analog Resident Wave Information Format.
 
 Version `0.1` is a narrow audio profile layered on top of the existing RWIF activation-core container. It is intended for compact storage of oscillator-bank instructions, not for PCM sample storage.
 
+For the longer-term analysis-oriented ARWIF direction, see [docs/ARWIF_ANALYSIS_MISSION.md](docs/ARWIF_ANALYSIS_MISSION.md), [docs/ARWIF_ANALYSIS_ROADMAP.md](docs/ARWIF_ANALYSIS_ROADMAP.md), [docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md](docs/ARWIF_ANALYSIS_SCHEMA_DRAFT.md), and [docs/ARWIF_ANALYSIS_COMMAND_SURFACE.md](docs/ARWIF_ANALYSIS_COMMAND_SURFACE.md). Those documents describe the intended path toward inferred source structure from real recordings rather than the current authored-synthesis profile.
+
 ## Scope
 
 ARWIF `v0.1` describes:
@@ -22,6 +24,8 @@ It does not yet describe:
 - arbitrary wavetable synthesis
 
 See [docs/ARWIF_SPATIAL_ROADMAP.md](docs/ARWIF_SPATIAL_ROADMAP.md) for the forward-looking design path toward channel-aware, object-based, room-aware, and field-synthesis spatial ARWIF tiers.
+
+See [docs/ARWIF_ANALYSIS_ROADMAP.md](docs/ARWIF_ANALYSIS_ROADMAP.md) for the forward-looking analysis path toward real-audio ingestion, source hypotheses, reconstructable components, and stem-oriented reasoning workflows.
 
 The current toolchain also accepts a minimal spatial metadata surface beyond the mono baseline:
 

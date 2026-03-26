@@ -4,6 +4,10 @@ __pycache__/
 .venv/
 dist/
 analysis/
+.local/
+# local-only experimentation areas
+# .local/audio for private source material
+# .local/renders for generated experiment outputs
 *.rwif
 !examples/arwif/*.arwif
 *.egg-info/
